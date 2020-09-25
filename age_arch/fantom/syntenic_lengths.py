@@ -1,10 +1,11 @@
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy import stats
 
-RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/age_breaks/"
+RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/syn/"
 
 arch_colors = ["amber", "dusty purple", "windows blue","greyish"]
 arch_palette = sns.xkcd_palette(arch_colors)
@@ -13,6 +14,14 @@ sns.palplot(arch_palette)
 cs = ["faded green", "greyish"]
 cs_pal = sns.xkcd_palette(cs)
 sns.palplot(cs_pal)
+
+fullpal_colors = [ "dusty purple", "slate grey", "windows blue", "blue grey", "amber", "greyish"]
+full_palette = sns.xkcd_palette(fullpal_colors)
+sns.palplot(full_palette)
+
+fullenh_colors = [ "faded green", "slate grey", "amber", "greyish"]
+fullenh_palette = sns.xkcd_palette(fullenh_colors)
+sns.palplot(fullenh_palette)
 
 #%% Files
 path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
@@ -37,6 +46,7 @@ syn_gen_bkgd
 desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sample_id_descriptions.txt"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
+
 #%% LOAD Files
 enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
 summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
@@ -50,6 +60,9 @@ shuffle.mrca_2 = shuffle.mrca_2.round(3)
 final_merge = pd.read_csv(enh, sep = '\t')
 final_merge.mrca_2 = final_merge.mrca_2.round(3)
 
+
+#%%
+final_merge.head()
 #%% enhancer + shuffle syntenic length analysis
 
 # Shuffled syntenic lengths
@@ -95,6 +108,8 @@ SHUFFLE    code  syn_len
 2        simple      255
 """
 
+
+
 #%% enhancer syntenic lengths only
 
 order = ["simple", "complex_core", "derived"]
@@ -110,25 +125,87 @@ xticklabels = ["Simple", "Complex\nCore", "Derived"])
 ax.set_xticklabels(["Simple", "Complex\nCore", "Derived"])
 plt.savefig("%sfantom_syn_lens.pdf" %RE, bbox_inches = "tight")
 
+
+
 #%%
 plot["dataset2"] = plot.code + "-" + plot.dataset
 order = ["simple", "complex_core", "derived"]
 
-fig, ax = plt.subplots(figsize = (8,8))
+fig, ax = plt.subplots(figsize = (16,8))
 sns.set_context("poster")
-sns.boxplot(x = "mrca_2", y = "syn_len",
+sns.barplot(x = "mrca_2", y = "syn_len",
             data = plot.sort_values(by = "dataset2"),
             hue = "dataset2",
-           showfliers = False)
+           #showfliers = False,
+           palette = full_palette)
 
 ax.set(xlabel = "Architecture", ylabel= "Enhancer Length (bp)")
 ax.legend(bbox_to_anchor = (1,1))
-#xticklabels = ["Simple", "Complex\nCore", "Derived"])
-#%%
-plt.savefig("%sfantom_v_shuffle_syn_lens.pdf" %RE, bbox_inches = "tight")
+
+plt.savefig("%sfantom_v_shuffle_syn_lens_per_mrca.pdf" %RE, bbox_inches = "tight")
 
 syn_lens_df = syn_lens.groupby(["code"])["syn_len"].median().reset_index()
 print("fantom", syn_lens_df)
 
 ssyn_lens_df = ssyn_lens.groupby(["code"])["syn_len"].median().reset_index()
 print("shuffle", ssyn_lens_df)
+
+
+#%%
+
+
+ssyn_lens_arch = shuffle[["syn_id", "arch","syn_len", "mrca_2"]].drop_duplicates()
+ssyn_lens_arch["dataset"] = "shuffle"
+
+syn_lens_arch = final_merge[["syn_id", "arch","syn_len", "mrca_2"]].drop_duplicates()
+syn_lens_arch["dataset"] = "fantom"
+plot_arch = pd.concat([syn_lens_arch, ssyn_lens_arch])
+
+
+#%%
+
+plot_arch.arch.unique()
+
+#%%
+
+order = ["simple", "complexenh",]
+hue_order = ["fantom", "shuffle"]
+fig, ax = plt.subplots(figsize = (8,8))
+sns.set_context("poster")
+sns.barplot(x = "arch", y = "syn_len",
+            data = plot_arch, palette = cs_pal, order = order,
+            hue = "dataset",
+            #showfliers = False,
+            hue_order = hue_order,)
+
+ax.set(xlabel = "Architecture", ylabel= "Enhancer Length (bp)",
+xticklabels = ["Simple", "Complex\nenh"])
+plt.savefig("%sfantom_v_shuffle_enh_lens_arch.pdf" %RE, bbox_inches = "tight")
+
+syn_lens_df_ = syn_lens_arch.groupby(["arch"])["syn_len"].median().reset_index()
+print("fantom", syn_lens_df_)
+
+ssyn_lens_df_ = ssyn_lens_arch.groupby(["arch"])["syn_len"].median().reset_index()
+print("shuffle", ssyn_lens_df_)
+
+
+#%%
+
+
+plot_arch["dataset2"] = plot_arch.arch + "-" + plot_arch.dataset
+plot_arch = pd.merge(plot_arch, syn_gen_bkgd[["mrca_2", "taxon2"]])
+#%%
+fig, ax = plt.subplots(figsize = (16,8))
+sns.set_context("poster")
+sns.barplot(x = "taxon2", y = "syn_len",
+            data = plot_arch.sort_values(by = ["mrca_2", "dataset2"]),
+            hue = "dataset2",
+           #showfliers = False,
+           palette = fullenh_palette)
+
+ax.set(xlabel = "Architecture", ylabel= "Enhancer Length (bp)",
+ title= "syntenic blocks")
+ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+ax.legend(bbox_to_anchor = (1,1))
+
+plt.savefig("%sfantom_v_shuffle_enh_lens_per_mrca.pdf" %RE, bbox_inches = "tight")
