@@ -108,8 +108,6 @@ SHUFFLE    code  syn_len
 2        simple      255
 """
 
-
-
 #%% enhancer syntenic lengths only
 
 order = ["simple", "complex_core", "derived"]
@@ -187,6 +185,20 @@ print("fantom", syn_lens_df_)
 
 ssyn_lens_df_ = ssyn_lens_arch.groupby(["arch"])["syn_len"].median().reset_index()
 print("shuffle", ssyn_lens_df_)
+
+# MWU analysis of simple enh v. shuffle lengths
+simpleM, simpleP = stats.mannwhitneyu(syn_lens_arch.loc[(syn_lens_arch.arch == "simple") & \
+(syn_lens_arch.dataset == "fantom"), "syn_len"], \
+syn_lens_arch.loc[(syn_lens_arch.arch == "simple") & \
+(syn_lens_arch.dataset != "fantom"), "syn_len"])
+
+# MWU analysis of complex enh v. shuffle lengths
+complexM, complexP = stats.mannwhitneyu(syn_lens_arch.loc[(syn_lens_arch.arch == "complexenh") & \
+(syn_lens_arch.dataset == "fantom"), "syn_len"], \
+syn_lens_arch.loc[(syn_lens_arch.arch == "complexenh") & \
+(syn_lens_arch.dataset != "fantom"), "syn_len"])
+
+print(simpleM, simpleP, complexM, complexP)
 
 
 #%%
