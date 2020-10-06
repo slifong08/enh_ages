@@ -68,7 +68,7 @@ arch_freq["dataset"] = "FANTOM"
 #%% PLOT FANTOM simple v. SHUFFLE simple (64% v. 58% simple enhancers)
 archs = pd.concat([shuf_arch_freq, arch_freq]) # combine datasets for plotting
 
-shuf_colors = [ "amber", "greyish",]
+shuf_colors = [ "amber", "greyish","dusty purple", "windows blue","greyish"]
 shuf_pal = sns.xkcd_palette(shuf_colors)
 hue_order = ["FANTOM", "SHUFFLE"]
 
@@ -165,9 +165,9 @@ y = "cdf"
 
 sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal)
 ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
-xlabel = "number of segments", ylabel = "cumulative distribution",
+xlabel = "number of segments (x10)", ylabel = "cumulative distribution",
 xlim = (0,10))
-plt.savefig("%sFantom_CDF_breaks.pdf" %RE, bbox_inches = 'tight')
+plt.savefig("%sFantom_CDF.pdf" %RE, bbox_inches = 'tight')
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
 
@@ -179,13 +179,9 @@ total_shuf_breaks.loc[total_shuf_breaks.seg_index ==1, "enh_id"][0]
 OR_dict = {}
 
 for seg_index in breaks_freq.seg_index.unique():
-    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"].tolist()[0] # num simple enhancers
+    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"][0] # num simple enhancers
     b = enh_totals - a # num complex enhancers
-    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"].tolist()
-    if len(c)>0:
-        c = c[0]
-    else:
-        c = 0 # num simple shuffle # num simple shuffle
+    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"][0] # num simple shuffle
     d = total_shuf_breaks.enh_id.sum() - c # num complex shuffle
 
     obs = [[a,b], [c,d]]
@@ -228,8 +224,7 @@ plt.savefig("%sfig2b-fantom_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches
 hue_order = ["FANTOM", "Shuffle"]
 fig, ax = plt.subplots(figsize = (8,8))
 sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = plot_cdf,
-hue = "dataset", hue_order = hue_order, palette = shuf_pal)
+sns.barplot(x = "seg_index", y = "cdf", data = archs, hue = "dataset", hue_order = hue_order, palette = es_pal)
 ax.set(xlabel="Number of Age Segments per Enhancer",\
 ylabel = "Cumulative Frequency of Dataset",\
 title = "FANTOM Enhancer Age Segment Count\n Cumulative distribution",
