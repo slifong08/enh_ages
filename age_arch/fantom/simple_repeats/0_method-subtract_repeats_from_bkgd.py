@@ -4,8 +4,8 @@ import subprocess
 
 RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/syn/"
 
-ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
-ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
+ExonP = "/dors/capra_lab/projects/enhancer_ages/te/data/"
+ExonF = "%ssimple_repeats.bed" % ExonP
 
 ShufP = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
 ShufFs = glob.glob("%s*_age_breaks.bed" % ShufP)
@@ -14,8 +14,8 @@ ShufFs = glob.glob("%s*_age_breaks.bed" % ShufP)
 EnhP = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 EnhFs = glob.glob("%sFANTOM_enh_age_arch_*.tsv" % EnhP)
 
-ShufOutP = "%snon-genic/" % EnhP
-OutP = "%snon-genic/" % EnhP
+ShufOutP = "%sno-repeats/" % EnhP
+OutP = "%sno-repeats/" % EnhP
 
 #%% define bedtools intersection command
 
@@ -23,7 +23,7 @@ OutP = "%snon-genic/" % EnhP
 def bed_subtract(shufF, exonF, outP):
 
     fName = (shufF.split("/")[-1]).split(".")[0]
-    outF = "%sno-exon_%s.bed" % (outP, fName)
+    outF = "%sno-repeats_%s.bed" % (outP, fName)
 
     # use -v argument to subtract exons from shuffle file.
     cmd = "bedtools intersect -a %s -b %s -v > %s" % (shufF, exonF, outF)

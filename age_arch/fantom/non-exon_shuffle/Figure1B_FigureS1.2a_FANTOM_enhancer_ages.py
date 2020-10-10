@@ -5,13 +5,13 @@ import seaborn as sns
 from scipy import stats
 RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/age_breaks/"
 #%% Files
-path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
+path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
 
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
+enh = "%sFANTOM_NOEXON_enh_age_arch_full_matrix.tsv" % path
+summaryEnh = "%sFANTOM_NOEXON_enh_age_arch_summary_matrix.tsv" % path
 
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
+shuf = "%sSHUFFLE_NOEXON_FANTOM_enh_age_arch_full_matrix.tsv" % path
+summaryShuf = "%sSHUFFLE_NOEXON_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 #%% other summary files
 
@@ -28,11 +28,6 @@ desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sampl
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
 #%% LOAD Files
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
-
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shuffle = pd.read_csv(shuf, sep = '\t')
 shuffle.mrca_2 = shuffle.mrca_2.round(3)
@@ -70,7 +65,7 @@ totals['freq'] = totals.mrca_count.divide(totals.mrca_count.sum())
 plot_dist = pd.merge(plot_dist, totals, how = "left", on = "mrca_2")
 plot_dist["shuf_id"] = "FANTOM"
 plot_dist["dataset"] = "FANTOM"
-dist = pd.concat([shuffle_dist2, plot_dist]) # concat shuffle and fantom age distributions
+dist = pd.concat([shuffle_dist2, plot_dist], sort = True) # concat shuffle and fantom age distributions
 dist.head()
 
 #%%
@@ -133,7 +128,7 @@ ax1.set_xticklabels(ax1.get_xticklabels(), rotation = 90, horizontalalignment="l
 ax1.set(ylabel = "log2(Fold-Change)", xlabel = "Taxon \n MWU = %s, pval = %s"\
  % (mwustat, mwupval), ylim = (-2.7, 2), title = "FANTOM Enhancer Age Fold-change")
 
-plt.savefig("%sfig1b_figS1.2a-FANTOM_WHOLE_ENHANCER_MRCA_DIST_TAXON2.pdf" % \
+plt.savefig("%sfig1b_figS1.2a-FANTOM_nOEXON_WHOLE_ENHANCER_MRCA_DIST_TAXON2.pdf" % \
 (RE), bbox_inches='tight')
 #%%
 enh_ages = final_merge.groupby(['enh_id'])["mrca_2"].max().reset_index()

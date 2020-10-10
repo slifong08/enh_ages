@@ -19,11 +19,19 @@ last_run = datetime.datetime.now()
 today = (datetime.date.today())
 print("last run", datetime.datetime.now())
 
+
 #%% In[3]: load paths
 
 
-path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
+path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
 
+samples = glob.glob("%sno-exon_temp_FANTOM_enh_age_arch_*.bed" % path)
+
+
+shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/non-genic/"
+shuffle_path = path
+shuffle_files = glob.glob("%sno-exon_shuf-*_age_breaks.bed" % path)
+shuffle_files
 
 # # load the genomic background
 
@@ -54,7 +62,7 @@ def formatDF(df, datatype):
 
     df["mrca"] = df["mrca"].round(3) # round mrca value
     df["enh_len"]= df.end_enh - df.start_enh
-
+    print(list(df))
     if "chr_syn" in list(df):
 
         df["syn_id"] = df["chr_syn"] + ":" + df["start_syn"].map(str) + "-" + df["end_syn"].map(str)
@@ -70,8 +78,8 @@ def formatDF(df, datatype):
         df["code"] = "complex_core"
         df.loc[(df["core"] ==0),"code"] = "derived"
         df.loc[(df["core_remodeling"] ==0), "code"] = "simple"
-
-        df["seg_index"] =  (df["seg_index"] +1) # pseudocount for measuring break density
+        if df.seg_index.min() ==0:
+            df["seg_index"] =  (df["seg_index"] +1) # pseudocount for measuring break density
 
     df["arch"] = 0
     df.loc[(df["core_remodeling"] ==0),"arch"] = "simple"
@@ -100,8 +108,7 @@ def formatDF(df, datatype):
 
 #%% In[15]:# # format 100 shuffles dataframes
 
-shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/non-genic/"
-shuffle_files = glob.glob("%sno-exon_shuf-*_age_breaks.bed" % shuffle_path)
+
 shuf_dict={}
 shuf_break_dict={}
 for f in shuffle_files:
@@ -146,3 +153,71 @@ out_enh_shufBreaks = "%sSHUFFLE_NOEXON_FANTOM_enh_age_arch_summary_matrix.tsv" %
 shufBreaks.to_csv(out_enh_shufBreaks, sep = '\t', index = False)
 
 shufBreaks.head()
+
+
+#%%
+
+samples
+#%%
+
+enh_dict = {} # {sample_id: enh_tfbs_density df}
+enh_break_dict = {}
+for sample in samples:
+    if os.path.getsize(sample)>0:
+        df = pd.read_csv(sample, sep='\t', header = None)
+        df = df[[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]].drop_duplicates()
+
+        # rename the columns
+        df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
+                       "chr_enh", "start_enh", "end_enh", "seg_index",
+                       "core_remodeling", "core", "mrca"]
+
+        sample_id = "".join((sample.split("/")[-1]).split("_")[0])
+
+        df["id"] = sample_id # add sample_id to column
+
+        formatted_df, formatted_df_breaks = formatDF(df, "FANTOM") # format df
+
+        enh_dict[sample_id] = formatted_df # add sample df to dictionary
+
+        enh_break_dict[sample_id] = formatted_df_breaks
+
+df = pd.concat(enh_dict.values())
+
+df.head()
+
+#%% In[19]: write the full FANTOM enhancer matrix.
+
+# ## remove large random FANTOM enhancer. This must be an error.
+print(df.enh_len.max())
+
+final_merge = df.loc[df.enh_len <10000] # remove this weirdo
+
+print(final_merge.enh_len.max())
+
+# save the file
+out_enh = "%sFANTOM_NOEXON_enh_age_arch_full_matrix.tsv" % path
+final_merge.to_csv(out_enh, sep = '\t', index = False)
+
+final_merge.head()
+#%%
+final_merge.seg_index.min()
+#%%
+shuff
+#%% In[33]:
+# # Write summary FANTOM enhancer file w/ oldest age/ most breaks/arch
+
+breaks = pd.concat(enh_break_dict.values())
+print(breaks.shape)
+
+# remove the longest enhancer in the FANTOM dataset...
+print(breaks.enh_len.max(), "before removing the longest weirdo eRNA")
+
+breaks = breaks.loc[breaks.enh_len <10000] # remove this weirdo
+
+print(breaks.enh_len.max(), "after removing the longest weirdo eRNA")
+
+out_enh_breaks = "%sFANTOM_NOEXON_enh_age_arch_summary_matrix.tsv" % path
+breaks.to_csv(out_enh_breaks, sep = '\t', index = False)
+
+breaks.head()

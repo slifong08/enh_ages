@@ -23,14 +23,14 @@ sns.set_style("white")
 import datetime
 LAST_RUN = datetime.datetime.now()
 TODAY = (datetime.date.today())
-RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/"
+RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/pleiotropy/"
 
 print("last run", LAST_RUN)
 
 path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/download/tfbs/"
 samples = glob.glob("%s*_enh_tfbs_density.bed" % path)
 
-multipath = "/dors/capra_lab/projects/enhancer_ages/fantom/data/multiintersect/"
+multipath = "/dors/capra_lab/projects/enhancer_ages/fantom/data/multiintersect/trimmed/"
 multifile = "%strimmed_all_fantom_enh_112_tissues_multiintersect_0.5_count.bed"%multipath
 
 
@@ -65,7 +65,7 @@ enh ="%sall_unique_fantom_enh_112_tissue.bed" % inpath
 
 enhdf = pandas.read_csv(enh, sep = '\t', header = None)
 enhdf.columns=["chr_enh", "start_enh", "end_enh", "core_remodeling", "mrca_2", "code"]
-enhdf["enh_id"] = enhdf.chr_enh + ":" + enhdf.start_enh.map(str) + "-" + enhdf.end_enh.map(str)
+
 
 
 #%% In[5]:
@@ -156,11 +156,11 @@ print( "simple, complex medians", simple_med, complex_med)
 
 #%% In[20]:
 
-
+multi.mrca = multi.mrca.round(3)
 multi = pandas.merge(multi, syn_gen_bkgd, how = "left", on = "mrca")
 multi.head()
 
-
+multi.taxon2.unique()
 
 #%% In[22]:
 
@@ -343,14 +343,87 @@ stats.mstats.kruskalwallis(*argsComplex)
 
 
 #%% In[26]:
+def plot_reg(taxon2, df):
+
+    test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
+
+    fig, (ax1, ax2) = plt.subplots(ncols = 2, figsize = (20,8))
+
+    # architecture-specific dataframe
+    simple = test.loc[test.code_x == "simple"]
+
+    complexenh = test.loc[test.code_x != "simple"]
+
+    x = "count_overlap"
+    y = "enh_len"
 
 
+    # do linear regression for simple enhancers in age - pleiotropy x length
+    # get coeffs of linear fit
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(simple[x],simple[y])
+
+
+    # plot simple enhancers pleiotropy x length
+
+    # plot boxes - could get rid of
+    sns.boxplot(x, y, data = simple, ax = ax1, color = "y",
+               showfliers = False)
+
+    # plot regplot w/ linear regression annotation
+    sns.regplot(x=x, y=y, data = simple,
+                line_kws={'label':"y={0:.1f}x+{1:.1f}".format(slope,intercept)},
+                color="y", ax = ax2,
+                x_estimator=np.median)
+
+    ax1.set(title = "Simple - %s" % taxon2,
+            xlim = (0, simple.count_overlap.max()),
+            xlabel = 'context overlap (x10)',
+           ylabel = "enhancer length (bp)")
+
+    ax1.set_xticks(np.arange(0, simple.count_overlap.max(), step = 10))
+
+    # plot legend
+
+    ax1.legend(["simple", "complex"])
+
+
+    # plot complex enhancers pleiotropy x length
+    if taxon2 != "Homo sapiens (0)":
+
+        slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
+
+        sns.boxplot(x, y,  data = complexenh, ax = ax1, color = "green",
+                   showfliers = False)
+
+        sns.regplot(x=x, y=y, data = complexenh,
+                line_kws={'label':"y={0:.1f}x+{1:.1f}".format(slope,intercept)},
+                color="g", ax = ax2,
+                x_estimator=np.median)
+
+        ax2.set(title = "Complex - %s" % taxon2,
+                xlim = (0,complexenh.count_overlap.max()),
+                xlabel = 'context overlap (x10)',
+                ylabel = "enhancer length (bp)")
+        ax1.set_xticks(np.arange(0, simple.count_overlap.max(), step = 10))
+        ax2.set_xticks(np.arange(0, complexenh.count_overlap.max(), step = 10))
+        ax2.legend()
+    plt.tight_layout()
+    return fig
+#%%
 multi.head()
-a = sns.jointplot(x = "enh_len", y = "count_overlap", data = multi.loc[multi.core_remodeling ==0])
-a.annotate(stats.pearsonr)
-for age in multi.mrca_2.unique():
-    if str(age) != "nan":
-        simple_age = multi.loc[(multi.core_remodeling ==1) & (multi.mrca_2 ==age)]
-        sns.scatterplot(x = "enh_len", y = "count_overlap", data = simple_age)
-        plt.show()
-        #a.annotate(stats.pearsonr)
+#%%
+multi.loc[multi.taxon2.str.contains("Tetrapoda")]
+#%%
+taxon2 = "Tetrapoda (352)"
+fig = plot_reg(taxon2, multi)
+sid = "Tetrapoda"
+plt.savefig("%strimmed_pleiotropy_x_length_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")
+#%%
+for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
+    print(taxon2)
+
+    if str(taxon2) != "nan":
+        fig = plot_reg(taxon2, multi)
+        sid = taxon2.split(" ")[0]
+        plt.savefig("%strimmed_pleiotropy_x_length_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")

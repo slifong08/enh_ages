@@ -22,9 +22,12 @@ print("last run", datetime.datetime.now())
 #%% In[3]: load paths
 
 
-path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks"
-
+path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 samples = glob.glob("%sall_unique_fantom_erna_112_tissue.bed" % path)
+
+
+shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
+shuffle_files = glob.glob("%sshuf-*_age_breaks.bed" % shuffle_path)
 
 
 # # load the genomic background
@@ -103,8 +106,6 @@ def formatDF(df, datatype):
 
 #%% In[15]:# # format 100 shuffles dataframes
 
-shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
-shuffle_files = glob.glob("%sshuf-*_age_breaks.bed" % shuffle_path)
 shuf_dict={}
 shuf_break_dict={}
 for f in shuffle_files:
@@ -190,10 +191,19 @@ breaks = breaks.loc[breaks.enh_len !=breaks.enh_len.max()] # remove this weirdo
 print(breaks.enh_len.max(), "after removing the longest weirdo eRNA")
 
 out_enh_breaks = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
+
+breaks = breaks[['chr_enh', 'start_enh', 'end_enh', 'enh_id', 'core_remodeling',
+ 'arch', 'seg_index',
+ 'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
+
 breaks.to_csv(out_enh_breaks, sep = '\t', index = False)
 
+# make a bedfile
+out_enh_breaks_bed = "%sFANTOM_enh_age_arch_summary_matrix.bed" % path
+breaks.to_csv(out_enh_breaks_bed, sep = '\t', index = False, header = False)
 breaks.head()
-
+#%%
+list(breaks)
 #%% In[32]:# # Write shuffle full dataframe
 
 print(shuffle.enh_len.max())

@@ -5,8 +5,8 @@
 
 
 #%% Intro
-
 # created 2019-08-05
+
 # sarahfong
 
 # Goal - multiintersect all roadmap histone enhancers with a count for the number of overlapping coordinates between datasets
@@ -58,7 +58,7 @@ all_beds_str = ' '.join(str(bed) for bed in all_beds)
 all_beds_str
 
 
-#%% In[26]: TRIM the enhancers to mean length
+#%% In[26]: TRIM the enhancers to mean length per enhancer dataset.
 
 
 for infile in infiles:

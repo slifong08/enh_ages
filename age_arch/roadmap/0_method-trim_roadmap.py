@@ -25,25 +25,26 @@ import datetime
 
 
 fraction_overlap = 0.5
-trim_len = 310
+trim_len = "mean"
 
 
 
 # #  Trim function
 
-# In[14]:
+p# In[14]:
 
 
 def trim(bedfile, trim_len):
 
-    df = pd.read_csv(bedfile, sep ='\t', header = -1) # open file
+    df = pd.read_csv(bedfile, sep ='\t', header = None) # open file
     df.columns = ["chr", "start", "end", "id"] # name columns
 
     df["old_len"]= df.end - df.start # calculate enhancer length
 
-    if trim_len == 0: # take the mean
+    if trim_len == "mean": # take the mean
 
         trim_len = df["old_len"].mean().round(0) # mean enhancer length in dataset
+    print(df.id[0], trim_len)
     df["midpoint"] = (df.start + (trim_len)/2).astype(int) # identify the midpoint of each enhancer
 
     df["new_len"] = trim_len
@@ -63,10 +64,11 @@ def trim(bedfile, trim_len):
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 
 # -a
-test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E116"]
+#test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E116"]
 
 outpath = "%strimmed/" %path
-os.mkdir(outpath)
+if os.path.exists(outpath) == False:
+    os.mkdir(outpath)
 
 
 # In[30]:
@@ -77,7 +79,7 @@ for test in test_list:
     print(test)
     # Entire Enhancer #
     # Trim enhancers to mean lengths #
-    infile = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed" % (path, test)
+    infile = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed.gz" % (path, test)
 
     trimmed_df = trim(infile, trim_len)
     trimmed_df.to_csv("%strimmed%s-%s.bed" % (outpath, trim_len,  test,),
@@ -88,28 +90,25 @@ for test in test_list:
 
 
 source_path = outpath
-samples = glob.glob("%s*.bed"%source_path)
+samples = glob.glob("%strimmed0-*.bed"%source_path)
 sample_dict = {}
 
 ITERATIONS = 50
 AGE_VAL = 1
 BREAK_VAL = 1
 TFBS_VAL = 0
-SHUF_VAL = 1
+SHUF_VAL = 0
+RUN_VAL = 1
 
 RUN = 1 # Launch command or dont
-SBATCH = 1 # Sbatch or run w/ python interpreter
+SBATCH = 0 # Sbatch or run w/ python interpreter
 
-ITERS = "\"-i %s\"" % ITERATIONS
-AGE = "\"-a %s\"" % AGE_VAL
-BREAKS = "\"-b %s\"" % BREAK_VAL
-TFBS = "\"-t %s\"" % TFBS_VAL
-SHUF = "\"-sh %s\"" % SHUF_VAL
+
 for sample in samples:
     sample_id = ((sample.split("/")[-1]).split("_")[-1]).split(".")[0]
     sample_dict[sample_id] = sample
 
-
+outpath
 # In[37]:
 
 
@@ -124,14 +123,16 @@ print("start", datetime.datetime.now())
 for sample_id, file in sample_dict.items():
 
     if SBATCH ==1:
-        cmd = "sbatch /dors/capra_lab/users/fongsl/enh_age/bin/age_enhancers.slurm %s %s %s %s %s %s %s"         % (file, sample_id,ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL)
+        cmd = "sbatch /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/age_enhancers_w_parallelbreaks.slurm %s %s %s %s %s %s %s" \
+                % (file, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_VAL)
 
         print("SLURM", sample_id, datetime.datetime.now())
         print(cmd)
         if RUN ==1:
             os.system(cmd)
     else:
-        cmd = "python /dors/capra_lab/users/fongsl/enh_age/bin/age_enhancers.py %s %s -i %s -a %s -b %s -t %s -sh %s"         % (file, sample_id, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL)
+        cmd = "python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/age_enhancers_w_parallelbreaks.py %s -i %s -a %s -b %s -t %s -sh %s -rt %s"\
+                 % (file, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_VAL)
 
         print("PYTHON", sample_id, datetime.datetime.now())
         print(cmd)
