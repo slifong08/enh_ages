@@ -9,20 +9,20 @@ from scipy import stats
 import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
-RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/age_breaks/"
+RE ="/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/age_breaks/relative_simple/"
 colors = [ "amber", "faded green", "dusty purple", "windows blue","greyish"]
 palette = sns.xkcd_palette(colors)
 sns.palplot(palette)
 
-
+sid = "E105"
 #%% Files
-path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
+pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/"
+path = "%sh3k27ac_plus_h3k4me3_minus_peaks/breaks/" % pre_path
+enh = "%s%s_enh_breaks.bed" % (path, sid)
 
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
+shuffle_path = "%sshuffle/breaks/" % pre_path
+shufFs = glob.glob("%sshuf-Hsap_H3K27ac_plus_H3K4me3_minus_%s-*_age_breaks.bed" % (path, sid))
 
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 #%% other summary files
 
