@@ -10,21 +10,29 @@ import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
 RE ="/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/age_breaks/relative_simple/"
+
 colors = [ "amber", "faded green", "dusty purple", "windows blue","greyish"]
 palette = sns.xkcd_palette(colors)
 sns.palplot(palette)
 
-sid = "E105"
+sid = "E087"
+simple_break_percentile = 0.5
+
 #%% Files
-pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/"
-path = "%sh3k27ac_plus_h3k4me3_minus_peaks/breaks/" % pre_path
-enh = "%s%s_enh_breaks.bed" % (path, sid)
-
-shuffle_path = "%sshuffle/breaks/" % pre_path
-shufFs = glob.glob("%sshuf-Hsap_H3K27ac_plus_H3K4me3_minus_%s-*_age_breaks.bed" % (path, sid))
 
 
-#%% other summary files
+pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
+path = "%sbreaks/" % pre_path
+
+# file contains both enhancer + 10 shuffled breaks.
+enh = "%snon-genic/no-exon_ROADMAP_%s_enh_and_shuf_age_arch_summary_matrix.bed" % (path, sid)
+
+enh_percentiles = "%sall_ROADMAP_breaks_percentiles.bed" % path
+pdf = pd.read_csv(enh_percentiles, sep = '\t')
+
+relative_simple = pdf.loc[(pdf.sid2 == sid) & (pdf.pct == simple_break_percentile), "seg_index"].iloc[0]
+print(relative_simple)
+#%%
 
 # age and taxon file
 syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
@@ -34,24 +42,33 @@ syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # r
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
 syn_gen_bkgd
 
+
 # tissue/cell line dataset descriptions
-desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sample_id_descriptions.txt"
+desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
 #%% LOAD Files
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
 
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
+df = pd.read_csv(enh, sep = '\t')
 
-shuffle = pd.read_csv(shuf, sep = '\t')
-final_merge = pd.read_csv(enh, sep = '\t')
+df.columns = ['chr_enh','start_enh','end_enh','shuf_id','enh_id',
+'core_remodeling','arch', 'seg_index', 'mrca','enh_len','taxon','mrca_2',
+'taxon2','mya','mya2','seg_den','datatype']
 
-shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]].drop_duplicates()
+# RELATIVE SIMPLE DEF
+df["relative_arch"] = "rel_simple"
+df.loc[df.seg_index >=relative_simple, "relative_arch"] = "rel_complex"
+df.loc[df.relative_arch == "rel_simple", "core_remodeling"] = 0
+#%%
+final_merge = df.loc[~ df.datatype.str.contains("shuf")]
+
+shuffle = df.loc[df.datatype.str.contains("shuf")]
+shuffle.head()
+#%%
+shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]]
 shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "shuf_id"])["enh_id"].count().reset_index()
 shuf_arch_freq.head()
-
+#%%
 totals = shuf_arch.groupby(["shuf_id"])["enh_id"].count().reset_index()
 totals.columns = ["shuf_id", "totals"]
 shuf_arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
@@ -63,14 +80,14 @@ arch = final_merge[["enh_id", "core_remodeling"]].drop_duplicates()
 arch_freq = arch.groupby("core_remodeling")["enh_id"].count().reset_index()
 totals = len(arch)
 arch_freq["freq"] = arch_freq["enh_id"].divide(totals)
-arch_freq["dataset"] = "FANTOM"
+arch_freq["dataset"] = "ROADMAP"
 
-#%% PLOT FANTOM simple v. SHUFFLE simple (64% v. 58% simple enhancers)
+#%% PLOT ROADMAP simple v. SHUFFLE simple (64% v. 58% simple enhancers)
 archs = pd.concat([shuf_arch_freq, arch_freq]) # combine datasets for plotting
 
-shuf_colors = [ "amber", "greyish","dusty purple", "windows blue","greyish"]
+shuf_colors = [ "amber", "greyish",]
 shuf_pal = sns.xkcd_palette(shuf_colors)
-hue_order = ["FANTOM", "SHUFFLE"]
+hue_order = ["ROADMAP", "SHUFFLE"]
 
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.set_context("poster")
@@ -85,22 +102,22 @@ for p in ax.patches:
 
 ax.set(xticklabels = "", xlabel= "", title= "", ylabel= "Frequency of Dataset")
 ax.get_legend().remove()
-plt.savefig("%sfantom_enh_shuf_simple_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sROADMAP_%s_enh_shuf_simple_freq.pdf" % (RE, sid), bbox_inches = "tight")
 
-#%% PLOT FANTOM simple v. COMPLEX (64% simple v. 36% complex enhancers)
+#%% PLOT ROADMAP simple v. COMPLEX (64% simple v. 36% complex enhancers)
 
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.set_context("poster")
 sns.barplot(x = "core_remodeling", y="freq", data = arch_freq, palette = palette)
 ax.set(xticklabels= ["Simple", "Complex\nEnhancer"], xlabel = "", \
-ylabel= "Frequency of Dataset", title= "FANTOM Enhancer Architectures")
+ylabel= "Frequency of Dataset", title= "ROADMAP %s Enhancer Architectures" % sid)
 for p in ax.patches:
     x=p.get_bbox().get_points()[:,0]
     y=p.get_bbox().get_points()[1,1]
     ax.annotate('{:.0f}%'.format(100.*y), (x.mean(), y),
             ha='left', va='bottom', color = "k", alpha = 0.4, fontsize = 20) # set the alignment of the text
 
-plt.savefig("%sfantom_enh_simple_v_complex_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sROADMAP_%s_enh_simple_v_complex_freq.pdf" %(RE, sid), bbox_inches = "tight")
 
 #%% get shuffled breaks distribution
 shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
@@ -111,7 +128,6 @@ shuf_totals = shuf_break_freq.groupby("shuf_id")["enh_id"].sum().reset_index()
 shuf_totals.columns = ["shuf_id", "shuf_id_totals"]
 
 shuf_break_freq = pd.merge(shuf_break_freq, shuf_totals, how = "left", on = "shuf_id")
-
 
 shuf_break_freq["freq"] = shuf_break_freq["enh_id"].divide(shuf_break_freq.shuf_id_totals)
 shuf_break_freq["dataset"] = "Shuffle"
@@ -143,8 +159,8 @@ enh_totals = len(breaks)
 
 breaks_freq["freq"] = breaks_freq["enh_id"].divide(enh_totals)
 
-breaks_freq["dataset"] = "FANTOM"
-breaks_freq["shuf_id"] = "FANTOM"
+breaks_freq["dataset"] = "ROADMAP"
+breaks_freq["shuf_id"] = "ROADMAP"
 breaks_freq["cdf"]= np.cumsum(breaks_freq.freq)/1
 
 breaks_freq.head()
@@ -165,9 +181,9 @@ y = "cdf"
 
 sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal)
 ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
-xlabel = "number of segments (x10)", ylabel = "cumulative distribution",
-xlim = (0,10))
-plt.savefig("%sFantom_CDF.pdf" %RE, bbox_inches = 'tight')
+xlabel = "number of segments", ylabel = "cumulative distribution",
+xlim = (0,30))
+plt.savefig("%sROADMAP_CDF%s.pdf" % (RE, sid), bbox_inches = 'tight')
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
 
@@ -176,12 +192,21 @@ total_shuf_breaks = shuf_break_freq.groupby(["seg_index"])["enh_id"].sum().reset
 
 total_shuf_breaks.loc[total_shuf_breaks.seg_index ==1, "enh_id"][0]
 #%%
+
+breaks_freq.seg_index.unique()
+breaks_freq.loc[breaks_freq.seg_index ==3, "enh_id"].iloc[0]
+
+#%%
+
+total_shuf_breaks.seg_index.unique()
+#%%
 OR_dict = {}
 
 for seg_index in breaks_freq.seg_index.unique():
-    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"][0] # num simple enhancers
+
+    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"].iloc[0]# num simple enhancers
     b = enh_totals - a # num complex enhancers
-    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"][0] # num simple shuffle
+    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"].iloc[0] # num simple shuffle
     d = total_shuf_breaks.enh_id.sum() - c # num complex shuffle
 
     obs = [[a,b], [c,d]]
@@ -201,9 +226,9 @@ ORdf.head()
 fig, ax = plt.subplots(figsize =(8,8))
 sns.set("poster")
 
-firstfive = ORdf.loc[ORdf.seg_index <6]
+firstfive = ORdf.loc[ORdf.seg_index <10]
 
-sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <6],
+sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <10],
             linewidth=2.5, facecolor=(1, 1, 1, 0),
              edgecolor=".2",  yerr=(firstfive["ci_upper"] - firstfive["ci_lower"]))
 
@@ -218,19 +243,41 @@ ax.yaxis.set_major_formatter(ticks)
 ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 
-plt.savefig("%sfig2b-fantom_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2b-ROADMAP_%s_age_seg_fold_change_matplotlib.pdf" %(RE, sid), bbox_inches = "tight")
+
 
 #%%
-hue_order = ["FANTOM", "Shuffle"]
-fig, ax = plt.subplots(figsize = (8,8))
-sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = archs, hue = "dataset", hue_order = hue_order, palette = es_pal)
-ax.set(xlabel="Number of Age Segments per Enhancer",\
-ylabel = "Cumulative Frequency of Dataset",\
-title = "FANTOM Enhancer Age Segment Count\n Cumulative distribution",
-xlim=(-1, 5.5))
+OR_dict = {}
+shuf_arch_freq
+#%%
+shuf_mean = shuf_arch_freq.groupby(["core_remodeling"])["enh_id"].sum().reset_index()
+#%%
+a = arch_freq.loc[arch_freq.core_remodeling ==0, "enh_id"].iloc[0]# num simple enhancers
+b = arch_freq.loc[arch_freq.core_remodeling !=0, "enh_id"].iloc[0]
+c = shuf_mean.loc[shuf_mean.core_remodeling ==0, "enh_id"].iloc[0] # num simple shuffle
+d = shuf_mean.loc[shuf_mean.core_remodeling !=0, "enh_id"].iloc[0] # num simple shuffle
 
-ax.set_title("")
-ax.get_legend().remove()
+obs = [[a,b], [c,d]]
+OR, P = stats.fisher_exact(obs)
+table = sm.stats.Table2x2(obs) # get confidence interval
+odds_ci = table.oddsratio_confint()
 
-plt.savefig("%sfig2b-fantom_age_seg_cum_dist_matplotlib.pdf" %RE, bbox_inches = "tight")
+
+print (obs, OR, P)
+
+#%%
+### result ###
+
+# ODDS OF BEING SIMPLE IN ROADMAP ENHANCERS are depleted slightly compared to bkgd
+
+#       "simple" "complex"
+# enh [[5692, 6624],
+# shuf [63999, 71031]]
+
+#OR = 0.954
+#p-value = 0.012
+
+#%%
+sns.distplot(final_merge.loc[final_merge.core_remodeling ==1, "enh_len"], label = "enh")
+sns.distplot(shuffle.loc[shuffle.core_remodeling ==1, "enh_len"])
+plt.legend()
