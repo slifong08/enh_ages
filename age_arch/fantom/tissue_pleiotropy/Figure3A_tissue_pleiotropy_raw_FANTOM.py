@@ -37,8 +37,6 @@ multifile = "%sraw_FANTOM_enh_age_arch_summary_matrix_multiintersect_0.5_count.b
 
 # #%% Import species data
 
-#%% In[2]:
-
 
 syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
 syn_gen_bkgd= pandas.read_csv(syn_gen_bkgd_file, sep = '\t')
@@ -252,7 +250,7 @@ ax1.set_xticklabels("")
 ax1.set_ylabel("")
 
 sns.set("poster")
-plt.savefig("%sFig3a-JOINT_boxplot_fantom_sample_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
+plt.savefig("%sFig3a-JOINT_boxplot_fantom_raw_length_sample_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
 
 
 #%% In[21]:
@@ -374,3 +372,70 @@ for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
     fig = plot_reg(taxon2, multi)
     sid = taxon2.split(" ")[0]
     plt.savefig("%spleiotropy_x_length_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")
+
+#%% LENGTH X pleiotropy
+multi.head()
+multi["rounded_len"] = multi.enh_len.round(-2) # round to the nearest 100.
+multi.head()
+#%%
+def plot_reg_len(taxon2, df):
+
+    test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
+
+    fig, (ax2) = plt.subplots(figsize = (8,8))
+
+    # architecture-specific dataframe
+    simple = test.loc[test.arch == "simple"]
+
+    complexenh = test.loc[test.arch != "simple"]
+
+    y = "count_overlap"
+    x = "rounded_len"
+
+
+    # do linear regression for simple enhancers in age - pleiotropy x length
+    # get coeffs of linear fit
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(simple[x],simple[y])
+
+
+    # plot simple enhancers pleiotropy x length
+
+
+    # plot regplot w/ linear regression annotation
+    sns.regplot(x=x, y=y, data = simple,
+                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+                color="y", ax = ax2,
+                x_estimator=np.median)
+
+
+    # plot complex enhancers pleiotropy x length
+    if taxon2 != "Homo sapiens (0)":
+
+        slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
+
+
+        sns.regplot(x=x, y=y, data = complexenh,
+                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+                color="g", ax = ax2,
+                x_estimator=np.median)
+
+        ax2.set(title = "%s" % taxon2,
+                ylim = (0,complexenh.count_overlap.max()),
+                ylabel = 'context overlap',
+                xlabel = "enhancer length (bp)")
+
+        #ax2.set_xticks(np.arange(0, complexenh.rounded_len.max(), step = 100), rotation = 90)
+        ax2.legend()
+    plt.tight_layout()
+    return fig
+#%%
+taxon2 = "Vertebrata (615)"
+plot_reg_len(taxon2, multi)
+#%%
+for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
+    print(taxon2)
+    fig = plot_reg_len(taxon2, multi)
+    sid = taxon2.split(" ")[0]
+    plt.savefig("%sraw_length_x_pleiotropy_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")
+    

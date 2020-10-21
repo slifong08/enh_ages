@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#%% In[1]:
+#%%
 
 
 import glob
@@ -34,9 +34,7 @@ multipath = "/dors/capra_lab/projects/enhancer_ages/fantom/data/multiintersect/t
 multifile = "%strimmed_all_fantom_enh_112_tissues_multiintersect_0.5_count.bed"%multipath
 
 
-# #%% Import species data
-
-#%% In[2]:
+#%% Import species data
 
 
 syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
@@ -50,8 +48,6 @@ syn_gen_bkgd.head()
 
 # # get enhancer file tissue/cell line descriptions
 
-#%% In[3]:
-
 
 desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sample_id_descriptions.txt"
 desc_df= pandas.read_csv(desc_file, sep = '\t', header = None)
@@ -60,7 +56,7 @@ inpath = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 enh ="%sall_unique_fantom_enh_112_tissue.bed" % inpath
 
 
-#%% In[4]:
+#%%
 
 
 enhdf = pandas.read_csv(enh, sep = '\t', header = None)
@@ -68,7 +64,7 @@ enhdf.columns=["chr_enh", "start_enh", "end_enh", "core_remodeling", "mrca_2", "
 
 
 
-#%% In[5]:
+#%%
 
 
 enhdf.head()
@@ -83,7 +79,7 @@ enhdf.head()
 #
 # ### measure enhancer redundancy by counting the number of samples w/ same enh_id
 
-#%% In[6]:
+#%%
 
 
 multi = pandas.read_csv(multifile, sep ='\t', header = None)
@@ -146,7 +142,8 @@ plt.legend()
 #%% In[19]:
 
 
-t, pval = stats.mannwhitneyu(df["count_overlap"].loc[df["code"].str.contains("complex")],                                   df["count_overlap"].loc[df["code"].str.contains("simple")])
+t, pval = stats.mannwhitneyu(df["count_overlap"].loc[df["code"].str.contains("complex")],
+                                   df["count_overlap"].loc[df["code"].str.contains("simple")])
 print(t, pval)
 
 simple_med = df["count_overlap"].loc[df["code"].str.contains("simple")].median()
@@ -347,7 +344,7 @@ def plot_reg(taxon2, df):
 
     test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
 
-    fig, (ax1, ax2) = plt.subplots(ncols = 2, figsize = (20,8))
+    fig, (ax2) = plt.subplots(figsize = (8,8))
 
     # architecture-specific dataframe
     simple = test.loc[test.code_x == "simple"]
@@ -366,9 +363,6 @@ def plot_reg(taxon2, df):
 
     # plot simple enhancers pleiotropy x length
 
-    # plot boxes - could get rid of
-    sns.boxplot(x, y, data = simple, ax = ax1, color = "y",
-               showfliers = False)
 
     # plot regplot w/ linear regression annotation
     sns.regplot(x=x, y=y, data = simple,
@@ -376,36 +370,22 @@ def plot_reg(taxon2, df):
                 color="y", ax = ax2,
                 x_estimator=np.median)
 
-    ax1.set(title = "Simple - %s" % taxon2,
-            xlim = (0, simple.count_overlap.max()),
-            xlabel = 'context overlap (x10)',
-           ylabel = "enhancer length (bp)")
-
-    ax1.set_xticks(np.arange(0, simple.count_overlap.max(), step = 10))
-
-    # plot legend
-
-    ax1.legend(["simple", "complex"])
-
 
     # plot complex enhancers pleiotropy x length
     if taxon2 != "Homo sapiens (0)":
 
         slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
 
-        sns.boxplot(x, y,  data = complexenh, ax = ax1, color = "green",
-                   showfliers = False)
-
         sns.regplot(x=x, y=y, data = complexenh,
                 line_kws={'label':"y={0:.1f}x+{1:.1f}".format(slope,intercept)},
                 color="g", ax = ax2,
                 x_estimator=np.median)
 
-        ax2.set(title = "Complex - %s" % taxon2,
+        ax2.set(title = " %s" % taxon2,
                 xlim = (0,complexenh.count_overlap.max()),
-                xlabel = 'context overlap (x10)',
+                xlabel = 'context overlap',
                 ylabel = "enhancer length (bp)")
-        ax1.set_xticks(np.arange(0, simple.count_overlap.max(), step = 10))
+
         ax2.set_xticks(np.arange(0, complexenh.count_overlap.max(), step = 10))
         ax2.legend()
     plt.tight_layout()
@@ -427,3 +407,70 @@ for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
         fig = plot_reg(taxon2, multi)
         sid = taxon2.split(" ")[0]
         plt.savefig("%strimmed_pleiotropy_x_length_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")
+
+#%% LENGTH X pleiotropy
+
+
+multi["rounded_len"] = multi.enh_len.round(-2) # round to the nearest 100.
+multi.head()
+#%%
+def plot_reg_len(taxon2, df):
+
+    test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
+
+    fig, (ax2) = plt.subplots(figsize = (8,8))
+
+    # architecture-specific dataframe
+    simple = test.loc[test.code_x == "simple"]
+
+    complexenh = test.loc[test.code_x != "simple"]
+
+    y = "count_overlap"
+    x = "rounded_len"
+
+
+    # do linear regression for simple enhancers in age - pleiotropy x length
+    # get coeffs of linear fit
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(simple[x],simple[y])
+
+
+    # plot simple enhancers pleiotropy x length
+
+
+    # plot regplot w/ linear regression annotation
+    sns.regplot(x=x, y=y, data = simple,
+                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+                color="y", ax = ax2,
+                x_estimator=np.median)
+
+
+    # plot complex enhancers pleiotropy x length
+    if taxon2 != "Homo sapiens (0)":
+
+        slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
+
+
+        sns.regplot(x=x, y=y, data = complexenh,
+                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+                color="g", ax = ax2,
+                x_estimator=np.median)
+
+        ax2.set(title = "%s" % taxon2,
+                ylim = (0,complexenh.count_overlap.max()),
+                ylabel = 'context overlap',
+                xlabel = "enhancer length (bp)")
+
+        #ax2.set_xticks(np.arange(0, complexenh.rounded_len.max(), step = 100), rotation = 90)
+        ax2.legend()
+    plt.tight_layout()
+    return fig
+#%%
+taxon2 = "Vertebrata (615)"
+plot_reg_len(taxon2, multi)
+#%%
+for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
+    print(taxon2)
+    fig = plot_reg_len(taxon2, multi)
+    sid = taxon2.split(" ")[0]
+    plt.savefig("%strimmed_length_x_pleiotropy_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")

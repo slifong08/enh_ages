@@ -34,7 +34,7 @@ test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E11
 # -b base
 all_beds = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed.gz" % fpath)
 
-outpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/multiintersect/trimmed/"
+outpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/multiintersect/"
 
 for test in test_list:
 
@@ -48,7 +48,7 @@ for test in test_list:
     # -b
 
     all_beds_minus_one = []
-    mask_file = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed.gz" % (allfs_path, test)
+    mask_file = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed.gz" % (fpath, test)
     for all_bed_f in all_beds: # remove CORE file from intersection
         if all_bed_f != mask_file:
             all_beds_minus_one.append(all_bed_f)

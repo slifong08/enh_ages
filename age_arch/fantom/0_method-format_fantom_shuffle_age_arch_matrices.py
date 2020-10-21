@@ -184,13 +184,11 @@ breaks = pd.concat(enh_break_dict.values())
 print(breaks.shape)
 
 # remove the longest enhancer in the FANTOM dataset...
-print(breaks.enh_len.max(), "before removing the longest weirdo eRNA")
 
-breaks = breaks.loc[breaks.enh_len !=breaks.enh_len.max()] # remove this weirdo
-
-print(breaks.enh_len.max(), "after removing the longest weirdo eRNA")
+breaks = breaks.loc[breaks.enh_len <10000] # remove this weirdo
 
 out_enh_breaks = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
+breaks["shuf_id"] = "FANTOM"
 
 breaks = breaks[['chr_enh', 'start_enh', 'end_enh', 'enh_id', 'core_remodeling',
  'arch', 'seg_index',
@@ -206,7 +204,7 @@ breaks.head()
 list(breaks)
 #%% In[32]:# # Write shuffle full dataframe
 
-print(shuffle.enh_len.max())
+shuffle = shuffle.loc[shuffle.enh_len<10000]
 print(shuffle.shape)
 out_shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
 shuffle.to_csv(out_shuf, sep = '\t', index = False)
@@ -218,10 +216,18 @@ shufBreaks = pd.concat(shuf_break_dict.values())
 print(shufBreaks.shape)
 
 # Don't remove the longest enhancer in the shuffle dataset. This matches FANTOM.
-print(shufBreaks.enh_len.max(), "is this a long weirdo eRNA?")
+shufBreaks = shufBreaks.loc[shufBreaks.enh_len<10000]
+shufBreaks = shufBreaks[['chr_enh', 'start_enh', 'end_enh', 'enh_id', 'core_remodeling',
+ 'arch', 'seg_index',
+ 'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
 
 out_enh_shufBreaks = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shufBreaks.to_csv(out_enh_shufBreaks, sep = '\t', index = False)
 
+shufBreaks.head()
+
+#%% make bed file of shuffled. 
+out_shuf_breaks_bed = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.bed" % path
+shufBreaks.to_csv(out_shuf_breaks_bed, sep = '\t', index = False, header = False)
 shufBreaks.head()

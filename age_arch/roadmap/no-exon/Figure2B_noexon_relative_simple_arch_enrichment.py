@@ -25,7 +25,7 @@ pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_road
 path = "%sbreaks/" % pre_path
 
 # file contains both enhancer + 10 shuffled breaks.
-enhFs= glob.glob("%sROADMAP_*_enh_and_shuf_age_arch_summary_matrix.bed" % (path))
+enhFs= glob.glob("%snon-genic/no-exon_ROADMAP_*_enh_and_shuf_age_arch_summary_matrix.bed" % (path))
 
 enh_percentiles = "%sall_ROADMAP_breaks_percentiles.bed" % path
 pdf = pd.read_csv(enh_percentiles, sep = '\t')
@@ -45,6 +45,9 @@ syn_gen_bkgd
 # tissue/cell line dataset descriptions
 desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
+#%%
+enh
+
 
 #%% LOAD Files
 
@@ -52,7 +55,7 @@ OR_dict = {}
 
 for enh in enhFs:
 
-    sid = (enh.split("/")[-1]).split("_")[1]
+    sid = (enh.split("/")[-1]).split("_")[2]
     print(sid)
     #define relative simple
     if sid in pdf.sid2.unique():
@@ -84,11 +87,11 @@ for enh in enhFs:
 
         # separate dataframe into enhancer and shuffle coordinates.
 
-        if len(df.datatype.unique())>1:
-            final_merge = df.loc[~ df.datatype.str.contains("shuf")]
 
-            shuffle = df.loc[df.datatype.str.contains("shuf")]
+        final_merge = df.loc[~ df.datatype.str.contains("shuf")]
 
+        shuffle = df.loc[df.datatype.str.contains("shuf")]
+        if len(shuffle) >2:
 
 
             # get the frequency of each break in shuffled datasets
@@ -103,7 +106,7 @@ for enh in enhFs:
             shuf_arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
             shuf_arch_freq["freq"] = shuf_arch_freq["enh_id"].divide(shuf_arch_freq.totals)
             shuf_arch_freq["dataset"] = "SHUFFLE"
-            shuf_arch_freq.head()
+
 
 
             # get the frequency of each break in enhancer datasets
@@ -138,10 +141,9 @@ for enh in enhFs:
 
             OR_dict[sid]= results
             print(obs, OR, P)
-        else:
-            print("run shuffles for", sid)
 #%%
-df.datatype.unique()
+shuffle.head()
+
 #%%
 results = pd.concat(OR_dict.values())
 results.head()
@@ -335,6 +337,7 @@ plt.savefig("%sfig2b-ROADMAP_%s_age_seg_fold_change_matplotlib.pdf" %(RE, sid), 
 #OR = 0.954
 #p-value = 0.012
 
-#%
-missing = ["E063", "E105", "E056", "E111", "E012", "E034", "E098", "E029", "E008", "E102", "E078", "E066", "E114", "E103", "E055"]
-print(len(missing))
+#%%
+sns.distplot(final_merge.loc[final_merge.core_remodeling ==1, "enh_len"], label = "enh")
+sns.distplot(shuffle.loc[shuffle.core_remodeling ==1, "enh_len"])
+plt.legend()

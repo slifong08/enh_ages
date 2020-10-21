@@ -99,6 +99,39 @@ df.head()
 df.taxon2.unique()
 
 
+# In[41]:
+
+
+# take the weighted average for each enhancer
+# linsight score * (# overlapping linsight bases/total enhancer length bases)
+
+df['wa'] = df.overlap.divide(df.enh_len)*df.linsight_score
+
+wa = df.groupby(["enh_id", "arch"])["wa"].sum().reset_index() # sum the weighted average per enhancer
+wa.wa = wa.wa.round(1)
+
+wa.head()
+
+
+# In[42]:
+
+
+sns.boxplot(x ="arch", y = "wa", data = wa, showfliers = False)
+
+
+# In[43]:
+
+
+enh_features = df.groupby(["enh_id", "arch"])["mrca_2", "taxon2", "tissue_overlap", "enh_len", "old_len"].max().reset_index()
+enh_features.head()
+
+
+# In[44]:
+
+
+merged = pd.merge(wa, enh_features, how = "left")
+merged.head()
+
 
 # In[45]:
 
@@ -115,7 +148,7 @@ def plot_reg(taxon2, df):
     complexenh = test.loc[test.arch != "simple"]
 
     x = "tissue_overlap"
-    y = "linsight_score"
+    y = "wa"
 
 
     # do linear regression for simple enhancers in age - pleiotropy x length
@@ -128,10 +161,10 @@ def plot_reg(taxon2, df):
 
 
     # plot regplot w/ linear regression annotation
-    sns.regplot(x=x, y=y, data = simple, x_bins = 20,
+    sns.regplot(x=x, y=y, data = simple,
                 line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
                 color="y", ax = ax2,
-                x_estimator=np.mean)
+                x_estimator=np.median)
 
 
     # plot complex enhancers pleiotropy x length
@@ -140,13 +173,13 @@ def plot_reg(taxon2, df):
         slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
 
 
-        sns.regplot(x=x, y=y, data = complexenh,x_bins = 20,
+        sns.regplot(x=x, y=y, data = complexenh,
                 line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
                 color="g", ax = ax2,
-                x_estimator=np.mean)
+                x_estimator=np.median)
 
         ax2.set(title = "%s" % taxon2,
-                #xlim = (0,complexenh.tissue_overlap.max()),
+                xlim = (0,complexenh.tissue_overlap.max()),
                 xlabel = 'context overlap',
                 ylabel = "LINSIGHT weighted average")
 
@@ -160,18 +193,28 @@ def plot_reg(taxon2, df):
 
 
 taxon2 = "Tetrapoda (352)"
-plot_reg(taxon2, df)
+plot_reg(taxon2, merged)
 
 
-df.sort_values(by="mrca_2")
+# In[47]:
 
-for taxon2 in df.sort_values(by="mrca_2").taxon2.unique():
+
+merged.taxon2.unique()
+merged = merged.sort_values(by="taxon2").fillna(-1)
+
+
+# In[48]:
+
+
+merged.sort_values(by="mrca_2")
+
+for taxon2 in merged.sort_values(by="mrca_2").taxon2.unique():
     print(taxon2)
     if taxon2 != "Homo sapiens (0)" and taxon2 != -1:
 
-        fig = plot_reg(taxon2, df)
+        fig = plot_reg(taxon2, merged)
         sid = taxon2.split(" ")[0]
-        plt.savefig("%sfantom_trimmedpleiotropy_x_raw_LINSIGHT_%s.pdf" %(RE, sid))
+        plt.savefig("%sfantom_trimmedpleiotropy_x_LINSIGHT_%s.pdf" %(RE, sid))
 
 
 #%%

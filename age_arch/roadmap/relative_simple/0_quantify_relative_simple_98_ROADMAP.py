@@ -34,12 +34,18 @@ def get_percentile(samplef):
     df = pd.read_csv(samplef, sep = '\t',  low_memory=False)
 
     # reduce dataframe to enhancer architecture information
-
-    enh = df.groupby(["enh_id", "core_remodeling",\
+    if "sid" in list(df):
+        enh = df.groupby(["enh_id", "core_remodeling",\
      "sid", "enh_len"])["seg_index", "mrca"].max().reset_index()
+        enh["sid2"] = df.sid.apply(lambda x: x.split("_")[0])
+
+    else:
+        enh = df.groupby(["enh_id", "core_remodeling",\
+     "shuf_id", "enh_len"])["seg_index", "mrca"].max().reset_index()
+        enh["sid2"] = df.shuf_id.apply(lambda x: x.split("_")[0])
 
     # add sample_id
-    enh["sid2"] = df.sid.apply(lambda x: x.split("_")[0])
+
 
         # calculate number of breaks as percentile
     enh["pct"] = enh["seg_index"].rank(pct = True)
@@ -63,15 +69,16 @@ for sample in samples:
     sid = (sample.split("/")[-1]).split("_")[0] # get sid
     print(sid)
 
+    if sid != "E003": # DEAL WITH THIS PROBLEM CHILD LATER.
 
-    enh, pctBreaks = get_percentile(sample) # get percentile info
+        enh, pctBreaks = get_percentile(sample) # get percentile info
 
 
-    pct_dict[sid] = pctBreaks
+        pct_dict[sid] = pctBreaks
 
-    enh = pd.merge(enh, pctBreaks)
-    outenh = "%s%s_enh_breaks.bed" %(path, sid)
-    enh.to_csv(outenh, sep = '\t', index = False, header = True)
+        enh = pd.merge(enh, pctBreaks)
+        outenh = "%s%s_enh_breaks.bed" %(path, sid)
+        enh.to_csv(outenh, sep = '\t', index = False, header = True)
 
 
 pct = pd.concat(pct_dict.values()) # concat all the percentiles
@@ -80,6 +87,15 @@ outpct = "%sall_ROADMAP_breaks_percentiles.bed" % path
 
 pct.to_csv(outpct, sep ='\t', header = True, index = False) # expore all percentiles.
 #%%
+print(sample)
+df = pd.read_csv(sample, sep = '\t',  low_memory=False)
+df.head()
+#%%
 len(pct.sid2.unique())
-sns.distplot(enh.seg_index)
-enh.head()
+fig, ax = plt.subplots()
+sns.distplot(pct.loc[pct.pct == 0.5, "seg_index"])
+
+ax.set(title = "median distribution")
+
+#%%
+pct.loc[pct.sid2 == "E100"]
