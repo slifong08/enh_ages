@@ -178,9 +178,27 @@ for enh in enhFs:
 
 #%%
 seg_results = pd.concat(seg_dict.values())
+seg_results["log2OR"] = np.log2(seg_results.OR)
 seg_results.head()
 #%%
-sns.barplot(x = "seg_index", y = "OR", data = seg_results)
+limited_seg_results["ci"].iloc[0][0]
+#%%
+fig, ax = plt.subplots(figsize =(12,6))
+limited_seg_results = seg_results.loc[seg_results.seg_index <11]
+limited_seg_results = seg_results
+sns.barplot(x = "seg_index", y = "log2OR", data = limited_seg_results,
+            linewidth=2.5, facecolor=(1, 1, 1, 0),
+             edgecolor=".2",  yerr=(limited_seg_results["ci"].iloc[0][1] - limited_seg_results["ci"].iloc[0][0]))
+
+ax.set(ylabel= "Fold Change v. Bkgd\n(log2-scaled)",\
+ xlabel = "Number of Age Segments")#, ylim = (-1.2,0.5))
+
+plt.axhline(0, color = "grey", linewidth = 2.5)
+
+ticks = ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(round(2**x, 1)))
+
+ax.yaxis.set_major_formatter(ticks)
+ax.yaxis.set_major_locator(MultipleLocator(4))
 #%%
 results = pd.concat(OR_dict.values())
 results.head()
