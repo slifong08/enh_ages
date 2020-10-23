@@ -24,7 +24,7 @@ other2_ms = "%sMmus_brain_enhancers_reilly15_andgap.bed" %path
 all_Mm_H3K27ac = '/dors/capra_lab/data/enhancers/reilly15/all_Mm_H3K27ac.bed'
 
 
-#%% get the chain files. 
+#%% get the chain files.
 
 
 chainPath = "/dors/capra_lab/data/ucsc/liftOver/" # path to chain file

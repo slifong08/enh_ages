@@ -61,11 +61,11 @@ ITERATIONS = 10
 AGE_VAL = 1
 BREAK_VAL = 1
 TFBS_VAL = 0
-SHUF_VAL = 1
+SHUF_VAL = 0
 RUN_BED = 1
 
-RUN = 1 # Launch command or dont
-SBATCH = 1  # Sbatch or run w/ python interpreter
+RUN = 0 # Launch command or dont
+SBATCH = 0  # Sbatch or run w/ python interpreter
 val = 0
 for sample in samples:
     sample_id = (sample.split("/")[-1]).split(".")[0]

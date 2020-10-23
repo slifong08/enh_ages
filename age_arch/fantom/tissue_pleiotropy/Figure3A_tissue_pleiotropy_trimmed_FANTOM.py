@@ -363,10 +363,10 @@ def plot_reg(taxon2, df):
 
 
     # plot regplot w/ linear regression annotation
-    sns.regplot(x=x, y=y, data = simple,
+    sns.regplot(x=x, y=y, data = simple, x_bins = 20,
                 line_kws={'label':"y={0:.1f}x+{1:.1f}".format(slope,intercept)},
                 color="y", ax = ax2,
-                x_estimator=np.median)
+                x_estimator=np.mean)
 
 
     # plot complex enhancers pleiotropy x length
@@ -375,10 +375,10 @@ def plot_reg(taxon2, df):
         slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
 
 
-        sns.regplot(x=x, y=y, data = complexenh,
+        sns.regplot(x=x, y=y, data = complexenh,  x_bins = 20,
                 line_kws={'label':"y={0:.1f}x+{1:.1f}".format(slope,intercept)},
                 color="g", ax = ax2,
-                x_estimator=np.median)
+                x_estimator=np.mean)
 
         ax2.set(title = "Complex - %s" % taxon2,
                 xlim = (0,complexenh.count_overlap.max()),

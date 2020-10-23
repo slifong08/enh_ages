@@ -172,12 +172,24 @@ def plot_mrca(col2, Scol2):
         first_quartile = plot.mrcapercent.loc[(plot.bin<25)].mean().round(3)
         inter_quartile =  plot.mrcapercent.loc[(plot.bin>=25)&(plot.bin<75)].mean().round(3)
         last_quartile = plot.mrcapercent.loc[(plot.bin>=75)].mean().round(3)
-        ax.text(0.15, 0.05, first_quartile, size=30,\
+        ax.text(0.15, 0.05, first_quartile, size=24,\
                 va="center", ha="center",transform=ax.transAxes)
-        ax.text(0.5, 0.05, inter_quartile, size=30,\
+        ax.text(0.5, 0.05, inter_quartile, size=24,\
                 va="center", ha="center",transform=ax.transAxes)
-        ax.text(0.85, 0.05, last_quartile, size=30,\
+        ax.text(0.85, 0.05, last_quartile, size=24,\
                 va="center", ha="center",transform=ax.transAxes)
+
+        sfirst_quartile = Splot.mrcapercent.loc[(Splot.bin<25)].mean().round(3)
+        sinter_quartile =  Splot.mrcapercent.loc[(Splot.bin>=25)&(Splot.bin<75)].mean().round(3)
+        slast_quartile = Splot.mrcapercent.loc[(Splot.bin>=75)].mean().round(3)
+        ax.text(0.15, 0.12, sfirst_quartile, size=24,\
+                va="center", ha="center",transform=ax.transAxes,  color = "grey")
+        ax.text(0.5, 0.12, sinter_quartile, size=24,\
+                va="center", ha="center",transform=ax.transAxes,  color = "grey")
+        ax.text(0.85, 0.12, slast_quartile, size=24,\
+                va="center", ha="center",transform=ax.transAxes, color = "grey")
+
+
         n = len(plot.enh_id.unique())
         Sn = len(Splot.enh_id.unique())
 
@@ -185,7 +197,7 @@ def plot_mrca(col2, Scol2):
         \nShuf n= %s, Shuf mwu-p=%s"\
          % (n, round(mp, 3), Sn, round(smp, 3)), title = plot.taxon2.unique().item())
 
-        ax.legend(bbox_to_anchor = (1,1))
+        ax.legend().remove()
 
         plt.savefig("%sfigS2.2_complex_mrca_2_%s_fantom_enh_3plus.pdf" % (RE, mrca), bbox_inches = "tight")
 
@@ -207,7 +219,9 @@ com, sim, core = format_df(df)
 
 #%% THREE BREAKS OR MORE ONLY
 com = com.loc[com.max_seg>2]
+print(len(com))
 com.head()
+
 #%%
 collection_dict = {}
 
@@ -290,7 +304,7 @@ print(len(Scom))
 Scom.sort_values(by = ["chr_s", "start_s"]).head()
 #%% sample some enhancer ids
 
-ids = Scom.enh_id.drop_duplicates().sample(frac = 0.4)
+ids = Scom.enh_id.drop_duplicates().sample(frac = 0.8)
 print(len(ids))
 Scollection_dict = {}
 #%%
@@ -339,12 +353,22 @@ sm, smp = stats.mannwhitneyu(Scol.mrcapercent.loc[(Scol.bin>=25)&(Scol.bin<75)],
 first_quartile = col.mrcapercent.loc[(col.bin<25)].mean().round(3)
 inter_quartile =  col.mrcapercent.loc[(col.bin>=25)&(col.bin<75)].mean().round(3)
 last_quartile = col.mrcapercent.loc[(col.bin>=75)].mean().round(3)
-ax.text(0.15, 0.05, first_quartile, size=30,\
+ax.text(0.15, 0.05, first_quartile, size=24,\
         va="center", ha="center",transform=ax.transAxes)
-ax.text(0.5, 0.05, inter_quartile, size=30,\
+ax.text(0.5, 0.05, inter_quartile, size=24,\
         va="center", ha="center",transform=ax.transAxes)
-ax.text(0.85, 0.05, last_quartile, size=30,\
+ax.text(0.85, 0.05, last_quartile, size=24,\
         va="center", ha="center",transform=ax.transAxes)
+
+sfirst_quartile = Scol.mrcapercent.loc[(Scol.bin<25)].mean().round(3)
+sinter_quartile =  Scol.mrcapercent.loc[(Scol.bin>=25)&(Scol.bin<75)].mean().round(3)
+slast_quartile = Scol.mrcapercent.loc[(Scol.bin>=75)].mean().round(3)
+ax.text(0.15, 0.12, sfirst_quartile, size=24,\
+        va="center", ha="center",transform=ax.transAxes,  color = "grey")
+ax.text(0.5, 0.12, sinter_quartile, size=24,\
+        va="center", ha="center",transform=ax.transAxes,  color = "grey")
+ax.text(0.85, 0.12, slast_quartile, size=24,\
+        va="center", ha="center",transform=ax.transAxes, color = "grey")
 n = len(col.enh_id.unique())
 Sn = len(Scol.enh_id.unique())
 

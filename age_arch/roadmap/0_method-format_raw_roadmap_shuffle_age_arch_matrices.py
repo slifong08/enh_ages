@@ -30,10 +30,15 @@ print("last run", datetime.datetime.now())
 
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 
-## CHANGE PATH ##
 samples = glob.glob("%s**/*age_breaks.bed" % path, recursive = True)
+
 already_done = glob.glob("%s**/ROADMAP_*_enh_and_shuf_age_arch_full_matrix.tsv" % path, recursive = True)
 already_done_list = []
+
+to_do_list = ["E055", "E111", "E078", "E102", "E103", "E008", "E098", "E012",\
+ "E114", "E056", "E105", "E034", "E066", "E029", "E003", "E063"]
+
+
 for i in already_done:
     sid = (i.split("/")[-1]).split("_")[1]
     already_done_list.append(sid)
@@ -155,6 +160,7 @@ def getSid(sample_id):
 # concatenate dataframes
 
 
+samples
 #%%
 
 raw_sample = {} # make a dict of sid : [sample_file1, shufsample_file1, shufsamplefile2, etc.]
@@ -180,12 +186,12 @@ for sample in samples:
                 sample_list = raw_sample[sid]
                 sample_list.append(sample)
 #%%
-raw_sample["E087"]
+
 #%%
 for sid, sample_list in raw_sample.items():
 
     print(sid)
-    if sid not in already_done_list:
+    if sid in to_do_list:
         print("working on", sid)
         enh_dict = {} # full df
         enh_break_dict = {} # enh summar df

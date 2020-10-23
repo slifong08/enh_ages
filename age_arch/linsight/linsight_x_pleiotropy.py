@@ -11,7 +11,7 @@ import numpy as np
 import os, sys
 from scipy import stats
 import seaborn as sns
-get_ipython().run_line_magic('matplotlib', 'inline')
+
 
 # sns colors
 arch_colors = [ "amber", "dusty purple", "windows blue","greyish"]
@@ -148,7 +148,7 @@ def plot_reg(taxon2, df):
         ax2.set(title = "%s" % taxon2,
                 #xlim = (0,complexenh.tissue_overlap.max()),
                 xlabel = 'context overlap',
-                ylabel = "LINSIGHT weighted average")
+                ylabel = "LINSIGHT")
 
         ax2.set_xticks(np.arange(0, complexenh.tissue_overlap.max(), step = 10))
         ax2.legend()
@@ -172,85 +172,3 @@ for taxon2 in df.sort_values(by="mrca_2").taxon2.unique():
         fig = plot_reg(taxon2, df)
         sid = taxon2.split(" ")[0]
         plt.savefig("%sfantom_trimmedpleiotropy_x_raw_LINSIGHT_%s.pdf" %(RE, sid))
-
-
-#%%
-def plot_reg_lin(taxon2, df):
-
-    test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
-
-    fig, ( ax2) = plt.subplots(figsize = (8,8))
-    sns.set("talk")
-    # architecture-specific dataframe
-    simple = test.loc[test.arch == "simple"]
-
-    complexenh = test.loc[test.arch != "simple"]
-
-    y = "tissue_overlap"
-    x = "wa"
-
-
-    # do linear regression for simple enhancers in age - pleiotropy x length
-    # get coeffs of linear fit
-
-    slope, intercept, r_value, p_value, std_err = stats.linregress(simple[x],simple[y])
-
-
-    # plot simple enhancers pleiotropy x length
-
-
-    # plot regplot w/ linear regression annotation
-    sns.regplot(x=x, y=y, data = simple,
-                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
-                color="y", ax = ax2,
-                x_estimator=np.median)
-
-
-    # plot complex enhancers pleiotropy x length
-    if taxon2 != "Homo sapiens (0)":
-
-        slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
-
-
-        sns.regplot(x=x, y=y, data = complexenh,
-                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
-                color="g", ax = ax2,
-                x_estimator=np.median)
-
-        ax2.set(title = "%s" % taxon2,
-                #xlim = (0,complexenh.tissue_overlap.max()),
-                ylabel = 'context overlap',
-                xlabel = "LINSIGHT weighted average")
-
-        #ax2.set_xticks(np.arange(0, complexenh.wa.max(), step = 10))
-        ax2.legend()
-    plt.tight_layout()
-    return fig
-
-
-# In[46]:
-
-
-taxon2 = "Tetrapoda (352)"
-plot_reg_lin(taxon2, merged)
-
-
-# In[47]:
-
-
-merged.taxon2.unique()
-merged = merged.sort_values(by="taxon2").fillna(-1)
-
-
-# In[48]:
-
-
-merged.sort_values(by="mrca_2")
-
-for taxon2 in merged.sort_values(by="mrca_2").taxon2.unique():
-    print(taxon2)
-    if taxon2 != "Homo sapiens (0)" and taxon2 != -1:
-
-        fig = plot_reg_lin(taxon2, merged)
-        sid = taxon2.split(" ")[0]
-        plt.savefig("%sfantom_trimmed_LINSIGHT_x_pleiotropy_0.1_%s.pdf" %(RE, sid))

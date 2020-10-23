@@ -19,13 +19,13 @@ sns.palplot(palette)
 simple_break_percentile = 0.5
 
 #%% Files
-
+to_do_list = ["E114", ]
 
 pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 path = "%sbreaks/" % pre_path
 
 # file contains both enhancer + 10 shuffled breaks.
-enhFs= glob.glob("%sROADMAP_*_enh_and_shuf_age_arch_summary_matrix.bed" % (path))
+enhFs= glob.glob("%sROADMAP_*_enh_and_shuf_age_arch_summary_matrix.tsv" % (path))
 
 enh_percentiles = "%sall_ROADMAP_breaks_percentiles.bed" % path
 pdf = pd.read_csv(enh_percentiles, sep = '\t')
@@ -46,28 +46,62 @@ syn_gen_bkgd
 desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
-#%% LOAD Files
 
-OR_dict = {}
+#%% get relative cut off
 
-for enh in enhFs:
 
-    sid = (enh.split("/")[-1]).split("_")[1]
-    print(sid)
-    #define relative simple
+def get_relative_simple(sid, pdf):
     if sid in pdf.sid2.unique():
         test = pdf.loc[(pdf.sid2 == sid)]
 
         if simple_break_percentile in test.pct.unique():
             used_percentile = 0.5
-            relative_simple = pdf.loc[(pdf.sid2 == sid) & (pdf.pct == simple_break_percentile), "seg_index"].iloc[0]
+            relative_simple = pdf.loc[(pdf.sid2 == sid) & (pdf.pct == simple_break_percentile), "seg_index"].iloc[0].astype(int)
 
         else: # idk why some datasets do not have a 0.5 percentile
-            relative_simple = pdf.loc[(pdf.sid2 == sid) & (pdf.pct == 0.6), "seg_index"].iloc[0]
+            relative_simple = pdf.loc[(pdf.sid2 == sid) & (pdf.pct == 0.6), "seg_index"].iloc[0].astype(int)
             used_percentile = 0.6
+        return relative_simple
+    else:
+        return "no_sid"
 
 
-        df = pd.read_csv(enh, sep = '\t')
+#%%
+def get_OR(final_merge, shuffle, seg_index, sid):
+    unique_key = sid + "-" + str(seg_index)
+
+    a = final_merge.loc[final_merge.seg_index == seg_index, "enh_id"].count()
+    b = final_merge.loc[final_merge.seg_index != seg_index, "enh_id"].count()
+    c = shuffle.loc[shuffle.seg_index == seg_index, "enh_id"].count()
+    d = shuffle.loc[shuffle.seg_index != seg_index, "enh_id"].count()
+
+    obs = [[a,b], [c,d]]
+    OR, P = stats.fisher_exact(obs)
+    table = sm.stats.Table2x2(obs) # get confidence interval
+    odds_ci = table.oddsratio_confint()
+
+    results = pd.DataFrame({"sid":[sid], "obs": [obs],
+    "OR": [OR], "ci":[odds_ci],
+    "P": [P], "relative_simple_seg_index": [relative_simple],
+     "percentile_used":[used_percentile], "seg_index":[seg_index], "unqkey":[unique_key]})
+
+    return results, unique_key
+
+#%%#%% LOAD Files
+
+OR_dict = {}
+seg_dict = {}
+for enh in enhFs:
+
+    sid = (enh.split("/")[-1]).split("_")[1]
+    relative_simple = get_relative_simple(sid, pdf)
+
+    print(sid, relative_simple)
+    if sid not in to_do_list and relative_simple != "no_sid":
+
+        df = pd.read_csv(enh, sep = '\t', header = None,low_memory=False,
+         error_bad_lines = False)
+        df = df.loc[df[16]!="datatype"]
 
 
         df.columns = ['chr_enh','start_enh','end_enh','shuf_id','enh_id',
@@ -77,7 +111,7 @@ for enh in enhFs:
 
         # RELATIVE SIMPLE DEF
         df["relative_arch"] = "rel_simple"
-        df.loc[df.seg_index >=relative_simple, "relative_arch"] = "rel_complex"
+        df.loc[df.seg_index.astype(float) >=relative_simple, "relative_arch"] = "rel_complex"
         df.loc[df.relative_arch == "rel_simple", "core_remodeling"] = 0
 
 
@@ -88,7 +122,6 @@ for enh in enhFs:
             final_merge = df.loc[~ df.datatype.str.contains("shuf")]
 
             shuffle = df.loc[df.datatype.str.contains("shuf")]
-
 
 
             # get the frequency of each break in shuffled datasets
@@ -103,8 +136,7 @@ for enh in enhFs:
             shuf_arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
             shuf_arch_freq["freq"] = shuf_arch_freq["enh_id"].divide(shuf_arch_freq.totals)
             shuf_arch_freq["dataset"] = "SHUFFLE"
-            shuf_arch_freq.head()
-
+            shuf_arch_freq["core_remodeling"] = shuf_arch_freq["core_remodeling"].astype(int)
 
             # get the frequency of each break in enhancer datasets
 
@@ -137,11 +169,18 @@ for enh in enhFs:
              "percentile_used":[used_percentile]})
 
             OR_dict[sid]= results
-            print(obs, OR, P)
-        else:
-            print("run shuffles for", sid)
+            #print(obs, OR, P)
+            for seg_index in final_merge.seg_index.unique():
+                seg_results, unqkey = get_OR(final_merge, shuffle, seg_index, sid)
+                seg_dict[unqkey] = seg_results
+    else:
+        print("run shuffles for", sid)
+
 #%%
-df.datatype.unique()
+seg_results = pd.concat(seg_dict.values())
+seg_results.head()
+#%%
+sns.barplot(x = "seg_index", y = "OR", data = seg_results)
 #%%
 results = pd.concat(OR_dict.values())
 results.head()
@@ -149,7 +188,11 @@ results["sig"] = 0
 results.loc[results.P<0.05, "sig"] = 1
 results["simple_or"] = 0
 results.loc[results.OR>1, "simple_or"] = 1
+
+
 #%%
+
+
 print(results.OR.median())
 sns.boxplot(x = "sig", y = "OR", data = results, notch = True, showfliers = True)
 sns.swarmplot(x = "sig", y = "OR", data = results)
@@ -158,6 +201,7 @@ sns.boxplot(x = "simple_or", y = "OR", data = results)
 sns.swarmplot(x = "simple_or", y = "OR", data = results)
 
 results.groupby("simple_or")["sid"].count()
+
 #%% PLOT ROADMAP simple v. SHUFFLE simple (64% v. 58% simple enhancers)
 archs = pd.concat([shuf_arch_freq, arch_freq]) # combine datasets for plotting
 

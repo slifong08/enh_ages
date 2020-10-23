@@ -40,15 +40,15 @@ desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sampl
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
 #%% LOAD Files
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
 
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shuffle = pd.read_csv(shuf, sep = '\t')
 final_merge = pd.read_csv(enh, sep = '\t')
+
+
 #%%
+
+
 enh_lens = final_merge.groupby(["enh_id", "core_remodeling","enh_len", "arch"])["mrca_2"].max().reset_index()
 enh_lens.mrca_2 = enh_lens.mrca_2.round(3)
 
@@ -58,7 +58,10 @@ print(enh_lens.shape)
 
 enh_lens["datatype"]="FANTOM"
 enh_lens.head()
+
+
 #%%
+
 
 shuf_len = shuffle.groupby(["enh_id", "core_remodeling",\
  "enh_len", "shuf_id", "arch"])["mrca_2"].max().reset_index()
@@ -73,10 +76,14 @@ shuf_len = pd.merge(shuf_len, syn_gen_bkgd[["mrca_2", "taxon2", "mya2"]],\
 shuf_len = shuf_len.drop_duplicates()
 print(shuf_len.shape)
 
+
 #%% sample 1/10th of shuffle dataset and combine w/ enhancers for comparison
+
+
 sample_shuf = shuf_len.sample(frac = 0.1)
 
 lens = pd.concat([enh_lens, sample_shuf])
+
 
 #%% calculate frequency of obs and expected enhancer lengths from fantom, shuffle
 x = len(enh_lens) # how many enhancers are there?
