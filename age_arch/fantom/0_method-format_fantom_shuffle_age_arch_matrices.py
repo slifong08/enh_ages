@@ -26,9 +26,9 @@ path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 samples = glob.glob("%sall_unique_fantom_erna_112_tissue.bed" % path)
 
 
-shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
-shuffle_files = glob.glob("%sshuf-*_age_breaks.bed" % shuffle_path)
-
+shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
+shuffle_files = glob.glob("%sno-exon_shuf-all_fantom_enh_112_tissues-*_age_breaks.bed" % shuffle_path)
+shuffle_files
 
 # # load the genomic background
 
@@ -125,6 +125,21 @@ for f in shuffle_files:
     shuf_dict[shuf_id] = formatted_shuffle # add to dict
 
     shuf_break_dict[shuf_id] = formatted_shuffle_breaks # add to dict
+
+    shuffle = formatted_shuffle.loc[formatted_shuffle.enh_len<10000]
+
+
+     # # Write summary shuffle enhancer file w/ oldest age/ most breaks/arch
+
+        # Don't remove the longest enhancer in the shuffle dataset. This matches FANTOM.
+    shufBreaks = formatted_shuffle_breaks.loc[formatted_shuffle_breaks.enh_len<10000]
+    shufBreaks = shufBreaks[['chr_enh', 'start_enh', 'end_enh', 'enh_id', 'core_remodeling',
+     'arch', 'seg_index',
+     'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
+
+    out_enh_shufBreaks = "%sSHUFFLE_FANTOM_%s_summary_matrix.bed" % (shuffle_path, shuf_id)
+
+    shufBreaks.to_csv(out_enh_shufBreaks, sep = '\t', index = False, header = False)
 
 shuffle = pd.concat(shuf_dict.values())
 shuffle.head()
@@ -227,7 +242,7 @@ shufBreaks.to_csv(out_enh_shufBreaks, sep = '\t', index = False)
 
 shufBreaks.head()
 
-#%% make bed file of shuffled. 
+#%% make bed file of shuffled.
 out_shuf_breaks_bed = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.bed" % path
 shufBreaks.to_csv(out_shuf_breaks_bed, sep = '\t', index = False, header = False)
 shufBreaks.head()

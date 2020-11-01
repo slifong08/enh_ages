@@ -55,23 +55,6 @@ syn_gen_bkgd.head()
 desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sample_id_descriptions.txt"
 desc_df= pandas.read_csv(desc_file, sep = '\t', header = None)
 
-inpath = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
-enh ="%sall_unique_fantom_enh_112_tissue.bed" % inpath
-
-
-#%% In[4]:
-
-
-enhdf = pandas.read_csv(enh, sep = '\t', header = None)
-enhdf.columns=["chr_enh", "start_enh", "end_enh", "core_remodeling", "mrca_2", "arch"]
-enhdf["enh_id"] = enhdf.chr_enh + ":" + enhdf.start_enh.map(str) + "-" + enhdf.end_enh.map(str)
-
-
-#%% In[5]:
-
-
-enhdf.head()
-
 
 # #%% Initial load and merge all FANTOM eRNA x TFBS datasets together
 # ### Time consuming. Do this once, save concatenated file, and re-open with arch below
@@ -438,4 +421,3 @@ for taxon2 in multi.sort_values(by = "mrca_2").taxon2.unique():
     fig = plot_reg_len(taxon2, multi)
     sid = taxon2.split(" ")[0]
     plt.savefig("%sraw_length_x_pleiotropy_arch-%s.pdf" % (RE, sid), bbox_inches = "tight")
-    

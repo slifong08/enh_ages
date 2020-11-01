@@ -103,7 +103,7 @@ df.taxon2.unique()
 # In[45]:
 
 
-def plot_reg(taxon2, df):
+def plot_reg(taxon2, df, n_bins):
 
     test = df.loc[df.taxon2 == taxon2] # get age-specfic dataframe
 
@@ -124,12 +124,19 @@ def plot_reg(taxon2, df):
     slope, intercept, r_value, p_value, std_err = stats.linregress(simple[x],simple[y])
 
 
-    # plot simple enhancers pleiotropy x length
+    # get counts
+    counts = df.loc[df.taxon2 == taxon2,["arch", "enh_id", "taxon2"]].drop_duplicates()
+    counts = counts.groupby("arch")["enh_id"].count().reset_index()
+    nsimple = counts.loc[counts.arch == "simple", "enh_id"].iloc[0]
+    ncomplex = counts.loc[counts.arch != "simple", "enh_id"].iloc[0]
 
 
     # plot regplot w/ linear regression annotation
-    sns.regplot(x=x, y=y, data = simple, x_bins = 20,
-                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+    sns.regplot(x=x, y=y, data = simple, x_bins = n_bins,fit_reg=True,
+                line_kws={'label':"r2=%s" % round(r_value, 2)},
+                truncate = False,
+                #line_kws={'label':"r2={0:.3f}".format(r_value)},
+                #line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
                 color="y", ax = ax2,
                 x_estimator=np.mean)
 
@@ -140,17 +147,19 @@ def plot_reg(taxon2, df):
         slope, intercept, r_value, p_value, std_err = stats.linregress(complexenh[x],complexenh[y])
 
 
-        sns.regplot(x=x, y=y, data = complexenh,x_bins = 20,
-                line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
+        sns.regplot(x=x, y=y, data = complexenh, x_bins = n_bins,fit_reg=True,
+        truncate = False,
+                line_kws={'label':"r2=%s" % round(r_value, 2)},
+                #line_kws={'label':"y={0:.3f}x+{1:.3f}".format(slope,intercept)},
                 color="g", ax = ax2,
                 x_estimator=np.mean)
 
         ax2.set(title = "%s" % taxon2,
                 #xlim = (0,complexenh.tissue_overlap.max()),
-                xlabel = 'context overlap',
+                xlabel = 'context overlap\n nsimple=%s, ncomplex=%s' % (nsimple, ncomplex),
                 ylabel = "LINSIGHT")
 
-        ax2.set_xticks(np.arange(0, complexenh.tissue_overlap.max(), step = 10))
+        #ax2.set_xticks(np.arange(0, max.loc[max.tissue_overlap.max(), step = 10))
         ax2.legend()
     plt.tight_layout()
     return fig
@@ -160,15 +169,16 @@ def plot_reg(taxon2, df):
 
 
 taxon2 = "Tetrapoda (352)"
-plot_reg(taxon2, df)
-
+nbins = 10
+plot_reg(taxon2, df, nbins)
+#%%
 
 df.sort_values(by="mrca_2")
 
 for taxon2 in df.sort_values(by="mrca_2").taxon2.unique():
     print(taxon2)
     if taxon2 != "Homo sapiens (0)" and taxon2 != -1:
-
-        fig = plot_reg(taxon2, df)
+        nbins = 10
+        fig = plot_reg(taxon2, df, nbins)
         sid = taxon2.split(" ")[0]
         plt.savefig("%sfantom_trimmedpleiotropy_x_raw_LINSIGHT_%s.pdf" %(RE, sid))

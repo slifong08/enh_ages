@@ -18,10 +18,8 @@ print("last run", datetime.datetime.now())
 need_shuffles = ["E055", "E111", "E078", "E102", "E103", "E008", "E098", "E012",\
  "E114", "E056", "E105", "E034", "E066", "E029", "E003", "E063"]
 print(len(need_shuffles))
-#%%
-a = list(sample_dict.keys())
-print(a)
-need_shuffles - a
+
+
 #%% FUNÇÕES
 
 
@@ -56,8 +54,8 @@ def breaks_array(search_str):
 
 # %% select the file(s) to run
 os.chdir("/dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/")
-source_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/architecture_coordinates/"
-samples = glob.glob("%sE*_ROADMAP_complexenh.bed"%source_path)
+source_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/non-genic/"
+samples = glob.glob("%sno-exon_E*.bed"%source_path)
 #%%
 
 #%%
@@ -75,7 +73,7 @@ RUN_BREAKS = 0
 val = 0
 for sample in samples:
     sample_id = (sample.split("/")[-1]).split(".")[0]
-    if sample_id.split("_")[0] in need_shuffles:
+    if sample_id.split("_")[1] in need_shuffles:
         sample_dict[sample_id] = sample
 print(len(sample_dict.keys()))
 #%%

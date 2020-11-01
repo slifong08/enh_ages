@@ -129,7 +129,7 @@ if CALCULATE_OR == 1:
             # RELATIVE SIMPLE DEF
             df["relative_arch"] = "rel_simple"
             df.loc[df.seg_index.astype(float) >=relative_simple, "relative_arch"] = "rel_complex"
-            df.loc[df.relative_arch == "rel_simple", "core_remodeling"] = 0
+            #df.loc[df.relative_arch == "rel_simple", "core_remodeling"] = 0
 
 
 
@@ -206,7 +206,7 @@ if CALCULATE_OR == 1:
     results["simple_or"] = 0
     results.loc[results.OR>1, "simple_or"] = 1
 
-    outf = "%sno-exon_ALL_ROADMAP_Shuf_summary_relative_simple_OR.tsv" %path
+    outf = "%sno-exon_ALL_ROADMAP_Shuf_summary_abs_simple_OR.tsv" %path
     results.to_csv(outf, sep ='\t', index = False)
 
 
@@ -224,7 +224,7 @@ if CALCULATE_OR == 1:
 
 if CALCULATE_OR ==0:
 
-    outf = "%sno-exon_ALL_ROADMAP_Shuf_summary_relative_simple_OR.tsv" %path
+    outf = "%sno-exon_ALL_ROADMAP_Shuf_summary_abs_simple_OR.tsv" %path
     results = pd.read_csv(outf, sep = '\t')
 
     outf_seg = "%sno-exon_ALL_ROADMAP_Shuf_summary_seg_index_OR.tsv" %path
@@ -262,7 +262,9 @@ ticks = ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(round(2**x, 2)))
 ax.yaxis.set_major_formatter(ticks)
 ax.yaxis.set_major_locator(MultipleLocator(0.1))
 
-plt.savefig("%sfig2b-ROADMAP_noexon_age_seg_fold_change_matplotlib.pdf" %(RE), bbox_inches = "tight")
+plt.savefig("%sfig2b-ROADMAP_noexon_abs_age_seg_fold_change_matplotlib.pdf" %(RE), bbox_inches = "tight")
+
+
 #%% how many ORs are significant?
 
 
@@ -291,7 +293,7 @@ sns.boxplot(x = "simple_or", y = "OR", data = results.loc[results.sig ==1], ax =
 sns.swarmplot(x = "simple_or", y = "OR", data = results.loc[results.sig ==1], ax = ax2)
 ax2.set(title = "sig_only", xticklabels = ax2_labels)
 print(results.groupby("simple_or")["sid"].count())
-plt.savefig("%sROADMAP_noexon_enh_shuf_simple_OR.pdf" % (RE), bbox_inches = "tight")
+plt.savefig("%sROADMAP_noexon_enh_shuf_abs_simple_OR.pdf" % (RE), bbox_inches = "tight")
 
 print(results.groupby(["sig", "simple_or"])["sid"].count())
 #%% PLOT ROADMAP simple v. SHUFFLE simple (64% v. 58% simple enhancers)
@@ -315,91 +317,8 @@ for p in ax.patches:
 
 ax.set(xticklabels = "", xlabel= "", title= "", ylabel= "Frequency of Dataset")
 ax.get_legend().remove()
-plt.savefig("%sROADMAP_noexon_enh_shuf_simple_freq.pdf" % (RE), bbox_inches = "tight")
+plt.savefig("%sROADMAP_noexon_enh_shuf_abs_simple_freq.pdf" % (RE), bbox_inches = "tight")
 
-
-#%% PLOT ROADMAP simple v. COMPLEX (64% simple v. 36% complex enhancers)
-
-
-fig, ax = plt.subplots(figsize = (8, 8))
-sns.set_context("poster")
-sns.barplot(x = "core_remodeling", y="freq", data = arch_freq, palette = palette)
-ax.set(xticklabels= ["Simple", "Complex\nEnhancer"], xlabel = "", \
-ylabel= "Frequency of Dataset", title= "ROADMAP 82/98 Enhancer Architectures")
-for p in ax.patches:
-    x=p.get_bbox().get_points()[:,0]
-    y=p.get_bbox().get_points()[1,1]
-    ax.annotate('{:.0f}%'.format(100.*y), (x.mean(), y),
-            ha='left', va='bottom', color = "k", alpha = 0.4, fontsize = 20) # set the alignment of the text
-
-plt.savefig("%sROADMAP_noexon_enh_simple_v_complex_freq.pdf" %(RE), bbox_inches = "tight")
-
-#%% get shuffled breaks distribution
-shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
-
-shuf_break_freq = shuf_break.groupby(["seg_index", "shuf_id"])["enh_id"].count().reset_index()
-
-shuf_totals = shuf_break_freq.groupby("shuf_id")["enh_id"].sum().reset_index()
-shuf_totals.columns = ["shuf_id", "shuf_id_totals"]
-
-shuf_break_freq = pd.merge(shuf_break_freq, shuf_totals, how = "left", on = "shuf_id")
-
-shuf_break_freq["freq"] = shuf_break_freq["enh_id"].divide(shuf_break_freq.shuf_id_totals)
-shuf_break_freq["dataset"] = "Shuffle"
-
-#%% cumsum FUNCTION
-def get_cumsum(df):
-
-    cdf= np.cumsum(df.freq)/1
-    newdf = pd.DataFrame({"cdf": cdf})
-    testdf = pd.merge(df, newdf, left_index = True, right_index = True)
-    return testdf
-
-#%% get shuffled cumulative dist
-cumsum_dict = {}
-for sid in shuf_break_freq.shuf_id.unique():
-    testdf = shuf_break_freq.loc[shuf_break_freq.shuf_id == sid]
-    newdf = get_cumsum(testdf)
-    cumsum_dict[sid] = newdf
-
-shufbreak_freq_cdf = pd.concat(cumsum_dict.values())
-
-shufbreak_freq_cdf.columns=["seg_index", "shuf_id", "shuf_count", "shuf_totals", "shuf_freq", "shuf_dataset", "shuf_cdf"]
-shufbreak_freq_cdf.head()
-
-#%% get enhancer breaks distribution
-breaks = final_merge.groupby(["enh_id"])["seg_index"].max().reset_index()
-breaks_freq = breaks.groupby("seg_index")["enh_id"].count().reset_index()
-enh_totals = len(breaks)
-
-breaks_freq["freq"] = breaks_freq["enh_id"].divide(enh_totals)
-
-breaks_freq["dataset"] = "ROADMAP"
-breaks_freq["shuf_id"] = "ROADMAP"
-breaks_freq["cdf"]= np.cumsum(breaks_freq.freq)/1
-
-breaks_freq.head()
-
-
-#%% plot cdf
-
-
-shuf_cdfplot = shufbreak_freq_cdf[["seg_index", "shuf_freq", "shuf_dataset", "shuf_id", "shuf_cdf"]]
-shuf_cdfplot.columns = ['seg_index', 'freq', 'dataset', 'shuf_id', 'cdf']
-
-#%%
-concat = [breaks_freq, shuf_cdfplot]
-plot_cdf = pd.concat(concat)
-fig, ax = plt.subplots(figsize = (8,8))
-x = "seg_index"
-y = "cdf"
-
-
-sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal)
-ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
-xlabel = "number of segments", ylabel = "cumulative distribution",
-xlim = (0,30))
-plt.savefig("%sROADMAP_noexon_CDF.pdf" % (RE), bbox_inches = 'tight')
 
 #%%
 missing = ["E063", "E105", "E056", "E111", "E012", "E034", "E098", "E029", "E008", "E102", "E078", "E066", "E114", "E103", "E055"]

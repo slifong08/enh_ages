@@ -8,8 +8,9 @@ ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
 ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
 
 
-EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/breaks/"
-EnhFs = glob.glob("%sROADMAP_E*_enh_and_shuf_age_arch_summary_matrix.bed" % EnhP)
+EnhP = "/dors/capra_lab/data/roadmap_epigenomics/release_v9/consolidated/histone/h3k27ac_plus_h3k4me3_minus_peaks/"
+EnhFs = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed" % EnhP)
+
 
 OutP = "%snon-genic/" % EnhP
 print(len(EnhFs))
@@ -21,13 +22,14 @@ for f in already_done:
     already_done_list.append(sid)
 len(already_done_list)
 #%% define bedtools intersection command
-EnhFs
+missing = ["E003","E063", "E105", "E056", "E111", "E012", "E034", "E098", "E029", "E008", "E102", "E078", "E066", "E114", "E103", "E055"]
+print(len(missing))
 #%%
 def bed_subtract(inF, exonF, outP):
 
-    fName = (((inF.split("/")[-1]).split(".")[0]).split("_")[1])
+    fName = (((inF.split("/")[-1]).split(".")[0]).split("_")[-1])
 
-    outF = "%sno-exon_ROADMAP_%s_enh_and_shuf_age_arch_summary_matrix.bed" % (outP, fName)
+    outF = "%sno-exon_%s.bed" % (outP, fName)
 
     # use -v argument to subtract exons from shuffle file.
     cmd = "bedtools intersect -a %s -b %s -v > %s" % (inF, exonF, outF)
@@ -49,15 +51,14 @@ exon_list = {}
 
 for EnhF in EnhFs:
     fName = (EnhF.split("/")[-1]).split(".")[0]
-    fid = fName.split("_")[1]
-    if fid not in already_done_list:
+    fid = fName.split("_")[-1]
+    if fid in missing:
         print(fid)
+
 
         no_exon_count, exon_count = bed_subtract(EnhF, ExonF, OutP)
         no_exon_list[fName] = no_exon_count
         exon_list[fName] = exon_count
-
-
 
 
 #%%

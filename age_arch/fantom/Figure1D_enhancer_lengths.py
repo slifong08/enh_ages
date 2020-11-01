@@ -9,6 +9,10 @@ es_colors = [ "slate grey","greyish"]
 es_pal = sns.xkcd_palette(es_colors)
 sns.palplot(es_pal)
 
+colors = [ "amber", "faded green", "dusty purple", "windows blue","greyish"]
+palette = sns.xkcd_palette(colors)
+sns.palplot(palette)
+
 #%% Files
 path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 
@@ -92,7 +96,8 @@ ms, msp = stats.mannwhitneyu(enh_lens.loc[enh_lens.core_remodeling==1, "enh_len"
                             enh_lens.loc[enh_lens.core_remodeling==0, "enh_len"])
 print("simple", ms, msp)
 
-""" RESULTS MWU SIMPLE V. COMPLEX ENHANCER LENGTHS 
+
+""" RESULTS MWU SIMPLE V. COMPLEX ENHANCER LENGTHS
 simple 71739682.5 0.0
 """
 
