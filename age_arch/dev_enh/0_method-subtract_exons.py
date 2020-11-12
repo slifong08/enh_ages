@@ -3,7 +3,7 @@ import os, sys
 import subprocess
 
 # subtract exons from already aged enhancers?
-SHUF = 0
+REILLY = 0
 
 
 RE ="/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/syn/"
@@ -12,62 +12,68 @@ ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
 ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
 
 
-if SHUF==0:
+if REILLY ==0:
 
-    EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/breaks/"
-    EnhFs = glob.glob("%sE*_age_breaks.bed" % EnhP)
-    OutP = "%s" % EnhP
-
-elif SHUF==1:
-    EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-    EnhFs = glob.glob("%s/shuffle/breaks/no-exon_E*_parallel_breaks_enh_age_arch_summary_matrix.bed" % EnhP)
-    OutP = "%sshuffle/breaks/non-genic/" % EnhP
+    EnhP = "/dors/capra_lab/projects/enhancer_ages/emera16/data/"
+    EnhFs = glob.glob("%sbreaks/emera_2016_neocortical_dev_enhancers_hu_ms_parallel_breaks.bed" % EnhP)
 
 
+elif REILLY==1:
+    EnhP = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/"
+    EnhFs = glob.glob("%sHsap_brain_enhancers*.bed" % EnhP)
+
+
+OutP = "%snon-genic/" % EnhP
 print(len(EnhFs))
+if os.path.exists(OutP) == False:
+    cmd = "mkdir %s" % OutP
+    subprocess.call(cmd, shell = True)
+
+
+#%% define bedtools intersection command
 
 
 #%% function to subtract exons
 
-def bed_subtract(inF, exonF, outP, AGED_BREAKS):
-
-    if SHUF ==0:
-        fid = (((inF.split("/")[-1]).split(".")[0]).split("_")[0])
-
-        outF = "%sno-exon_%s_age_breaks.bed" % (outP, fid)
+def bed_subtract(inF, exonF, outP):
 
 
-    elif SHUF ==1:
-        fid = (((inF.split("/")[-1]).split(".")[0]).split("_")[1])
-        outF = "%sno-exon_ROADMAP_%s_enh_and_shuf_age_arch_summary_matrix.bed" % (outP, fid)
+    fName = (((inF.split("/")[-1]).split(".")[0]))
 
+    outF = "%sno-exon_%s.bed" % (outP, fName)
+    temp = "%sno-exon_%s_temp.bed" % (outP, fName)
+    cmd = '''sed '1d' %s > %s & mv %s %s''' % (inF, temp, temp, inF)
+    subprocess.call(cmd, shell = True)
     # use -v argument to subtract exons from shuffle file.
     cmd = "bedtools intersect -a %s -b %s -v > %s" % (inF, exonF, outF)
-
+    print(cmd)
     subprocess.call(cmd, shell = True)
     no_exon =  len(open(outF).readlines(  ))
 
-    outF_ex = "%sexonOverlap_%s.bed" % (outP, fid)
+    outF_ex = "%sexonOverlap_%s.bed" % (outP, fName)
     cmd = "bedtools intersect -a %s -b %s > %s" %  (inF, exonF, outF_ex)
-    print(cmd)
+
     subprocess.call(cmd, shell = True)
+
     exon =  len(open(outF_ex).readlines(  ))
 
     return no_exon, exon
+
+
 #%% subtract enhancers
+
+
 no_exon_list = {}
 exon_list = {}
-print(len(EnhFs))
+len(EnhFs)
 #%%
 for EnhF in EnhFs:
     fName = (EnhF.split("/")[-1]).split(".")[0]
 
-    fid = fName.split("_")[0]
-
     #if fid in missing: # subtract exons from the missing files.
-    print(fid)
+    print(fName)
 
-    no_exon_count, exon_count = bed_subtract(EnhF, ExonF, OutP, AGE_BREAKS)
+    no_exon_count, exon_count = bed_subtract(EnhF, ExonF, OutP)
     no_exon_list[fName] = no_exon_count
     exon_list[fName] = exon_count
 

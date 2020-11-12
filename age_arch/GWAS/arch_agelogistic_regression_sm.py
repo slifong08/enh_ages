@@ -1,16 +1,23 @@
 
 #%% In[1]:
 
+from collections import Counter
 
 import glob
-import pandas
+
 import matplotlib.pyplot as plt
+
 import numpy as np
+from numpy import mean
+
 import os, sys
+import pandas
 from scipy import stats
 import seaborn as sns
-import statsmodels
-
+from sklearn.model_selection import train_test_split
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+import subprocess
 
 colors = [ "amber", "faded green"]
 palette = sns.xkcd_palette(colors)
@@ -21,7 +28,7 @@ sns.set_style("white")
 import datetime
 LAST_RUN = datetime.datetime.now()
 TODAY = (datetime.date.today())
-RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/"
+RE = "/dors/capra_lab/projects/enhancer_ages/gwas_catalog/results/for_publication/"
 
 print("last run", LAST_RUN)
 
@@ -55,6 +62,7 @@ outF= "%senh_x_var/FANTOM_x_gwas19_ldex.bed" % gwas_path
 cmd = "bedtools intersect -a %s -b %s -wao > %s" % (multifile, gwasF, outF)
 os.system(cmd)
 
+print(outF)
 
 #%% open pleiotropy
 
@@ -68,6 +76,7 @@ multi.columns = ["chr_enh", "start_enh", "end_enh", "old_len", "core_remodeling"
 
 
 multi.head()
+
 #%%
 
 multi.groupby("gwas_overlap")["datatype"].count()
@@ -77,3 +86,64 @@ gwas_overlap
 0    30218
 1     1248
 """
+#%%
+multi["gwas_overlap"].unique()
+
+#%% LOGISTIC REGRESSION FUNCTION
+def logistic_regression(test_model, df):
+
+    model = smf.logit(test_model, data = df,  freq_weights= df.wts)
+    results = model.fit()
+    return results
+
+
+#%% format dataframe
+
+
+multi["constant"] = 1 # add intercept
+
+multi[["old_len", "core_remodeling", "count_overlap" ]] = multi[["old_len", "core_remodeling", "count_overlap" ]].astype(int)
+multi["mrca_2"] = multi["mrca_2"].astype(float)
+multi["wts"] = 1
+multi.loc[multi.gwas_overlap ==0, "wts"] = 0.0042
+
+#%% AGE ONLY
+
+test_model = 'core_remodeling ~ mrca_2'
+results = logistic_regression(test_model, multi, )
+print(results.summary())
+
+
+
+
+print(results.pred_table())
+
+
+#%%
+
+test_model = 'core_remodeling ~ mrca_2 + old_len'
+results = logistic_regression(test_model, multi, )
+print(results.summary())
+
+
+
+
+print(results.pred_table())
+
+
+
+#%% UNDERSAMPLE
+from sklearn.utils import shuffle
+
+
+for i in np.arange(10):
+    minority = multi.loc[multi.gwas_overlap == 1]
+    num_minority = len(minority) # number of sampled negatives
+    new_majority = multi.loc[multi.gwas_overlap != 1].sample(n = num_minority)
+    undersampled_df = pd.concat([minority, new_majority]) # make the testdf
+
+
+    undersample_results = logistic_regression(test_model, undersampled_df)
+    print(undersample_results.summary())
+    print(undersample_results.pred_table())
+#%%

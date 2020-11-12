@@ -22,7 +22,9 @@ import glob
 import os, sys
 import pandas as pd
 import datetime
-
+import seaborn as sns
+import matplotlib.pyplot as plt
+#%%
 
 fraction_overlap = 0.5
 trim_len = "mean"
@@ -31,14 +33,14 @@ trim_len = "mean"
 
 # #  Trim function
 
-p# In[14]:
+# In[14]:
 
 
 def trim(bedfile, trim_len):
 
     df = pd.read_csv(bedfile, sep ='\t', header = None) # open file
     df.columns = ["chr", "start", "end", "id"] # name columns
-
+    df["old_enh_id"] = df.chr + ":" + df.start.map(str) + "-"+ df.end.map(str)
     df["old_len"]= df.end - df.start # calculate enhancer length
 
     if trim_len == "mean": # take the mean
@@ -53,17 +55,25 @@ def trim(bedfile, trim_len):
 
     df["end_new"] = ((df.midpoint + (trim_len/2)).round(0)).astype(int)
 
-    trimmed = df[["chr", "start_new", "end_new", "old_len", "new_len"]].drop_duplicates()
+    trimmed = df[["chr", "start_new", "end_new", "old_enh_id", "old_len", "new_len"]].drop_duplicates()
 
-    return trimmed
+    return trimmed, trim_len
 
 
 # In[ ]:
 
 
+source_path ="/dors/capra_lab/data/roadmap_epigenomics/release_v9/consolidated/histone/h3k27ac_plus_h3k4me3_minus_peaks/"
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-
+samples = glob.glob("%s*.bed" % source_path)
+test_list = []
+for sample in samples:
+    s = ((sample.split("/")[-1]).split("_")[-1]).split(".")[0]
+    test_list.append(s)
+    print(s)
 # -a
+
+#%%
 #test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E116"]
 
 outpath = "%strimmed/" %path
@@ -72,20 +82,38 @@ if os.path.exists(outpath) == False:
 
 
 # In[30]:
-
+sid_mean_len = {}
 
 for test in test_list:
 
     print(test)
     # Entire Enhancer #
     # Trim enhancers to mean lengths #
-    infile = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed.gz" % (path, test)
+    infile = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed" % (source_path, test)
 
-    trimmed_df = trim(infile, trim_len)
-    trimmed_df.to_csv("%strimmed%s-%s.bed" % (outpath, trim_len,  test,),
+    trimmed_df, mean_len = trim(infile, trim_len)
+    trimmed_df.to_csv("%strimmed-%s-%s.bed" % (outpath, trim_len,  test,),
      sep = '\t', header = False, index = False)
+    sid_mean_len[test]= mean_len
 
 
+#%%
+df = pd.DataFrame()
+for key, val in sid_mean_len.items():
+    ndf = pd.DataFrame({"sid":[key], "mean_len":[val]})
+    df = pd.concat([df, ndf])
+
+desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
+desc_df= pandas.read_csv(desc_file, header = None)
+desc_df.columns = ["sid", "desc"]
+df = pd.merge(df, desc_df, how = "left", on ="sid")
+df["sid2"] = df.sid + "-" + df.desc
+#%%
+fig, ax = plt.subplots(figsize = (8,30))
+sns.barplot(y = "sid2", x ="mean_len", data = df.sort_values(by = "mean_len"))
+RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/"
+plt.savefig("%sroadmap_noexon_mean_length.pdf"%RE, bbox_inches = 'tight')
+#%%
 # In[36]:
 
 

@@ -31,19 +31,24 @@ print("last run", datetime.datetime.now())
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 
 samples = glob.glob("%s**/*age_breaks.bed" % path, recursive = True)
+samples = glob.glob("%sshuffle/breaks/*age_breaks.bed" % path)
+print(len(samples))
 
-already_done = glob.glob("%s**/ROADMAP_*_enh_and_shuf_age_arch_full_matrix.tsv" % path, recursive = True)
+already_done = glob.glob("%sbreaks/ROADMAP_*_enh_summary_matrix.bed" % path)
 already_done_list = []
-
-to_do_list = ["E055", "E111", "E078", "E102", "E103", "E008", "E098", "E012",\
- "E114", "E056", "E105", "E034", "E066", "E029", "E003", "E063"]
-
 
 for i in already_done:
     sid = (i.split("/")[-1]).split("_")[1]
     already_done_list.append(sid)
 
-print((already_done_list))
+print((already_done_list), len(already_done_list))
+
+
+
+to_do_list = ["E055", "E111", "E078", "E102", "E103", "E008", "E098", "E012",\
+ "E114", "E056", "E105", "E034", "E066", "E029", "E003", "E063"]
+
+
 #%% # load the genomic background
 
 
@@ -133,7 +138,7 @@ def formatDF(df, datatype):
 def getSid(sample_id):
     if "shuf-E" in sample_id: #"shuf-E" in sample_id
         base = sample_id
-        sid = sample_id.split("-")[1]
+        sid = sample_id.split("_")[0]
 
     elif "shuf-trimmed-310_" in sample_id:
         base = sample_id
@@ -160,7 +165,7 @@ def getSid(sample_id):
 # concatenate dataframes
 
 
-samples
+len(samples)
 #%%
 
 raw_sample = {} # make a dict of sid : [sample_file1, shufsample_file1, shufsamplefile2, etc.]
@@ -186,84 +191,105 @@ for sample in samples:
                 sample_list = raw_sample[sid]
                 sample_list.append(sample)
 #%%
-
+raw_sample.values()
 #%%
 for sid, sample_list in raw_sample.items():
 
-    print(sid)
-    if sid in to_do_list:
-        print("working on", sid)
-        enh_dict = {} # full df
-        enh_break_dict = {} # enh summar df
 
-        for sample in sample_list:
+    #if sid not in already_done_list:
+    print("working on", sid)
+    enh_dict = {} # full df
+    enh_break_dict = {} # enh summar df
 
-            sample_id = "".join((sample.split("/")[-1]).split(".")[0])
+    for sample in sample_list:
 
-            df = pd.read_csv(sample, sep='\t')
+        sample_id = "".join((sample.split("/")[-1]).split(".")[0])
+        print(sample_id)
 
-            num_cols = len(list(df))
+        cols = pd.read_csv(sample, sep='\t', nrows = 1).columns
 
+        if "start_enh" in cols:
+            df = pd.read_csv(sample, sep='\t').drop_duplicates()
+        else:
+            df = pd.read_csv(sample, sep='\t', header = None).drop_duplicates()
 
-            if num_cols ==11:
-                df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
-                                   "chr_enh", "start_enh", "end_enh", "seg_index",
-                                   "core_remodeling", "core", "mrca"]
-                df["shuf_id"] = sample_id
-            if num_cols == 9:
-                df.columns = ["chr_enh", "start_enh", "end_enh", "old_len", "enh_id",
-            	"seg_index", "core_remodeling", "arch", "mrca"]
-                df = df.loc[df.mrca != "max_age"] # these are header columns that need to get removed.
-
-            elif "shuf-trimmed" in sample_id:
-                df.columns = ["chr_syn", "start_syn","end_syn", "shuf_id", "enh_id",
-                           "chr_enh", "start_enh", "end_enh", "seg_index",
-                           "core_remodeling", "core", "mrca"]
-            elif "sid" in list(df):
-                df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
+        num_cols = len(list(df))
+        print(num_cols)
+        print(df.head())
+        if num_cols ==11:
+            df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
                                "chr_enh", "start_enh", "end_enh", "seg_index",
-                               "core_remodeling", "core", "mrca", "shuf_id", "enh_len"]
+                               "core_remodeling", "core", "mrca"]
+            df["shuf_id"] = sample_id
+        if num_cols == 9:
+            df.columns = ["chr_enh", "start_enh", "end_enh", "old_len", "enh_id",
+        	"seg_index", "core_remodeling", "arch", "mrca"]
+            df = df.loc[df.mrca != "max_age"] # these are header columns that need to get removed.
 
-            df["id"] = sample_id # add sample_id to column
+        elif "shuf-trimmed" in sample_id:
+            df.columns = ["chr_syn", "start_syn","end_syn", "shuf_id", "enh_id",
+                       "chr_enh", "start_enh", "end_enh", "seg_index",
+                       "core_remodeling", "core", "mrca"]
+        elif "sid" in list(df):
+            df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
+                           "chr_enh", "start_enh", "end_enh", "seg_index",
+                           "core_remodeling", "core", "mrca", "shuf_id", "enh_len"]
+        elif "chr_syn" in cols and num_cols !=11:
 
-            ## CHANGE sid in format ##
-            formatted_df, formatted_df_breaks = formatDF(df, sample_id) # format df
+            df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
+                               "chr_enh", "start_enh", "end_enh", "seg_index",
+                               "core_remodeling", "core", "mrca", "enh_len",  "shuf_id"]
+        #else:
+        #    df.columns = ["chr_syn", "start_syn","end_syn","enh_id",
+        #                   "chr_enh", "start_enh", "end_enh", "seg_index",
+        #                   "core_remodeling", "core", "mrca",  "enh_len", "shuf_id",]
 
-            enh_dict[sample_id] = formatted_df # add sample df to dictionary
+        df["id"] = sample_id # add sample_id to column
 
-            enh_break_dict[sample_id] = formatted_df_breaks
+        ## CHANGE sid in format ##
+        formatted_df, formatted_df_breaks = formatDF(df, sample_id) # format df
 
-        df = pd.concat(enh_dict.values()) # concat enhancer and shuffles together
+        enh_dict[sample_id] = formatted_df # add sample df to dictionary
 
-        print(df.shape)
+        enh_break_dict[sample_id] = formatted_df_breaks
 
-        final_merge = df.loc[df.enh_len<10000]
+    df = pd.concat(enh_dict.values()) # concat enhancer and shuffles together
 
-        print(final_merge.shape)
+    print(df.shape)
 
-        print(final_merge.enh_len.max())
+    final_merge = df.loc[df.enh_len<10000]
 
-        # save the file
-        out_enh = "%sbreaks/ROADMAP_%s_enh_and_shuf_age_arch_full_matrix.tsv" % (path, sid)
-        final_merge.to_csv(out_enh, sep = '\t', index = False)
+    print(final_merge.shape)
 
-        # # Write summary ROADMAP enhancer file w/ oldest age/ most breaks/arch
+    print(final_merge.enh_len.max())
 
-        breaksAll = pd.concat(enh_break_dict.values())
+    # save the file
+    out_enh = "%sbreaks/ROADMAP_%s_enh_and_shuf_age_arch_full_matrix.tsv" % (path, sid)
+    #final_merge.to_csv(out_enh, sep = '\t', index = False)
 
-        breaks = breaksAll.loc[breaksAll.enh_len<10000]
+    # # Write summary ROADMAP enhancer file w/ oldest age/ most breaks/arch
 
-        out_enh_breaks = "%sbreaks/ROADMAP_%s_enh_and_shuf_age_arch_summary_matrix.tsv" % (path, sid)
+    breaksAll = pd.concat(enh_break_dict.values())
 
-        breaks = breaks[['chr_enh', 'start_enh', 'end_enh', "shuf_id", 'enh_id', 'core_remodeling',
-        'arch', 'seg_index',
-        'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
+    breaks = breaksAll.loc[breaksAll.enh_len<10000]
 
-        breaks.to_csv(out_enh_breaks, sep = '\t', index = False)
+    out_enh_breaks = "%sshuffle/breaks/ROADMAP_%s_enh_summary_matrix.tsv" % (path, sid)
 
-        # make a bedfile
-        out_enh_breaks_bed = "%sbreaks/ROADMAP_%s_enh_and_shuf_age_arch_summary_matrix.bed" % (path, sid)
-        breaks.to_csv(out_enh_breaks_bed, sep = '\t', index = False, header = False)
+    breaks = breaks[['chr_enh', 'start_enh', 'end_enh', "shuf_id", 'enh_id', 'core_remodeling',
+    'arch', 'seg_index',
+    'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
+
+    #breaks.to_csv(out_enh_breaks, sep = '\t', index = False)
+
+    # make a bedfile
+    out_enh_breaks_bed = "%sbreaks/ROADMAP_%s_enh_summary_matrix.bed" % (path, sid)
+    breaks.to_csv(out_enh_breaks_bed, sep = '\t', index = False, header = False)
 
 #%%
-breaks.head()
+print(sample_id)
+#%%
+df = pd.read_csv(sample, sep='\t', header = None).drop_duplicates()
+df.head()
+#%%
+cols = pd.read_csv(sample, sep='\t', nrows = 1).columns
+len(cols)

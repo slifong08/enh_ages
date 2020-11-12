@@ -3,7 +3,7 @@ import os, sys
 import subprocess
 
 # subtract exons from already aged enhancers?
-SHUF = 0
+SHUF = 1
 
 
 RE ="/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/syn/"
@@ -14,14 +14,15 @@ ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
 
 if SHUF==0:
 
-    EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/breaks/"
-    EnhFs = glob.glob("%sE*_age_breaks.bed" % EnhP)
+    EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/trimmed/"
+    EnhFs = glob.glob("%sbreaks/trimmed-310-E*_age_breaks.bed" % EnhP)
     OutP = "%s" % EnhP
 
 elif SHUF==1:
     EnhP = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-    EnhFs = glob.glob("%s/shuffle/breaks/no-exon_E*_parallel_breaks_enh_age_arch_summary_matrix.bed" % EnhP)
-    OutP = "%sshuffle/breaks/non-genic/" % EnhP
+    EnhFs = glob.glob("%s/trimmed/shuffle/ages/shuf-trimmed-310_*_parallel_breaks.bed" % EnhP)
+    OutP = "%strimmed/shuffle/breaks/non-genic/" % EnhP
+    print(OutP)
 
 
 print(len(EnhFs))
@@ -29,7 +30,7 @@ print(len(EnhFs))
 
 #%% function to subtract exons
 
-def bed_subtract(inF, exonF, outP, AGED_BREAKS):
+def bed_subtract(inF, exonF, outP):
 
     if SHUF ==0:
         fid = (((inF.split("/")[-1]).split(".")[0]).split("_")[0])
@@ -62,12 +63,12 @@ print(len(EnhFs))
 for EnhF in EnhFs:
     fName = (EnhF.split("/")[-1]).split(".")[0]
 
-    fid = fName.split("_")[0]
+    fid = fName.split("_")[1]
 
     #if fid in missing: # subtract exons from the missing files.
     print(fid)
 
-    no_exon_count, exon_count = bed_subtract(EnhF, ExonF, OutP, AGE_BREAKS)
+    no_exon_count, exon_count = bed_subtract(EnhF, ExonF, OutP)
     no_exon_list[fName] = no_exon_count
     exon_list[fName] = exon_count
 

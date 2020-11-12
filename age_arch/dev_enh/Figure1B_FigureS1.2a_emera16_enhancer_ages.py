@@ -1,3 +1,4 @@
+import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -9,13 +10,11 @@ RE ="/dors/capra_lab/projects/enhancer_ages/emera16/results/age_arch/"
 #%% Files
 
 
-path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/breaks/"
+path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/non-genic/"
 
-enh = "%sHsap_brain_enhancers_emera16_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sHsap_brain_enhancers_emera16_enh_age_arch_full_matrix.tsv" % path
+enh = "%sno-exon_emera_2016_neocortical_dev_enhancers_hu_ms_parallel_breaks.bed" % path
 
-shuf = "%sHsap_brain_enhancers_emera16_negs_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sHsap_brain_enhancers_emera16_negs_age_arch_full_matrix.tsv" % path
+shufs = glob.glob("%sno-exon_shuf-emera_2016_neocortical_dev_enhancers_hu_ms-*_parallel_breaks.bed" % path)
 
 #%% other summary files
 
@@ -25,31 +24,45 @@ syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
 syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-syn_gen_bkgd
+
 
 #%% LOAD Files
+cols = ["chr_enh", "start_enh", "end_enh", "shuf_id",
+ "enh_id", "reads", "seg_index", "arch", "mrca_2"]
+shuf_dict = {}
+for shuf in shufs:
+    shuf_id = (shuf.split("/")[-1]).split(".")[0]
 
+    shuffle = pd.read_csv(shuf, sep = '\t', header =None)
+    shuffle.columns = cols
+    shuffle["shuf_id"] =shuf_id
 
-shuffle = pd.read_csv(shuf, sep = '\t')
-shuffle.mrca_2 = shuffle.mrca_2.round(3)
-print(shuffle.shape)
+    shuf_dict[shuf_id] = shuffle
+
+shuffle = pd.concat(shuf_dict.values())
+shuffle = shuffle.loc[shuffle.mrca_2 != "max_age"]
+shuffle["mrca_2"] = shuffle["mrca_2"].astype(float).round(3) # round ages
 
 final_merge = pd.read_csv(enh, sep = '\t')
-final_merge.mrca_2 = final_merge.mrca_2.round(3)
-print(final_merge.shape)
+final_merge.columns = cols
+final_merge.shuf_id = "Emera16"
+final_merge = final_merge.loc[final_merge.mrca_2 != "max_age"]
+final_merge["mrca_2"] = final_merge["mrca_2"].astype(float).round(3) # round ages
 
 
+
+shuffle.head()
 #%%
 
-
 ANNOTATIONS = 0
-shuffle["shuf_id"] = shuffle["shuf_id"]
+
 shuffle_dist = shuffle.groupby(["enh_id", "shuf_id"])["mrca_2"].max().reset_index() # calculate age distribution shuffled enhancers by enh_id
 
-shuffle_dist["mrca_2"] = shuffle_dist["mrca_2"].round(3) # round ages
+shuffle_dist["mrca_2"] = shuffle_dist["mrca_2"].astype(float).round(3) # round ages
 shuffle_dist.head()
 
 
+#%%
 
 shuffle_dist2 = shuffle_dist.groupby(["mrca_2", "shuf_id"])["enh_id"].count().reset_index()
 shuffle_dist2.columns = ["mrca_2", "shuf_id", "mrca_count"]
@@ -65,7 +78,6 @@ shuffle_dist2.head()
 
 
 #%%
-
 
 plot_dist = final_merge.groupby(["enh_id"])["mrca_2"].max().reset_index() # calculate age distribution shuffled enhancers by enh_id
 
@@ -165,7 +177,7 @@ sns.barplot(x = "taxon2", y= "freq",  data = dist.sort_values(by="mrca_2"),\
 
 ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90, horizontalalignment="left")
 ax2.set(ylabel = "Frequency", xlabel = "Taxon \n MWU = %s, pval = %s"\
- % (m, round(mp, 3)), ylim = (0, 0.6), title = "emera16 Enhancer Age Distribution",)
+ % (m, round(mp, 3)), ylim = (0, 0.6), title = "Emera16 Enhancer Age Distribution",)
 
 ax2.legend(frameon = False)
 
@@ -182,8 +194,8 @@ if ANNOTATIONS == 1:
 ax1.set_xticklabels(ax1.get_xticklabels(), rotation = 90, horizontalalignment="left")
 
 ax1.set(ylabel = "log2(Fold-Change)",
- ylim = (-9, 1.2),
- title = "emera16 Enhancer Age Fold-change")
+ ylim = (-9, 1.5),
+ title = "Emera16 Enhancer Age Fold-change")
 
 plt.savefig("%sfig1b_figS1.2a-emera16_WHOLE_ENHANCER_MRCA_DIST_TAXON2.pdf" % \
 (RE), bbox_inches='tight')

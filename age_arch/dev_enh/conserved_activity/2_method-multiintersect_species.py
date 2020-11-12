@@ -3,17 +3,20 @@ import os, sys
 
 path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/"
 
-fs = glob.glob("%s*summary_matrix.bed" % path)
+fs = glob.glob("%snon-genic/no-exon_Hsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % path)
 fraction_overlap = 0.5
-#%%
-all_beds = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed.gz" % path)
+fs
 
+all_beds = glob.glob("%sMmu*_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % path)
+fs = fs + all_beds
+print(len(fs))
 outpath = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/multiintersect/"
+#%%
 
 # Entire Enhancer #
 # -a
 
-infile = "%sHsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % (path)
+infile = "%snon-genic/no-exon_Hsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % (path)
 
 # ALL OTHER ROADMAP TISSUES #
     # -b

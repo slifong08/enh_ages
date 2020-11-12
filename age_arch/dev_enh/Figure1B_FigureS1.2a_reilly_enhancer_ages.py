@@ -9,13 +9,13 @@ RE ="/dors/capra_lab/projects/enhancer_ages/reilly15/results/age_arch/"
 #%% Files
 
 
-path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/"
+path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/non-genic/"
 
-enh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
+#enh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
+summaryEnh = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
-shuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
+#shuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
+summaryShuf = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_3000_1set_negs_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
 #%% other summary files
 
@@ -25,23 +25,29 @@ syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
 syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-syn_gen_bkgd
+
 
 #%% LOAD Files
 
+cols = ["enh_id", "shuf_id", "core_remodeling", "arch", "taxon2", "mrca_2", ]
+shuffle = pd.read_csv(summaryShuf, sep = '\t', header = None,
+ usecols=[3,5,6,7, 11, 12])
+shuffle.columns = cols
 
-shuffle = pd.read_csv(shuf, sep = '\t')
 shuffle.mrca_2 = shuffle.mrca_2.round(3)
 print(shuffle.shape)
 
-final_merge = pd.read_csv(enh, sep = '\t')
+#%%
+final_merge = pd.read_csv(summaryEnh, sep = '\t', header = None,
+ usecols=[3,4,5,6, 11, 12])
+final_merge.columns = cols
 final_merge.mrca_2 = final_merge.mrca_2.round(3)
 print(final_merge.shape)
 
-
+final_merge.head()
 #%%
-
-
+ shuffle["shuf_id"].unique()
+#%%
 ANNOTATIONS = 0
 shuffle["shuf_id"] = shuffle["shuf_id"]
 shuffle_dist = shuffle.groupby(["enh_id", "shuf_id"])["mrca_2"].max().reset_index() # calculate age distribution shuffled enhancers by enh_id
@@ -49,7 +55,7 @@ shuffle_dist = shuffle.groupby(["enh_id", "shuf_id"])["mrca_2"].max().reset_inde
 shuffle_dist["mrca_2"] = shuffle_dist["mrca_2"].round(3) # round ages
 shuffle_dist.head()
 
-
+#%%
 
 shuffle_dist2 = shuffle_dist.groupby(["mrca_2", "shuf_id"])["enh_id"].count().reset_index()
 shuffle_dist2.columns = ["mrca_2", "shuf_id", "mrca_count"]
@@ -104,9 +110,13 @@ shuffle_dist2.head()
 # calculate MWU shuffle v. reilly age distributions (from each enhancer)
 
 mwustat, mwupval = stats.mannwhitneyu(shuffle_dist2["mrca_2"], plot_dist["mrca_2"])
+print(mwustat, mwupval)
 dist = dist[["taxon2", "mrca_2", "shuf_id", "dataset", "freq"]].drop_duplicates()
 
 dist.sort_values(by = "mrca_2").head()
+#%%
+i
+dist.loc[(dist.shuf_id == i)|(dist.shuf_id == "Reilly15")].pivot(index="mrca_2", columns='dataset')['freq'].reset_index()
 #%%
 # Fold change of reilly/shuffle age frequency
 fold_change_dict = {}

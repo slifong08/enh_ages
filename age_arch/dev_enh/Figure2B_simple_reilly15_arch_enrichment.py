@@ -17,13 +17,13 @@ sns.palplot(palette)
 
 #%% Files
 
-path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/"
+path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/non-genic/"
 
-enh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
+#enh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
+summaryEnh = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
-shuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
+#shuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
+summaryShuf = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_3000_1set_negs_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
 #%% other summary files
 
@@ -33,14 +33,41 @@ syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
 syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-syn_gen_bkgd
+
 
 
 #%% LOAD Files
 
-shuffle = pd.read_csv(shuf, sep = '\t')
-final_merge = pd.read_csv(enh, sep = '\t')
+cols = ["enh_id", "shuf_id", "core_remodeling", "arch","seg_index", "taxon2", "mrca_2", ]
+shuffle = pd.read_csv(summaryShuf, sep = '\t', header = None,
+ usecols=[3,5,6,7,8,  11, 12])
+shuffle.columns = cols
 
+shuffle.mrca_2 = shuffle.mrca_2.round(3)
+print(shuffle.shape)
+shuffle.head()
+#%%
+cols = ["enh_id", "shuf_id", "core_remodeling", "arch", "seg_index", "taxon2", "mrca_2", ]
+final_merge = pd.read_csv(summaryEnh, sep = '\t', header = None,
+ usecols=[3,5,6,7, 8, 11, 12])
+final_merge.columns = cols
+final_merge.mrca_2 = final_merge.mrca_2.round(3)
+print(final_merge.shape)
+
+final_merge.head()
+
+#%% RELATIVE Simple
+relative_simple = final_merge.seg_index.median()
+
+final_merge["core_remodeling"]= 0
+shuffle["core_remodeling"]= 0
+final_merge.seg_index=final_merge.seg_index.astype(int)
+shuffle.seg_index=shuffle.seg_index.astype(int)
+final_merge.loc[final_merge.seg_index.astype(int)> relative_simple, "core_remodeling"] = 1
+shuffle.loc[shuffle.seg_index.astype(int) > relative_simple, "core_remodeling"] = 1
+print(relative_simple)
+
+#%%
 shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]].drop_duplicates()
 shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "shuf_id"])["enh_id"].count().reset_index()
 shuf_arch_freq.head()
@@ -157,6 +184,7 @@ sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal
 ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
 xlabel = "number of segments", ylabel = "cumulative distribution",
 xlim = (0,31))
+ax.axvline(relative_simple)
 plt.savefig("%sReilly15_CDF_breaks.pdf" %RE, bbox_inches = 'tight')
 
 #%% Are there fewer breaks than expected? Do an FET
@@ -197,9 +225,9 @@ ORdf["yerr"] = ORdf.ci_upper-ORdf.ci_lower
 ORdf['log'] = np.log2(ORdf.OR)
 ORdf.head()
 #%%
-fig, ax = plt.subplots(figsize =(8,8))
+fig, ax = plt.subplots(figsize =(16,8))
 sns.set("poster")
-max_segs = 10
+max_segs = 20
 firstfive = ORdf.loc[ORdf.seg_index <max_segs]
 
 sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <max_segs],

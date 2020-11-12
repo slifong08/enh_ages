@@ -6,9 +6,10 @@ RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/syn/"
 
 ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
 ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
+print(ExonF)
 
 ShufP = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
-ShufFs = glob.glob("%s*_age_breaks.bed" % ShufP)
+ShufFs = glob.glob("%sSHUFFLE_FANTOM_shuf-all_fantom_enh_112_tissues-*_age_breaks_summary_matrix.bed" % ShufP)
 
 
 EnhP = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"

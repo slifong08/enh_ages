@@ -26,8 +26,8 @@ path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
 samples = glob.glob("%sall_unique_fantom_erna_112_tissue.bed" % path)
 
 
-shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
-shuffle_files = glob.glob("%sno-exon_shuf-all_fantom_enh_112_tissues-*_age_breaks.bed" % shuffle_path)
+shuffle_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
+shuffle_files = glob.glob("%sshuf-all_fantom_enh_112_tissues-*_age_breaks.bed" % shuffle_path)
 shuffle_files
 
 # # load the genomic background
@@ -40,7 +40,7 @@ syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
 syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-syn_gen_bkgd
+
 
 #%% cell_line/ tissue descriptions
 
@@ -91,7 +91,7 @@ def formatDF(df, datatype):
 
     # get the max breaks and oldest mrca
     breakDF = df.groupby(["enh_id", "chr_enh","start_enh", "end_enh",\
-     "core_remodeling", "arch"])["seg_index", "mrca", "enh_len"].max().reset_index()
+     "core_remodeling", "arch"])[["seg_index", "mrca", "enh_len"]].max().reset_index()
     breakDF["mrca"] = breakDF["mrca"].round(3) # round mrca value
     breakDF = pd.merge(breakDF, syn_gen_bkgd,\
     how = "left", on = "mrca").sort_values(by="mrca_2")# add species annotation

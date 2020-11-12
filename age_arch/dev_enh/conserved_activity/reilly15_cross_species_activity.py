@@ -21,11 +21,14 @@ df.columns = ["chr_enh","start_enh", "end_enh",	"enh_id", "fourth_col", "id",\
 "taxon2",	"mya",	"mya2",	"seg_den",	"datatype", "count_overlap"]
 
 df.head()
+
+df.loc[df.seg_index >=5, "core_remodeling"] = 0
+df.loc[df.seg_index <5, "arch"] = "simple"
 #%% remove human, primate specific sequences. Sequence must be as olds as euarchontaglires (common ancestor with mouse) in order to be evaluated here.
 # removes 470 sequences
 
 print(len(df))
-df = df.loc[df.mrca_2>0.126]
+#df = df.loc[df.mrca_2>0.126]
 print(len(df))
 
 #%% plot simple v. complex
@@ -46,7 +49,11 @@ ax0 = plt.subplot(gs[0])
 sns.barplot(x = "arch", y = "count_overlap", data = df,
             palette = palette, order = order,
             ax = ax0)
-ax0.set(xlabel="", xticklabels="", ylabel ="Number of Active Species", ylim=(0,2))
+nsimple = len(df.loc[df.arch == "simple"])
+ncomplex = len(df.loc[df.arch != "simple"])
+labels = ["n = %s"%nsimple, "n = %s"%ncomplex, ]
+ax0.set_xticklabels(labels, rotation = 90)
+ax0.set(xlabel="", ylabel ="Number of Active Species", ylim=(0,2))
 ax0.yaxis.set_major_locator(MultipleLocator(0.5))
 
 sns.set("poster")
@@ -57,11 +64,11 @@ sns.barplot(x = "taxon2", y = "count_overlap", hue = "core_remodeling",
                 palette = palette,
             ax = ax2)
 
-ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 270)
+ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
 sns.set("poster")
 ax2.yaxis.set_major_locator(MultipleLocator(0.5))
 ax2.set(ylabel="",  ylim=(0,2))
-
+ax2.legend().remove()
 plt.savefig("%sFigS3b-JOINT_barplot_reilly15_cross_species_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
 
 #%%

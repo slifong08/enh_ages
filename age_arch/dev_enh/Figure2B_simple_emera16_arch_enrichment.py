@@ -17,13 +17,11 @@ sns.palplot(palette)
 
 #%% Files
 
-path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/breaks/"
+path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/non-genic/"
 
-enh = "%sHsap_brain_enhancers_emera16_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sHsap_brain_enhancers_emera16_enh_age_arch_full_matrix.tsv" % path
+enh = "%sno-exon_emera_2016_neocortical_dev_enhancers_hu_ms_parallel_breaks.bed" % path
 
-shuf = "%sHsap_brain_enhancers_emera16_negs_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sHsap_brain_enhancers_emera16_negs_age_arch_full_matrix.tsv" % path
+shufs = glob.glob("%sno-exon_shuf-emera_2016_neocortical_dev_enhancers_hu_ms-*_parallel_breaks.bed" % path)
 
 #%% other summary files
 
@@ -33,13 +31,44 @@ syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
 syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-syn_gen_bkgd
 
 
 #%% LOAD Files
+cols = ["chr_enh", "start_enh", "end_enh", "shuf_id",
+ "enh_id", "seg_index", "core_remodeling", "arch", "mrca_2"]
+shuf_dict = {}
+for shuf in shufs:
+    shuf_id = (shuf.split("/")[-1]).split(".")[0]
 
-shuffle = pd.read_csv(shuf, sep = '\t')
-final_merge = pd.read_csv(enh, sep = '\t')
+    shuffle = pd.read_csv(shuf, sep = '\t', header =None)
+    shuffle.columns = cols
+    shuffle["shuf_id"] =shuf_id
+
+    shuf_dict[shuf_id] = shuffle
+
+shuffle = pd.concat(shuf_dict.values())
+shuffle = shuffle.loc[shuffle.mrca_2 != "max_age"]
+shuffle["mrca_2"] = shuffle["mrca_2"].astype(float).round(3) # round ages
+
+final_merge = pd.read_csv(enh, sep = '\t', header =None)
+final_merge.columns = cols
+final_merge.shuf_id = "Emera16"
+final_merge = final_merge.loc[final_merge.mrca_2 != "max_age"]
+final_merge["mrca_2"] = final_merge["mrca_2"].astype(float).round(3) # round ages
+
+relative_simple = final_merge.seg_index.median()
+
+final_merge["core_remodeling"]= 0
+shuffle["core_remodeling"]= 0
+final_merge.seg_index=final_merge.seg_index.astype(int)
+shuffle.seg_index=shuffle.seg_index.astype(int)
+final_merge.loc[final_merge.seg_index.astype(int)> relative_simple, "core_remodeling"] = 1
+shuffle.loc[shuffle.seg_index.astype(int) > relative_simple, "core_remodeling"] = 1
+print(relative_simple)
+#%%
+
+#%% LOAD Files
+
 
 shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]].drop_duplicates()
 shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "shuf_id"])["enh_id"].count().reset_index()
@@ -157,11 +186,12 @@ sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal
 ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
 xlabel = "number of segments", ylabel = "cumulative distribution",
 xlim = (0,31))
+ax.axvline(relative_simple)
 plt.savefig("%semera16_CDF_breaks.pdf" %RE, bbox_inches = 'tight')
 
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
-
+archs.seg_index = archs.seg_index.astype(int)
 
 total_shuf_breaks = shuf_break_freq.groupby(["seg_index"])["enh_id"].sum().reset_index()
 
@@ -197,10 +227,11 @@ ORdf["yerr"] = ORdf.ci_upper-ORdf.ci_lower
 ORdf['log'] = np.log2(ORdf.OR)
 ORdf.head()
 #%%
-fig, ax = plt.subplots(figsize =(8,8))
+fig, ax = plt.subplots(figsize =(16,8))
 sns.set("poster")
-max_segs = 10
-firstfive = ORdf.loc[ORdf.seg_index <max_segs]
+max_segs =25
+ORdf.seg_index = ORdf.seg_index.astype(int)
+firstfive = ORdf.loc[ORdf.seg_index.astype(int) <max_segs]
 
 sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <max_segs],
             linewidth=2.5, facecolor=(1, 1, 1, 0),
@@ -218,6 +249,7 @@ ax.yaxis.set_major_formatter(ticks)
 ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 
+
 plt.savefig("%sfig2b-emera16_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches = "tight")
 
 #%%
@@ -226,7 +258,8 @@ plot_cdf.head()
 hue_order = ["emera16", "Shuffle"]
 fig, ax = plt.subplots(figsize = (8,8))
 sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = plot_cdf, hue = "dataset", hue_order = hue_order, palette = shuf_pal)
+sns.barplot(x = "seg_index", y = "cdf", data = plot_cdf,
+hue = "dataset", hue_order = hue_order, palette = shuf_pal)
 ax.set(xlabel="Number of Age Segments per Enhancer",\
 ylabel = "Cumulative Frequency of Dataset",\
 title = "emera16 Enhancer Age Segment Count\n Cumulative distribution",\
