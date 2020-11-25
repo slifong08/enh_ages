@@ -63,8 +63,13 @@ def breaks_array(search_str):
 
 # %% select the file(s) to run
 os.chdir("/dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/")
+
+# each individual tissue sample
 source_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/download/"
-samples = glob.glob("%s*.bed"%source_path)
+samples = glob.glob("%sshuffle/ages/*enh_ages.bed"%source_path)
+
+source_path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
+samples = glob.glob("%sall_fantom_enh.bed"%source_path)
 len(samples)
 
 #%%
@@ -81,7 +86,7 @@ already_done
 
 sample_dict = {}
 
-ITERATIONS = 100
+ITERATIONS = 200
 AGE_VAL = 1
 BREAK_VAL = 1
 TFBS_VAL = 0
@@ -98,8 +103,8 @@ for sample in samples:
     fid = "_".join(sample_id.split("_")[0:2])
 
 
-    #if fid not in already_done:
-    sample_dict[sample_id] = sample
+    if fid not in already_done:
+        sample_dict[sample_id] = sample
 print(len(sample_dict.keys()))
 #%%
 print("start", datetime.datetime.now(), "\n")

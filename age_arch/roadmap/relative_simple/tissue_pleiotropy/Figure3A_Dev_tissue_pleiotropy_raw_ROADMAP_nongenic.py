@@ -79,17 +79,18 @@ for sid in devsid_list:
         enh.columns =[ "old_enh_id", "dataset", "arch", "seg_index", "old_len", "taxon2", "mrca_2"]
 
         # get relative percentiles and reassign "arch"
-        enh_percentiles = "%sall_noexon_ROADMAP_breaks_percentiles.bed" % multipath
+        enh_percentiles = "%sbreaks/all_noexon_ROADMAP_breaks_percentiles.bed" % multipath
         pdf = pd.read_csv(enh_percentiles, sep = '\t')
 
 
 
         # RELATIVE SIMPLE DEF
 
-        relative_simple = get_relative_simple(sid, pdf)
+        #relative_simple = get_relative_simple(sid, pdf)
+        relative_simple = enh.seg_index.median()
         print(sid, relative_simple)
         enh["relative_arch"] = "rel_simple"
-        enh.loc[enh.seg_index.astype(float) >=relative_simple, "relative_arch"] = "rel_complex"
+        enh.loc[enh.seg_index.astype(float) >relative_simple, "relative_arch"] = "rel_complex"
         enh.loc[enh.relative_arch == "rel_simple", "arch"] = "simple"
 
 
@@ -128,17 +129,18 @@ for sid in devsid_list:
         complex_med = multi["count_overlap"].loc[multi["arch"].str.contains("complex")].median()
         print( "simple, complex medians", simple_med, complex_med)
 
+        # remove ages, architectures with less than 25 datapoints for plotting
+        counts = multi.groupby(["arch", "mrca_2"])["old_enh_id"].count().reset_index()
+        counts.rename(columns = {"old_enh_id":"counts"}, inplace = True)
 
+        multi = pd.merge(multi, counts, how = 'left', on = ["arch", "mrca_2"])
+        multi= multi.loc[multi.counts>25]
 
 
         multi.groupby("arch")["old_enh_id"].count()
 
 
-
-
         multi.groupby(["mrca_2","arch"])["count_overlap"].count()
-
-
 
 
         from matplotlib import gridspec
@@ -150,17 +152,17 @@ for sid in devsid_list:
         fig = plt.figure(figsize = (12, 8))
         gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
         ax0 = plt.subplot(gs[0])
-
+        print(multi.arch.unique())
         sns.barplot(x = "arch", y = "count_overlap", data = multi,
                     palette = palette, order = order,
                     #showfliers = False, notch = True,
                     ax = ax0)
         #ax0.set_xlabel("")
         simplen = multi.loc[multi["arch"] == "simple"]["count_overlap"].count()
-        simplemean = multi.loc[multi["arch"] == "simple"]["count_overlap"].mean().round(0)
+        simplemean = multi.loc[multi["arch"] == "simple"]["count_overlap"].mean().round(1)
 
         complexn = multi.loc[multi["arch"] != "simple"]["count_overlap"].count()
-        complexmean = multi.loc[multi["arch"] != "simple"]["count_overlap"].mean().round(0)
+        complexmean = multi.loc[multi["arch"] != "simple"]["count_overlap"].mean().round(1)
 
         ax0.set(xticklabels =["simple n=%s\nmean = %s" %(simplen, simplemean),
          "complex n=%s\nmean = %s"% (complexn,complexmean)],
@@ -194,4 +196,4 @@ for sid in devsid_list:
 
 
 ##%%
-relative_simple
+counts

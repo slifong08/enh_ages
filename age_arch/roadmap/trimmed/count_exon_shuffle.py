@@ -37,7 +37,7 @@ sid_dict = {}
 
 for f in noexon_fs:
 
-    sid = (f.split("/")[-1]).split("_")[2]
+    sid = ((f.split("/")[-1]).split("_")[1]).split(".")[0]
 
 
     if sid not in sid_dict:

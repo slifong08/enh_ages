@@ -13,12 +13,15 @@ keep_chr = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8',
        'chr21', 'chr22']
 print(len(df))
 #%%
-df = df.loc[df[0].isin(keep_chr)]
+df = df.loc[df[0].isin(keep_chr)] # keep only the chromosomes in list
 print(len(df))
-
+df = df[[0,1,2]].drop_duplicates() # drop exons logged twice for different transcript models
+print(len(df))
 #%%
 753667-699667
 # lose 54000 non-autosome exons
+
+#260065 unique exon coordinates
 #%%
 df[0].unique()
 

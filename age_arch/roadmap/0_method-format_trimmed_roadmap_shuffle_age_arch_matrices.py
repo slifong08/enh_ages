@@ -30,15 +30,12 @@ print("last run", datetime.datetime.now())
 
 
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-trimmed_path = "%strimmed/" % path
+
+trimmed_path = "%strimmed/breaks/" % path
 ## CHANGE PATH ##
 samples = glob.glob("%s**/*parallel_breaks.bed" % path, recursive = True)
-samples = glob.glob("%sbreaks/*parallel_breaks.bed" % trimmed_path, recursive = True)
-ids = ['trimmed0-E029_parallel_breaks', 'trimmed0-E034_parallel_breaks',
-       'trimmed0-E050_parallel_breaks', 'trimmed0-E069_parallel_breaks',
-       'trimmed0-E072_parallel_breaks', 'trimmed0-E073_parallel_breaks',
-       'trimmed0-E116_parallel_breaks', 'trimmed0-E118_parallel_breaks',
-       'trimmed0-E123_parallel_breaks']
+samples = glob.glob("%strimmed-310-E*_age_breaks.bed" % trimmed_path, recursive = True)
+
 
 # # load the genomic background
 
@@ -101,6 +98,7 @@ def formatDF(df, datatype):
 
     df = pd.merge(df, syn_gen_bkgd,\
      how = "left", on = "mrca" ).sort_values(by="mrca_2")# add species annotation
+
     df["mrca_2"] = df["mrca_2"].round(3) # round mrca value
 
     df = df.drop_duplicates()
@@ -108,11 +106,13 @@ def formatDF(df, datatype):
     # get the max breaks and oldest mrca
     if "old_len" in list(df):
         breakDF = df.groupby(["enh_id", "chr_enh","start_enh", "end_enh", "old_len", \
-         "core_remodeling", "arch"])["seg_index", "mrca", "enh_len"].max().reset_index()
+         "core_remodeling", "arch"])[["seg_index", "mrca", "enh_len"]].max().reset_index()
     else:
         breakDF = df.groupby(["enh_id", "chr_enh","start_enh", "end_enh", \
-     "core_remodeling", "arch"])["seg_index", "mrca", "enh_len"].max().reset_index()
+     "core_remodeling", "arch"])[["seg_index", "mrca", "enh_len"]].max().reset_index()
+
     breakDF["mrca"] = breakDF["mrca"].round(3) # round mrca value
+
     breakDF = pd.merge(breakDF, syn_gen_bkgd,\
     how = "left", on = "mrca").sort_values(by="mrca_2")# add species annotation
 
@@ -136,7 +136,7 @@ enh_dict = {} # {sample_id: enh_tfbs_density df}
 enh_break_dict = {}
 
 for sample in samples:
-    print(sample)
+    sid = (sample.split("/")[-1]).split("_")[0]
 
     if os.path.getsize(sample)>0:
         df = pd.read_csv(sample, sep='\t')
@@ -161,6 +161,16 @@ for sample in samples:
 
         ## CHANGE sid in format ##
         formatted_df, formatted_df_breaks = formatDF(df, sample_id) # format df
+
+
+
+        breaks = formatted_df_breaks[['chr_enh', 'start_enh', 'end_enh', 'enh_id', 'core_remodeling',
+         'arch', 'seg_index',
+         'mrca', 'enh_len', 'taxon','mrca_2', 'taxon2', 'mya', 'mya2', 'seg_den', 'datatype']]
+
+        out_enh_breaks_bed = "%s%s_summary_matrix.bed" % (trimmed_path, sid)
+
+        breaks.to_csv(out_enh_breaks_bed, sep = '\t', index = False, header = False)
 
         enh_dict[sample_id] = formatted_df # add sample df to dictionary
 
@@ -271,7 +281,7 @@ for key in ids:
     breaks = breaks.loc[breaks.enh_len<10000]
 
 
-    out_enh_breaks = "%sROADMAP_%s_enh_age_arch_summary_matrix.tsv" % (path, key)
+    out_enh_breaks = "%sROADMAP_%s_summary_matrix.tsv" % (path, key)
 
     if "old_len" in list(breaks):
         breaks = breaks[['chr_enh', 'start_enh', 'end_enh', "old_len", 'enh_id', 'core_remodeling',

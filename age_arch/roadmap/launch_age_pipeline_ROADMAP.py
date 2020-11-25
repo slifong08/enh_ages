@@ -15,6 +15,12 @@ import subprocess
 import sys, traceback
 print("last run", datetime.datetime.now())
 
+missing = [ 'E050', 'E108', 'E074', 'E071', 'E019','E041', 'E042', 'E062',
+ 'E047', 'E029', 'E045', 'E127', 'E069', 'E115', 'E123', 'E032', 'E058', 'E055',
+ 'E039', 'E044', 'E072', 'E126', 'E048', 'E040', 'E124', 'E122', 'E046', 'E118',]
+
+# missing = [ 'E050', 'E108', 'E074', 'E071', 'E029',  'E127', 'E069', 'E115', 'E058', 'E055',
+ # 'E072',  'E126', 'E124', 'E122',]
 
 
 #%% FUNÇÕES
@@ -50,48 +56,53 @@ def breaks_array(search_str):
 # %% select the file(s) to run
 os.chdir("/dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/")
 
-source_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/trimmed/"
+source_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/trimmed/shuffle/"
 
-samples = glob.glob("%strimmed-310_Hsap_H3K27ac_plus_H3K4me3_minus_E*.bed.gz"%source_path)
+samples = glob.glob("%sshuf-no-exon_trimmed-310-E*-*.bed"%source_path)
 print(len(samples))
 #%%
 sample_dict = {}
-ITERATIONS = 100
-AGE_VAL = 1
+ITERATIONS = 0
+AGE_VAL = 0
 BREAK_VAL = 1
 TFBS_VAL = 0
-SHUF_VAL = 1
-RUN_BED = 0
+SHUF_VAL = 0
+RUN_BED = 1
 
-RUN = 0 # Launch command or dont
-SBATCH = 0  # Sbatch or run w/ python interpreter
+RUN = 1 # Launch command or dont
+SBATCH = 1  # Sbatch or run w/ python interpreter
 RUN_BREAKS = 0
 val = 0
 for sample in samples:
 
-    sample_id = ((sample.split("/")[-1]).split(".")[0]).split("_")[-1]
-    #if sample_id.split("_")[1] in  need_shuffles:
-    sample_dict[sample_id] = sample
+    sample_id = ((sample.split("/")[-1]).split(".")[0]).split("-")[-2]
+    if sample_id in missing:
+
+        sample_dict[sample_id] = sample
 print(len(sample_dict.keys()))
 #%%
 print("start", datetime.datetime.now())
 
 for sample_id, file in sample_dict.items():
 
+    uncap = file.split(".")[0]
+    new_f = uncap +"_enh_ages.bed"
+    cmd = "mv %s %s" % (file, new_f)
+    #subprocess.call(cmd, shell = True)
     print(sample_id)
+
 
     if SBATCH ==1:
         sbatch_age_sequence(file, RUN, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_BED)
     else:
         python_age_sequence(file, RUN, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_BED)
-    break
+
     val +=1
 
 print("end", datetime.datetime.now())
 
 #%%
-for sample_id, file in sample_dict.items():
-    chr_splitter(file)
+file
 #%%
 if RUN_BREAKS ==1:
     search_str = "/dors/capra_lab/projects/enhancer_ages/emera16/data/shuffle/shuf*.bed"

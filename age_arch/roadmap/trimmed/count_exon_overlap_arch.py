@@ -6,17 +6,30 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/non-genic/trimmed/"
-path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/trimmed/"
+path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/trimmed/non-genic/"
 
 noexon_fs = glob.glob("%sno-exon_trimmed*.bed" % path)
 wexon_fs = glob.glob("%sexonOverlap_trimmed*.bed" % path)
 print(len(noexon_fs))
 
-def file_len(fname):
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
+def arch(fname, relative_simple):
+    if "shuf" in fname:
+        arch = pd.read_csv(fname, sep = '\t', header = None, usecols = [6])
+    else:
+        arch = pd.read_csv(fname, sep = '\t', header = None, usecols = [6])
+
+    if relative_simple == 0:
+        med = np.median(arch) # let non-exon file determine relative simple as 95% of enhancers do not overlap exons
+    else:
+        med = relative_simple
+
+
+    simplen = len(arch.loc[arch[6]<=med])
+    complexn = len(arch.loc[arch[6]>med])
+
+    total = len(arch)
+    print(med, simplen, complexn, total)
+    return med, simplen, complexn, total
 #%%
 desc_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/"
 desc_df = pd.read_csv("%sroadmap_hg19_sample_id_desc.csv"% desc_path, header = None)
@@ -27,7 +40,7 @@ desc_df.head()
 
 
 sid_dict = {}
-
+med_dict = {}
 
 
 for f in noexon_fs:
@@ -37,10 +50,19 @@ for f in noexon_fs:
 
     if sid not in sid_dict:
 
+        relative_simple = 0
+        med, simplen, complexn, total = arch(f, relative_simple)
 
-        new_len = file_len(f)
+        newdf = pd.DataFrame({"median_breaks":[med],
+        "simpleN": [simplen],
+        "complexN": [complexn],
+        "totalN": [total],
+        "dataset":["no_ex"]
+        })
 
-        sid_dict[sid] = [new_len] # add
+        sid_dict[sid] = newdf # add
+        med_dict[sid] = med
+
 
 #%%
 noexon_fs[0]
@@ -53,54 +75,39 @@ for f in wexon_fs:
 
     if sid in sid_dict.keys():
 
-        new_list = sid_dict[sid] # get the list
+        relative_simple = med_dict[sid]
+        olddf = sid_dict[sid] # get the list
 
-        new_len = file_len(f)
+        med, simplen, complexn, total = arch(f, relative_simple)
 
+        newdf = pd.DataFrame({"median_breaks":[med],
+        "simpleN": [simplen],
+        "complexN": [complexn],
+        "totalN": [total],
+        "dataset":["w_ex"]
+        })
 
-        new_list.append(new_len)
+        df = pd.concat([olddf, newdf])
 
-
-        sid_dict[sid] = new_list # add
+        sid_dict[sid] = df # add
 #%%
 print((sid_dict.keys()))
 
-sid_dict.values()
-
-#%%
-val = 0
-df = pd.DataFrame()
-for key, val in sid_dict.items():
-    newdf = pd.DataFrame({"sid":[key],
-    "no_ex_enh":[val[0]],
-    'ex_enh':[val[1]],
-    'total_enh': [(val[0]+val[1])]})
-    newdf["frac_noex"] = newdf.no_ex_enh.divide(newdf.total_enh)
-    newdf["frac_ex"] = newdf.ex_enh.divide(newdf.total_enh)
-    if val == 0:
-        df = newdf.copy()
-    else:
-        df = pd.concat([df, newdf])
-    val=+1
 
 
 #%%
-
-df.sort_values(by = "frac_ex", ascending = False)
-
-
-# add tissue description
-df.sid = df.sid.apply(lambda x: x.split(".")[0])
-df = pd.merge(df, desc_df, how = "left", on  ="sid")
-df["sid2"] = df.sid +"-"+df.desc
-
-df["log2_ex_overlap"] = np.log10(df.frac_ex)
-
-
-#%%
+df = pd.concat(sid_dict.values())
+df["frac_simple"] = df.simpleN.divide(df.totalN)
+df["frac_complex"] = df.complexN.divide(df.totalN)
 df.head()
 #%%
-df.describe()
+
+df.sort_values(by = "frac_simple", ascending = False).head()
+
+
+
+#%%
+df.loc[df.dataset == "w_ex"].describe()
 #%%
 
 fig, ax = plt.subplots(figsize = (6,30))

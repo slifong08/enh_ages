@@ -7,16 +7,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/non-genic/"
-path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/shuffle/breaks/"
+path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/breaks/"
 
 
 
-noexon_fs = glob.glob("%sno-exon_E*.bed" % path)
-wexon_fs = glob.glob("%sexonOverlap_E*.bed" % path)
-
-
-noexon_fs = glob.glob("%sno-exon_E*.bed" % path)
-wexon_fs = glob.glob("%sexonOverlap_E*.bed" % path)
+noexon_fs = glob.glob("%sno-exon_shuf-*.bed" % path)
+wexon_fs = glob.glob("%sexonOverlap_shuf-*.bed" % path)
 
 
 def file_len(fname):
@@ -39,7 +35,7 @@ sid_dict = {}
 
 for f in noexon_fs:
 
-    sid = (f.split("/")[-1]).split("_")[1]
+    sid = ((f.split("/")[-1]).split("_")[1]).split(".")[0]
 
 
     if sid not in sid_dict:
@@ -52,12 +48,15 @@ for f in noexon_fs:
 
 #%%
 
+wexon_fs[0]
+#%%
+
 for f in wexon_fs:
 
-    sid = (f.split("/")[-1]).split("_")[1]
+    sid = ((f.split("/")[-1]).split("_")[1]).split(".")[0]
 
     if sid in sid_dict.keys():
-
+        print(sid)
         new_list = sid_dict[sid] # get the list
 
         new_len = file_len(f)

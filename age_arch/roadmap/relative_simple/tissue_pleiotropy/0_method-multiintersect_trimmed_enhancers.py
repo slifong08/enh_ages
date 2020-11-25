@@ -20,7 +20,7 @@ import pandas as pd
 
 fraction_overlap = sys.argv[1]
 fraction_overlap = 0.5
-NONGENIC = 0
+NONGENIC = 1
 
 #%%
 if NONGENIC == 1:
@@ -38,7 +38,7 @@ desc_df= pd.read_csv(desc_file,header = None)
 desc_df.columns = ["sid", "desc"]
 
 
-test_list = desc_df.loc[desc_df.desc.str.contains("Fetal"), "sid"].to_list()
+#test_list = desc_df.loc[desc_df.desc.str.contains("Fetal"), "sid"].to_list()
 
 #%%
 desc_df.loc[desc_df.desc.str.contains("Fetal")]
@@ -48,23 +48,27 @@ desc_df.loc[desc_df.desc.str.contains("Fetal")]
 # -b base
 all_beds_dev = []
 if NONGENIC ==1:
-    all_beds = glob.glob("%snon-genic/breaks/no-exon_E*.bed" % fpath)
+    all_beds = glob.glob("%sbreaks/no-exon_E*.bed" % fpath)
 elif NONGENIC ==0:
     all_beds = glob.glob("%strimmed/trimmed-mean-*.bed" %fpath)
 print(len(all_beds))
 #%%
-test_list = desc_df.sid.to_list()
+all_beds
+#%%
+#test_list = desc_df.sid.to_list()
 for test in test_list:
     for bed in all_beds:
 
         if NONGENIC ==1:
-            bed_id = (bed.split("-exon_")[1]).split(".")[0]
+            bed_id = ((bed.split("/")[-1]).split("_")[1])
+            print(bed_id)
+
             if test == bed_id:
                 all_beds_dev.append(bed)
 
         elif NONGENIC ==0:
             bed_id = ((bed.split("/")[-1]).split("-")[-1]).split(".")[0]
-            print(bed_id)
+
 
             if test == bed_id:
                 print(test)

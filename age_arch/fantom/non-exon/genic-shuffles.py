@@ -19,9 +19,11 @@ for i, f in enumerate(fs):
     df = pd.read_csv(f, sep = '\t', header = None, usecols = [3, 4,5,6, 10, 11]).drop_duplicates()
     cols = ["enh_id",  "core_remodeling", "arch", "seg_index", "mrca_2", "taxon"]
     df.columns = cols
+    df = df.loc[~df.enh_id.str.contains("chrX")]
     genic_dict[i] = df
 
 df = pd.concat(genic_dict.values())
+df.describe()
 #%%
 total = len(df)
 arch_counts = df.groupby("arch")["enh_id"].count().reset_index()

@@ -5,12 +5,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/non-genic/"
+RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/non-genic/trimmed/"
 path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/breaks/"
 
-noexon_fs = glob.glob("%sno-exon_E*.bed" % path)
-wexon_fs = glob.glob("%sexonOverlap_E*.bed" % path)
-
+noexon_fs = glob.glob("%sno-exon_trimmed*.bed" % path)
+wexon_fs = glob.glob("%sexonOverlap_trimmed*.bed" % path)
+print(len(noexon_fs))
 
 def file_len(fname):
     with open(fname) as f:
@@ -32,7 +32,8 @@ sid_dict = {}
 
 for f in noexon_fs:
 
-    sid = (f.split("/")[-1]).split("_")[1]
+    sid = (((f.split("/")[-1]).split("_")[1]).split("-")[-1]).split(".")[0]
+    print(sid)
 
     if sid not in sid_dict:
 
@@ -47,7 +48,8 @@ noexon_fs[0]
 
 for f in wexon_fs:
 
-    sid = (f.split("/")[-1]).split("_")[1]
+    sid = (((f.split("/")[-1]).split("_")[1]).split(".")[0]).split("-")[-1]
+    print(sid)
 
     if sid in sid_dict.keys():
 
@@ -61,7 +63,9 @@ for f in wexon_fs:
 
         sid_dict[sid] = new_list # add
 #%%
+print((sid_dict.keys()))
 
+sid_dict.values()
 
 #%%
 val = 0
@@ -104,7 +108,7 @@ fig, ax = plt.subplots(figsize = (6,30))
 sns.barplot(y= "sid2", x = "frac_ex",
 data = df.sort_values(by = "frac_ex", ascending = False))
 #ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
-plt.savefig("%sexon_overlap_fraction.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sexon_overlap_fraction_trimmed.pdf" %RE, bbox_inches = "tight")
 
 #%%
 fig, ax = plt.subplots(figsize = (6,30))
@@ -112,21 +116,22 @@ fig, ax = plt.subplots(figsize = (6,30))
 sns.barplot(y= "sid2", x = "ex_enh",
 data = df.sort_values(by = "frac_ex", ascending = False))
 #ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
-plt.savefig("%sexon_overlap_count.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sexon_overlap_count_trimmed.pdf" %RE, bbox_inches = "tight")
 
 
 #%% match on the shuffled datasets you have available
 
-limited = ['E102', 'E111', 'E098', 'E034', 'E114', 'E029', 'E103', 'E063',
-       'E078']
+limited = ['E038', 'E075', 'E022', 'E084', 'E067', 'E109', 'E117', 'E111', 'E129', 'E037', 'E043', 'E080', 'E087', 'E078', 'E085', 'E120', 'E079', 'E102', 'E101', 'E103', 'E021', 'E008', 'E099', 'E065', 'E092', 'E098', 'E097', 'E012', 'E090', 'E113', 'E089', 'E073', 'E061', 'E100', 'E114', 'E006', 'E104', 'E015', 'E095', 'E013', 'E121', 'E056', 'E014', 'E106', 'E125', 'E128', 'E026', 'E017', 'E105', 'E020', 'E049', 'E094', 'E068', 'E066', 'E096', 'E093', 'E007', 'E059', 'E112', 'E091', 'E011', 'E119', 'E005', 'E076', 'E003', 'E063', 'E004', 'E016']
 lim = df.loc[df.sid.isin(limited)]
 
 lim.describe()
 #%%
+lim.head()
+#%%
 
 fig, ax = plt.subplots(figsize = (6,10))
 
-sns.barplot(y= "sid2", x = "frac_ex",
+sns.barplot(y= "sid", x = "frac_ex",
 data = lim.sort_values(by = "frac_ex", ascending = False))
 #ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 plt.savefig("%sexon_overlap_fraction_limited.pdf" %RE, bbox_inches = "tight")
@@ -134,7 +139,7 @@ plt.savefig("%sexon_overlap_fraction_limited.pdf" %RE, bbox_inches = "tight")
 #%%
 fig, ax = plt.subplots(figsize = (6,10))
 
-sns.barplot(y= "sid2", x = "ex_enh",
+sns.barplot(y= "sid", x = "ex_enh",
 data = lim.sort_values(by = "frac_ex", ascending = False))
 #ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 plt.savefig("%sexon_overlap_count_limited.pdf" %RE, bbox_inches = "tight")

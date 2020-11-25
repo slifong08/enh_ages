@@ -5,7 +5,7 @@ import subprocess
 RE ="/dors/capra_lab/projects/enhancer_ages/fantom/results/for_publication/syn/"
 
 ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
-ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
+ExonF = "%sall_merged_exon.bed" % ExonP
 print(ExonF)
 
 ShufP = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/breaks/"
@@ -47,6 +47,9 @@ def bed_subtract(inF, exonF, outP):
 no_exon_list = []
 exon_list = []
 for ShufF in ShufFs:
+    df = pd.read_csv(ShufF, sep = '\t', header = None)
+    df = df.loc[df[0] != "chrX"]
+    df.to_csv(ShufF, sep = '\t', header = False, index = False)
 
     noex, ex = bed_subtract(ShufF, ExonF, ShufOutP)
     no_exon_list.append(noex)
@@ -55,12 +58,18 @@ for ShufF in ShufFs:
 
 #%%
 import numpy as np
-print(np.mean(no_exon_list)) # mean number of syntenic blocks not overlapping exons
+noex_mean = np.mean(no_exon_list)
+print(noex_mean) # mean number of syntenic blocks not overlapping exons
 #
+ex_mean = np.mean(exon_list)
+print(ex_mean) # mean number of syntenic blocks overlapping exons
 
-print(np.mean(exon_list)) # mean number of syntenic blocks overlapping exons
+print(ex_mean/(ex_mean + noex_mean))
+#%%
 # 4082 average # of overlaps
-
+1233 + 29850
+#%%
+1233/31083
 #%% subtract enhancers
 
 
