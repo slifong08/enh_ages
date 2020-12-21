@@ -85,9 +85,10 @@ multi.head()
 
 multi.columns = ["chr_enh", "start_enh", "end_enh", "old_len", "core_remodeling",
 "mrca_2", "datatype", "count_overlap", "gwas_overlap"] # rename columns
-
+multi = multi.loc[multi.chr_enh != "chrX"]
 
 multi.head()
+
 
 #%%
 
@@ -133,7 +134,7 @@ def logistic_regression(Xvars, yvars, df, ):
 
 
     sid = "+".join(Xvars) # create a unique sample id
-
+    sid = "logit"
     X = df[Xvars].to_numpy()#.reshape(-1, 1)
     y = df[yvars].to_numpy().ravel()
     print(X.shape, y.shape)
@@ -159,48 +160,44 @@ def logistic_regression(Xvars, yvars, df, ):
     mean_baseline = []
     mean_fpr = np.linspace(0, 1, 100)
 
-    fig, (ax, ax2) = plt.subplots(2, figsize = (6,12)) # for roc_auc
+    fig, (ax, ax2) = plt.subplots(ncols = 2, figsize = (12,6)) # for roc_auc
 
+    for i, (train, test) in enumerate(cv.split(X, y)):
+        model.fit(X[train], y[train])
+        viz = plot_roc_curve(model, X[test], y[test],
+                             name='ROC fold {}'.format(i),
+                             alpha=0.3, lw=1, ax=ax)
+        interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr) # interpolate mean_fpr
+        interp_tpr[0] = 0.0
 
-    #model.fit(X_train, y_train)
-    model.fit(X, y)
+        tprs.append(interp_tpr)
+        aucs.append(viz.roc_auc)
 
-    viz = plot_roc_curve(model, X_test, y_test,
-                         name='ROC fold {}'.format(i),
-                         alpha=0.3, lw=1, ax=ax)
-    interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr) # interpolate mean_fpr
-    interp_tpr[0] = 0.0
+        y_pred = model.predict(X[test]) # make predictions on test
+        y_probs = model.predict_proba(X[test])[:,1]
+        coef = model.coef_[0]
 
-    tprs.append(interp_tpr)
-    aucs.append(viz.roc_auc)
+        print (coef)
+        #print("pvalues", logit_pvalue(model, X_train))
+        print("pvalues", logit_pvalue(model, X))
 
-    y_pred = model.predict(X_test) # make predictions on test
-    y_probs = model.predict_proba(X_test)[:,1]
-    coef = model.coef_[0]
+        cm = metrics.confusion_matrix(y[test], y_pred) # confusion matrix
 
-    print (coef)
-    #print("pvalues", logit_pvalue(model, X_train))
-    print("pvalues", logit_pvalue(model, X))
+        precision, recall, _ = precision_recall_curve(y[test],y_probs)
+        prs.append(np.interp(mean_recall, precision, recall)) # add predictions
+        pr_auc = auc(recall, precision) # calculate aucs
+        pr_aucs.append(pr_auc) # append to pr_aucs
+        prcurve = plot_precision_recall_curve(model, X[test], y[test],\
+        name='PR fold {}'.format(i),
+        alpha=0.3, lw=1, ax=ax2)
 
+        baseline = cm[1].sum()/cm.sum() # calculate baseline as true /total pos.
+        mean_baseline.append(baseline)
 
-
-    cm = metrics.confusion_matrix(y_test, y_pred) # confusion matrix
-
-    precision, recall, _ = precision_recall_curve(y_test,y_probs)
-    prs.append(np.interp(mean_recall, precision, recall)) # add predictions
-    pr_auc = auc(recall, precision) # calculate aucs
-    pr_aucs.append(pr_auc) # append to pr_aucs
-    prcurve = plot_precision_recall_curve(model, X_test, y_test,\
-    name='PR fold {}'.format(i),
-    alpha=0.3, lw=1, ax=ax2)
-
-    baseline = cm[1].sum()/cm.sum() # calculate baseline as true /total pos.
-    mean_baseline.append(baseline)
-
-    ax2.set(xlabel = "Recall", ylabel= "Precision",\
-    title = "PR - %s" % (sid))
-    ax2.legend(loc="upper right")
-    ax2.axhline(baseline, ls = '--')#, color ='k')
+        ax2.set(xlabel = "Recall", ylabel= "Precision",\
+        title = "PR - %s" % (sid))
+        ax2.legend(loc="upper right")
+        ax2.axhline(baseline, ls = '--')#, color ='k')
 
     #summarize roc_auc
     ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
@@ -222,7 +219,7 @@ def logistic_regression(Xvars, yvars, df, ):
 
     ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
            title="auROC %s" % (sid))
-    ax.legend(bbox_to_anchor = (1,1))
+    ax.legend(bbox_to_anchor =(1,-1))
 
     # summarize pr
 
@@ -236,8 +233,8 @@ def logistic_regression(Xvars, yvars, df, ):
       label='mean_baseline')
 
     ax2.set(xlim = [-0.05, 1.05], ylim = [-0.05, 1.05],
-    xlabel = 'Recall', ylabel = 'Precision', title= "PR %s" % (sid))
-    ax2.legend(bbox_to_anchor = (1,1))
+    xlabel = 'Recall', ylabel = 'Precision', title="PR %s" % (sid))
+    ax2.legend(bbox_to_anchor =(1,-1))
 
     plt.show()
 

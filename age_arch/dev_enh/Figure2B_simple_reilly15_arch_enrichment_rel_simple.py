@@ -104,7 +104,7 @@ for p in ax.patches:
 
 ax.set(xticklabels = "", xlabel= "", title= "", ylabel= "Frequency of Dataset")
 ax.get_legend().remove()
-plt.savefig("%sreilly_enh_shuf_simple_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sreilly_enh_shuf_simple_freq_rel_simple.pdf" %RE, bbox_inches = "tight")
 
 #%% PLOT FANTOM simple v. COMPLEX (64% simple v. 36% complex enhancers)
 
@@ -119,7 +119,7 @@ for p in ax.patches:
     ax.annotate('{:.0f}%'.format(100.*y), (x.mean(), y),
             ha='left', va='bottom', color = "k", alpha = 0.4, fontsize = 20) # set the alignment of the text
 
-plt.savefig("%sreilly_enh_simple_v_complex_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sreilly_enh_simple_v_complex_freq_rel_simple.pdf" %RE, bbox_inches = "tight")
 
 #%% get shuffled breaks distribution
 shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
@@ -185,7 +185,7 @@ ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
 xlabel = "number of segments", ylabel = "cumulative distribution",
 xlim = (0,31))
 ax.axvline(relative_simple)
-plt.savefig("%sReilly15_CDF_breaks.pdf" %RE, bbox_inches = 'tight')
+plt.savefig("%sReilly15_CDF_breaks_rel_simple.pdf" %RE, bbox_inches = 'tight')
 
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
@@ -246,22 +246,75 @@ ax.yaxis.set_major_formatter(ticks)
 ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 
-plt.savefig("%sfig2b-reilly_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2b-reilly_age_seg_fold_change_matplotlib_rel_simple.pdf" %RE, bbox_inches = "tight")
 
 #%%
-plot_cdf.head()
+def get_arch_freq(df):
+
+    age_cols = ["core_remodeling", "mrca_2", "mrca_count"]
+    age_counts = df.groupby(["core_remodeling", "mrca_2"])["enh_id"].count().reset_index()
+    age_counts.columns= age_cols
+
+
+    arch_cols = ["core_remodeling", "arch_total_count"]
+    arch_totals = age_counts.groupby("core_remodeling")["mrca_count"].sum().reset_index()
+    arch_totals.columns = arch_cols
+
+    age_freq = pd.merge(age_counts, arch_totals, how = "left", on = "core_remodeling")
+
+    age_freq["arch_freq"] = age_freq["mrca_count"].divide(age_freq["arch_total_count"])
+
+    return age_freq
 #%%
-hue_order = ["Reilly15", "Shuffle"]
-fig, ax = plt.subplots(figsize = (8,8))
-sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = plot_cdf, hue = "dataset", hue_order = hue_order, palette = shuf_pal)
-ax.set(xlabel="Number of Age Segments per Enhancer",\
-ylabel = "Cumulative Frequency of Dataset",\
-title = "FANTOM Enhancer Age Segment Count\n Cumulative distribution",\
-xlim=(-1, 31))
+enhAgeFreq = get_arch_freq(final_merge)
+shufAgeFreq = get_arch_freq(shuffle)
+enhAgeFreq.head()
+
+#%%
+
+Xticklabels = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+fig, (ax, ax2) = plt.subplots(ncols = 2, figsize = (16,6))
+sns.barplot(x = "mrca_2", y = 'arch_freq', data = enhAgeFreq,
+hue = "core_remodeling", palette = palette, ax = ax)
+
+ax.set(xticklabels =Xticklabels, ylabel = '% of architecture',
+title = "Reilly 15 architecture frequency", xlabel = "")
+
+ax.legend().remove()
+
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 
-ax.set_title("")
-ax.get_legend().remove()
+sns.barplot(x = "mrca_2", y = 'mrca_count', data = enhAgeFreq,
+hue = "core_remodeling", palette = palette, ax = ax2)
+
+ax2.set(xticklabels =Xticklabels, ylabel = 'count',
+title = "Reilly 15 architecture count", xlabel = "")
+
+ax2.legend().remove()
+
+ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
 plt.tight_layout()
-plt.savefig("%sfig2b-fantom_age_seg_cum_dist_matplotlib.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2.14-reilly15_mrca_x_arch_rel_simple.pdf" %RE, bbox_inches = "tight")
+
+#%%
+shufcols = ["core_remodeling", "mrca_2", "shuf_mrca_count", "shuf_arch_total", "shuf_arch_freq"]
+shufAgeFreq.columns = shufcols
+ratio = pd.merge(enhAgeFreq, shufAgeFreq, how = "left", on = ["core_remodeling", "mrca_2"])
+ratio["obs_over_exp"] = ratio["arch_freq"].divide(ratio["shuf_arch_freq"])
+ratio["log2oe"] = np.log2(ratio["obs_over_exp"])
+ratio.head()
+#%%
+
+fig, (ax) = plt.subplots(ncols = 1, figsize = (6,6))
+sns.barplot(x = "mrca_2", y = 'log2oe', data = ratio,
+hue = "core_remodeling", palette = palette, ax = ax)
+
+ax.set(xticklabels =Xticklabels, ylabel = 'Fold change\n(log2-scaled)',
+title = "Reilly 15 architecture fold-change", xlabel = "")
+
+ax.legend().remove()
+
+ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+
+plt.tight_layout()
+plt.savefig("%sfig2.14-reilly15_mrca_fold_change_rel_simple.pdf" %RE, bbox_inches = "tight")

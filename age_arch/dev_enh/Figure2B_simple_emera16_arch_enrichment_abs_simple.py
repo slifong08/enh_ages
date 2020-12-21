@@ -49,15 +49,17 @@ for shuf in shufs:
 shuffle = pd.concat(shuf_dict.values())
 shuffle = shuffle.loc[shuffle.mrca_2 != "max_age"]
 shuffle["mrca_2"] = shuffle["mrca_2"].astype(float).round(3) # round ages
+shuffle.core_remodeling=shuffle.core_remodeling.astype(int)
+shuffle.seg_index =shuffle.seg_index.astype(int)
 
 final_merge = pd.read_csv(enh, sep = '\t', header =None)
 final_merge.columns = cols
 final_merge.shuf_id = "Emera16"
 final_merge = final_merge.loc[final_merge.mrca_2 != "max_age"]
 final_merge["mrca_2"] = final_merge["mrca_2"].astype(float).round(3) # round ages
-
-relative_simple = final_merge.seg_index.median()
-
+final_merge.core_remodeling=final_merge.core_remodeling.astype(int)
+final_merge.seg_index =final_merge.seg_index.astype(int)
+"""
 final_merge["core_remodeling"]= 0
 shuffle["core_remodeling"]= 0
 final_merge.seg_index=final_merge.seg_index.astype(int)
@@ -65,8 +67,9 @@ shuffle.seg_index=shuffle.seg_index.astype(int)
 final_merge.loc[final_merge.seg_index.astype(int)> relative_simple, "core_remodeling"] = 1
 shuffle.loc[shuffle.seg_index.astype(int) > relative_simple, "core_remodeling"] = 1
 print(relative_simple)
+"""
 #%%
-
+arch.core_remodeling=arch.core_remodeling.astype(int)
 #%% LOAD Files
 
 
@@ -106,7 +109,7 @@ for p in ax.patches:
 
 ax.set(xticklabels = "", xlabel= "", title= "", ylabel= "Frequency of Dataset")
 ax.get_legend().remove()
-plt.savefig("%semera16_enh_shuf_simple_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%semera16_enh_shuf_simple_freq_abs.pdf" %RE, bbox_inches = "tight")
 
 #%% PLOT emera16 simple v. COMPLEX (64% simple v. 36% complex enhancers)
 
@@ -121,7 +124,7 @@ for p in ax.patches:
     ax.annotate('{:.0f}%'.format(100.*y), (x.mean(), y),
             ha='left', va='bottom', color = "k", alpha = 0.4, fontsize = 20) # set the alignment of the text
 
-plt.savefig("%semera16_enh_simple_v_complex_freq.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%semera16_enh_simple_v_complex_freq_abs_simple.pdf" %RE, bbox_inches = "tight")
 
 #%% get shuffled breaks distribution
 shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
@@ -168,7 +171,7 @@ breaks_freq["dataset"] = "emera16"
 breaks_freq["shuf_id"] = "emera16"
 breaks_freq["cdf"]= np.cumsum(breaks_freq.freq)/1
 #breaks_freq = breaks_freq.drop(["enh_id"], axis = 1)
-breaks_freq.head()
+breaks_freq
 #%%
 list(breaks_freq)
 #%% make shuffle cdf look like breaks_freq
@@ -176,7 +179,9 @@ shuf_cdfplot = shufbreak_freq_cdf[["seg_index", "shuf_freq", "shuf_dataset", "sh
 shuf_cdfplot.columns = ['seg_index', 'freq', 'dataset', 'shuf_id', 'cdf']
 #%%
 concat = [breaks_freq, shuf_cdfplot]
+
 plot_cdf = pd.concat(concat)
+plot_cdf.seg_index =plot_cdf.seg_index.astype(int)
 fig, ax = plt.subplots(figsize = (8,8))
 x = "seg_index"
 y = "cdf"
@@ -187,15 +192,14 @@ ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
 xlabel = "number of segments", ylabel = "cumulative distribution",
 xlim = (0,31))
 ax.axvline(relative_simple)
-plt.savefig("%semera16_CDF_breaks.pdf" %RE, bbox_inches = 'tight')
+plt.savefig("%semera16_CDF_breaks_abs_simple.pdf" %RE, bbox_inches = 'tight')
 
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
 archs.seg_index = archs.seg_index.astype(int)
 
 total_shuf_breaks = shuf_break_freq.groupby(["seg_index"])["enh_id"].sum().reset_index()
-
-total_shuf_breaks.loc[total_shuf_breaks.seg_index ==1, "enh_id"][0]
+#%%
 
 
 #%%
@@ -250,23 +254,78 @@ ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 
 
-plt.savefig("%sfig2b-emera16_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2b-emera16_age_seg_fold_change_abs_simple.pdf" %RE, bbox_inches = "tight")
 
 #%%
 plot_cdf.head()
 #%%
-hue_order = ["emera16", "Shuffle"]
-fig, ax = plt.subplots(figsize = (8,8))
-sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = plot_cdf,
-hue = "dataset", hue_order = hue_order, palette = shuf_pal)
-ax.set(xlabel="Number of Age Segments per Enhancer",\
-ylabel = "Cumulative Frequency of Dataset",\
-title = "emera16 Enhancer Age Segment Count\n Cumulative distribution",\
-xlim=(-1, 31))
+
+def get_arch_freq(df):
+
+    age_cols = ["core_remodeling", "mrca_2", "mrca_count"]
+    age_counts = df.groupby(["core_remodeling", "mrca_2"])["enh_id"].count().reset_index()
+    age_counts.columns= age_cols
+
+
+    arch_cols = ["core_remodeling", "arch_total_count"]
+    arch_totals = age_counts.groupby("core_remodeling")["mrca_count"].sum().reset_index()
+    arch_totals.columns = arch_cols
+
+    age_freq = pd.merge(age_counts, arch_totals, how = "left", on = "core_remodeling")
+
+    age_freq["arch_freq"] = age_freq["mrca_count"].divide(age_freq["arch_total_count"])
+
+    return age_freq
+#%%
+enhAgeFreq = get_arch_freq(final_merge)
+shufAgeFreq = get_arch_freq(shuffle)
+enhAgeFreq.head()
+
+#%%
+
+Xticklabels = ["Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+fig, (ax, ax2) = plt.subplots(ncols = 2, figsize = (16,6))
+sns.barplot(x = "mrca_2", y = 'arch_freq', data = enhAgeFreq,
+hue = "core_remodeling", palette = palette, ax = ax)
+
+ax.set(xticklabels =Xticklabels, ylabel = '% of architecture',
+title = "Emera 16 architecture frequency", xlabel = "")
+
+ax.legend().remove()
+
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 
-ax.set_title("")
-ax.get_legend().remove()
+sns.barplot(x = "mrca_2", y = 'mrca_count', data = enhAgeFreq,
+hue = "core_remodeling", palette = palette, ax = ax2)
+
+ax2.set(xticklabels =Xticklabels, ylabel = 'count',
+title = "Emera 16 architecture count", xlabel = "")
+
+ax2.legend().remove()
+
+ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
 plt.tight_layout()
-plt.savefig("%sfig2b-emera16_age_seg_cum_dist_matplotlib.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2.14-emera16_mrca_x_arch_abs_simple.pdf" %RE, bbox_inches = "tight")
+
+#%%
+shufcols = ["core_remodeling", "mrca_2", "shuf_mrca_count", "shuf_arch_total", "shuf_arch_freq"]
+shufAgeFreq.columns = shufcols
+ratio = pd.merge(enhAgeFreq, shufAgeFreq, how = "left", on = ["core_remodeling", "mrca_2"])
+ratio["obs_over_exp"] = ratio["arch_freq"].divide(ratio["shuf_arch_freq"])
+ratio["log2oe"] = np.log2(ratio["obs_over_exp"])
+ratio.head()
+#%%
+Xticklabels = ["Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+fig, (ax) = plt.subplots(ncols = 1, figsize = (6,6))
+sns.barplot(x = "mrca_2", y = 'log2oe', data = ratio,
+hue = "core_remodeling", palette = palette, ax = ax)
+
+ax.set(xticklabels =Xticklabels, ylabel = 'Fold change\n(log2-scaled)',
+title = "Emera 16 architecture fold-change", xlabel = "")
+
+ax.legend().remove()
+
+ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+
+plt.tight_layout()
+plt.savefig("%sfig2.14-emera16_mrca_fold_change_abs_simple.pdf" %RE, bbox_inches = "tight")

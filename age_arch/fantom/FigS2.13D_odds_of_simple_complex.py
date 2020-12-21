@@ -24,6 +24,7 @@ summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
 summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
+summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix_noex.tsv" % path
 
 #%% other summary files
 
@@ -53,7 +54,7 @@ shuffle = pd.read_csv(shuf, sep = '\t')
 
 enh = pd.read_csv(enh, sep = '\t')
 #%%
-shuffle = shuffle.groupby(["enh_id", "core_remodeling"]["mrca_2", "taxon2"].max().reset_index()
+shuffle = shuffle.groupby(["enh_id", "core_remodeling"])[["mrca_2", "taxon2"]].max().reset_index()
 enh = enh.groupby(["enh_id", "core_remodeling"])["mrca_2"].max().reset_index()
 #%%
 enh.loc[(enh.core_remodeling == 1) & (enh.mrca_2 == 0)]
@@ -104,7 +105,7 @@ def fdr_correction(collection_dict):
 mrca_dict ={}
 for mrca_2 in enh.mrca_2.unique():
 
-    df = fet_age(mrca_2, enh, shuffle, 0)
+    df = fet_age(mrca_2, enh, shuffle, 1)
     mrca_dict[mrca_2] = df
 
 #%%
@@ -137,7 +138,7 @@ yerr = plot.sort_values(by = "mrca_2")["yerr"])
 
 
 ax.set(ylabel= "Fold Change v. Bkgd\n(log2-scaled)",\
- title = "Simple enrichment per age", xlabel = "")#ylim = (-1.2,0.5))
+ title = "Complex enrichment per age", xlabel = "")#ylim = (-1.2,0.5))
 
 plt.axhline(0, color = "grey", linewidth = 2.5)
 
@@ -148,3 +149,5 @@ ax.yaxis.set_major_locator(MultipleLocator(1))
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 sns.set("poster")
 sns.set_style("white")
+
+plt.savefig("%scomplex_odds_per_mrca.pdf" % RE, bbox_inches = 'tight')

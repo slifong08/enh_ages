@@ -1,4 +1,5 @@
 import glob
+import matplotlib.pyplot as plt
 import os, sys
 import pandas as pd
 import seaborn as sns
@@ -11,32 +12,113 @@ plt.rcParams.update({'font.size': 15})
 sns.set_style("white")
 
 #%%
+
+
 RE = "/dors/capra_lab/projects/enhancer_ages/reilly15/results/pleiotropy/"
 path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/multiintersect/"
-f = "%strim-0.5_multiintersect_hu_count.bed" % outpath
+f = "%strim-0.5_multiintersect_hu_count.bed" % path
+
+
+#%%
+
+def custom_round(x, base=10):
+    return int(base * round(float(x)/base))
+
+
+def match_len(simple_df, complex_df, base_len):
+
+    columns = ["enh_id", "enh_len"]
+    columns_names = ["matching_ids", "matching_len"]
+
+    simple = simple_df[columns].drop_duplicates()
+
+    simple.columns = columns_names
+    simple.matching_len = simple.matching_len.astype(float).apply(lambda x: custom_round(x, base=base_len)) # round to the nearest 100bp
+
+    complex = complex_df[columns].drop_duplicates()
+    complex.columns = columns_names
+
+    complex.matching_len = complex.matching_len.astype(float).apply(lambda x: custom_round(x, base=base_len))
+
+    lens = set(list(simple.matching_len.unique()) + list(complex.matching_len.unique()))
+
+    match_dict = {}
+
+    for length in lens:
+        complexn = len(complex.loc[complex.matching_len == length])
+        simplen = len(simple.loc[simple.matching_len == length])
+
+        sn = min(complexn, simplen)
+
+        if length > 0 and sn > 0:
+
+
+            # find 100 matched enhancer samples
+
+            complex_ids = complex.loc[complex.matching_len == length].sample(n = complexn, replace = False) # sample w/ replacement
+            simple_ids = simple.loc[simple.matching_len == length].sample(n = simplen, replace = False) # sample w/ replacement
+            balanced = pd.concat([simple_ids, complex_ids])
+            match_dict[sn] = balanced
+
+    final_matched_id = pd.concat(match_dict.values())
+
+    return final_matched_id.matching_ids.unique()
+
+#%%
+
 
 df = pd.read_csv(f, sep= '\t', header = None)
 df.columns = ["chr_enh","start_enh", "end_enh",	"enh_id", "fourth_col", "id",\
 "core_remodeling","arch","seg_index","mrca","enh_len", "taxon", "mrca_2",\
 "taxon2",	"mya",	"mya2",	"seg_den",	"datatype", "count_overlap"]
 
-df.head()
+median = df.seg_index.median()
+#median = 3
+df.loc[df.seg_index >=median, "core_remodeling"] = 1
+df.loc[df.seg_index >=median, "arch"] = "complexenh"
 
-df.loc[df.seg_index >=5, "core_remodeling"] = 0
-df.loc[df.seg_index <5, "arch"] = "simple"
+df.loc[df.seg_index <median, "core_remodeling"] = 0
+df.loc[df.seg_index <median, "arch"] = "simple"
+
 #%% remove human, primate specific sequences. Sequence must be as olds as euarchontaglires (common ancestor with mouse) in order to be evaluated here.
 # removes 470 sequences
 
 print(len(df))
 #df = df.loc[df.mrca_2>0.126]
-print(len(df))
+#%%
+df.groupby(["core_remodeling", "arch"])["enh_id"].count()
 
-#%% plot simple v. complex
-order = ["simple", "complexenh"]
-sns.boxplot(x= "arch", y = "count_overlap", data = df, order = order)
+#%%
+steps = np.arange(0,101, step = 10)
+simpledf = df.loc[df.core_remodeling ==0]
+
+complex_df = df.loc[(df.core_remodeling ==1) & (df.enh_len<=simpledf.enh_len.max())]
+
+for step in steps[1:]:
+    step = int(step)
+    matched_ids = match_len(simple_df, complex_df, step)
+
+    matched = df.loc[df.enh_id.isin(matched_ids)]
+
+    mwu, p = stats.mannwhitneyu(matched.loc[matched.arch == "simple", "count_overlap"],\
+    matched.loc[matched.arch != "simple", "count_overlap"])
+    if p<0.2:
+        print(step, "/n", mwu, p)
+        print(matched.groupby("core_remodeling")["count_overlap"].mean().round(3))
+#%%
+
+sns.distplot(matched.loc[matched.core_remodeling == 0, "enh_len"], kde = False, norm_hist = True, label = "simple")
+sns.distplot(matched.loc[matched.core_remodeling != 1, "enh_len"], kde = False, norm_hist = True, label = "complex")
+plt.legend()
 
 #%%
 
+
+#%% plot simple v. complex
+order = ["simple", "complexenh"]
+sns.boxplot(x= "arch", y = "count_overlap", data = matched, order = order)
+
+#%%
 
 from matplotlib import gridspec
 from matplotlib.ticker import MultipleLocator
@@ -46,11 +128,11 @@ fig = plt.figure(figsize = (12, 8))
 gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
 ax0 = plt.subplot(gs[0])
 
-sns.barplot(x = "arch", y = "count_overlap", data = df,
+sns.barplot(x = "arch", y = "count_overlap", data = matched,
             palette = palette, order = order,
             ax = ax0)
-nsimple = len(df.loc[df.arch == "simple"])
-ncomplex = len(df.loc[df.arch != "simple"])
+nsimple = len(matched.loc[matched.arch == "simple"])
+ncomplex = len(matched.loc[matched.arch != "simple"])
 labels = ["n = %s"%nsimple, "n = %s"%ncomplex, ]
 ax0.set_xticklabels(labels, rotation = 90)
 ax0.set(xlabel="", ylabel ="Number of Active Species", ylim=(0,2))
@@ -60,7 +142,7 @@ sns.set("poster")
 
 ax2 = plt.subplot(gs[1])
 sns.barplot(x = "taxon2", y = "count_overlap", hue = "core_remodeling",
-              data = df.sort_values(by = "mrca_2"),
+              data = matched.sort_values(by = "mrca_2"),
                 palette = palette,
             ax = ax2)
 
@@ -72,13 +154,13 @@ ax2.legend().remove()
 plt.savefig("%sFigS3b-JOINT_barplot_reilly15_cross_species_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
 
 #%%
-mwu, p = stats.mannwhitneyu(df.loc[df.arch == "simple", "count_overlap"],\
-df.loc[df.arch != "simple", "count_overlap"])
+mwu, p = stats.mannwhitneyu(matched.loc[matched.arch == "simple", "count_overlap"],\
+matched.loc[matched.arch != "simple", "count_overlap"])
 print(mwu, p)
 
 
 #%%
-df.groupby("arch")["count_overlap"].mean()
+matched.groupby("arch")["count_overlap"].mean()
 
 #%%
 RE

@@ -45,7 +45,11 @@ summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shuffle = pd.read_csv(shuf, sep = '\t')
 final_merge = pd.read_csv(enh, sep = '\t')
+
+
 #%%
+
+
 enh_lens = final_merge.groupby(["enh_id", "core_remodeling","enh_len", "arch"])["mrca_2"].max().reset_index()
 enh_lens.mrca_2 = enh_lens.mrca_2.round(3)
 
@@ -70,7 +74,10 @@ shuf_len = pd.merge(shuf_len, syn_gen_bkgd[["mrca_2", "taxon2", "mya2"]],\
 shuf_len = shuf_len.drop_duplicates()
 print(shuf_len.shape)
 
+
 #%% sample 1/10th of shuffle dataset and combine w/ enhancers for comparison
+
+
 sample_shuf = shuf_len.sample(frac = 0.1)
 
 lens = pd.concat([enh_lens, sample_shuf])
@@ -86,7 +93,10 @@ ax.set(xticklabels = ["Simple", "Complex"], xlabel = "Architecture",
 ylabel= "Enhancer Length (bp)")
 ax.legend(bbox_to_anchor=(1.0, 1.0))
 
+
 # Get medians
+
+
 lens_data = lens.groupby(["core_remodeling", "datatype"])["enh_len"].median().reset_index()
 lens_data_mean = lens.groupby(["core_remodeling", "datatype"])["enh_len"].mean().round().reset_index()
 
@@ -96,12 +106,13 @@ ms, msp = stats.mannwhitneyu(enh_lens.loc[enh_lens.core_remodeling==1, "enh_len"
                             enh_lens.loc[enh_lens.core_remodeling==0, "enh_len"])
 print("simple", ms, msp)
 
+plt.savefig("%sfantom_enh_arch_lens.pdf" %RE, bbox_inches = "tight")
+
 
 """ RESULTS MWU SIMPLE V. COMPLEX ENHANCER LENGTHS
 simple 71739682.5 0.0
 """
 
-plt.savefig("%sfantom_enh_arch_lens.pdf" %RE, bbox_inches = "tight")
 
 """ RESULTS
 No handles with labels found to put in legend.
@@ -119,6 +130,8 @@ simple 71739682.5 0.0
 """
 
 #%% Plot FANTOM v. SHUFFLE simple and complex lengths
+
+
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.boxplot(x = "core_remodeling", y = "enh_len", hue = "datatype",
             data = lens, palette = es_pal,
@@ -136,6 +149,8 @@ print("means", lens_data_mean,)
 
 ax.get_legend().remove()
 plt.savefig("%sfantom_enh_lens.pdf" %RE, bbox_inches = "tight")
+
+
 """ RESULTS
 medians    core_remodeling datatype  enh_len
 0              0.0   FANTOM      259
@@ -149,7 +164,9 @@ means    core_remodeling datatype     enh_len
 3              1.0  SHUFFLE  363.292826
 """
 
-#%% Old v. young fantom lengths
+#%% Old (>placental) v. young (<= placental) fantom median lengths
+
+
 print(stats.mannwhitneyu(lens.loc[(lens.mrca_2>0.175) & (lens.datatype == "FANTOM"),"enh_len"],
                   lens.loc[(lens.mrca_2<=0.175) & (lens.datatype == "FANTOM"),"enh_len"],))
 
@@ -157,6 +174,8 @@ print("\nolder than mammalian lengths\n")
 print(lens.loc[lens.mrca_2>0.175].groupby("datatype")["enh_len"].median())
 print("\nmammalian and younger lengths\n")
 lens.loc[lens.mrca_2<=0.175].groupby("datatype")["enh_len"].median()
+
+
 """ RESULTS
 MannwhitneyuResult(statistic=88089072.0, pvalue=8.184782752230459e-122)
 
@@ -176,16 +195,21 @@ Name: enh_len, dtype: int64
 """
 
 #%% Young fantom v. shuffle lengths
+
+
 print("\nYoung fantom v. shuffle lengths\n")
 print(stats.mannwhitneyu(lens.loc[(lens.mrca_2<=0.175) & (lens.datatype == "FANTOM"),"enh_len"],
                   lens.loc[(lens.mrca_2<=0.175) & (lens.datatype == "SHUFFLE"),"enh_len"],))
+
 """ RESULTS Young fantom v. shuffle lengths
 
 MannwhitneyuResult(statistic=2021614693.5, pvalue=2.7548239106496657e-16)
 
 """
 
-#%%
+#%% FANTOM enhancer v shuffled lengths. 
+
+
 hue_order = ["FANTOM", "SHUFFLE"]
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.barplot(x = "taxon2", y = "enh_len", hue = "datatype",
@@ -207,7 +231,8 @@ print("medians", lens_data,)
 print("means", lens_data_mean,)
 
 ax.get_legend().remove()
-plt.savefig("%sfig1d-fantom_enh_mrca_lens.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig1.2b-fantom_enh_mrca_lens.pdf" %RE, bbox_inches = "tight")
+
 
 """ RESULTS MEDIAN AND MEAN FANTOM/SHUFFLE LENGTHS
 medians    core_remodeling datatype  enh_len
@@ -221,7 +246,11 @@ means    core_remodeling datatype     enh_len
 2              1.0   FANTOM  369.700593
 3              1.0  SHUFFLE  363.292826
 """
+
+
 #%% MWU FANTOM v. SHUFFLE simple enhancer lengths
+
+
 stats.mannwhitneyu(lens.loc[(lens.arch == "simple") & (lens.datatype == "FANTOM"), "enh_len"],
                   lens.loc[(lens.arch == "simple") & (lens.datatype == "SHUFFLE"), "enh_len"])
 """ RESULTS MWU FANTOM v. SHUFFLE simple enhancer lengths

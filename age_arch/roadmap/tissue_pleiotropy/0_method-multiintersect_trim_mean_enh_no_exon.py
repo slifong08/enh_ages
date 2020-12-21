@@ -14,25 +14,30 @@
 ## -c (count number of overlapping features)
 
 import glob
-
 import os, sys
 import pandas as pd
 
 fraction_overlap = sys.argv[1]
 fraction_overlap = 0.5
 
-#%%
-fpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/non-genic/trimmed/"
+#%% path to trimmed means
+fpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 
 
 # -a
-test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E116"]
-
+trimmed_means = glob.glob("%snon-genic/trimmed/*.bed" %fpath)
+test_list = []
+for f in trimmed_means:
+    sid = ((f.split("/")[-1]).split('-')[-1]).split(".")[0]
+    if sid not in test_list:
+        test_list.append(sid)
+print(test_list)
+#%%
 
 # -a columns = chr start end enh_id maxmrca maxbreaks arch_type
 
 # -b base
-all_beds = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed.gz" % fpath)
+all_beds = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed" % fpath)
 
 outpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/multiintersect/"
 
@@ -42,13 +47,13 @@ for test in test_list:
     # Entire Enhancer #
     # -a
 
-    infile = "%sROADMAP_trimmed0-%s_parallel_breaks_enh_age_arch_summary_matrix.bed" % (fpath, test)
+    infile = "%snon-genic/trimmed/trimmed-mean-%s.bed" % (fpath, test)
 
     # ALL OTHER ROADMAP TISSUES #
     # -b
 
     all_beds_minus_one = []
-    mask_file = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed.gz" % (fpath, test)
+    mask_file = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed" % (fpath, test)
     for all_bed_f in all_beds: # remove CORE file from intersection
         if all_bed_f != mask_file:
             all_beds_minus_one.append(all_bed_f)

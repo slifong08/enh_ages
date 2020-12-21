@@ -26,27 +26,43 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 #%%
 
-fraction_overlap = 0.5
+
 trim_len = "mean"
 
 
+test_list = [] # collect sids that have been trimmed
+mean_len_dict = {} # dict of sid:mean length
+relative_simple_dict = {} # dict of sid: relative_simple cutoff
+already_done = [] # list of shuffled sids that have already been trimmed and assigned cognate relative simple cutoff
 
 # #  Trim function
 
 # In[14]:
 
 
-def trim(bedfile, trim_len):
+def trim(bedfile, trim_len, relative_simple):
 
-    df = pd.read_csv(bedfile, sep ='\t', header = None) # open file
-    df.columns = ["chr", "start", "end", "id"] # name columns
-    df["old_enh_id"] = df.chr + ":" + df.start.map(str) + "-"+ df.end.map(str)
+    df = pd.read_csv(bedfile, sep ='\t', header = None, usecols  = [0,1,2,3,5]) # open file
+
+    df.columns = ["chr", "start", "end", "old_enh_id", "seg_index"] # name columns
+
+    #df["old_enh_id"] = df.chr + ":" + df.start.map(str) + "-"+ df.end.map(str)
     df["old_len"]= df.end - df.start # calculate enhancer length
+
+    if relative_simple ==0:
+        relative_simple = df.seg_index.median()
+        df["core_remodeling"] = 0
+        df.loc[df.seg_index >= relative_simple, "core_remodeling"] = 1
+
+    else:
+        df["core_remodeling"] = 0
+        df.loc[df.seg_index >= relative_simple, "core_remodeling"] = 1
 
     if trim_len == "mean": # take the mean
 
         trim_len = df["old_len"].mean().round(0) # mean enhancer length in dataset
-    print(df.id[0], trim_len)
+
+    print(df.old_enh_id[0], trim_len)
     df["midpoint"] = (df.start + (trim_len)/2).astype(int) # identify the midpoint of each enhancer
 
     df["new_len"] = trim_len
@@ -55,126 +71,81 @@ def trim(bedfile, trim_len):
 
     df["end_new"] = ((df.midpoint + (trim_len/2)).round(0)).astype(int)
 
-    trimmed = df[["chr", "start_new", "end_new", "old_enh_id", "old_len", "new_len"]].drop_duplicates()
+    trimmed = df[["chr", "start_new", "end_new", "old_enh_id",
+    "old_len", "new_len", "seg_index", "core_remodeling"]].drop_duplicates()
 
-    return trimmed, trim_len
+    return trimmed, trim_len, relative_simple
 
 
 # In[ ]:
 
 
 source_path ="/dors/capra_lab/data/roadmap_epigenomics/release_v9/consolidated/histone/h3k27ac_plus_h3k4me3_minus_peaks/"
-path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-samples = glob.glob("%s*.bed" % source_path)
-test_list = []
+glob_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_E*/breaks/"
+samples = glob.glob("%sno-exon*.bed" % glob_path)
+
 for sample in samples:
     s = ((sample.split("/")[-1]).split("_")[-1]).split(".")[0]
-    test_list.append(s)
-    print(s)
-# -a
+    if s not in test_list:
+        test_list.append(s)
+        print(s)
+
+        path = "/".join(sample.split("/")[:-1]) +"/"
+
+        outpath = "%strimmed/" %path
+
+        if os.path.exists(outpath) == False:
+            os.mkdir(outpath)
+
+        trimmed_df, mean_len, relative_simple = trim(sample, "mean", 0)
+        trimmed_df.to_csv("%strimmed-%s-%s.bed" % (outpath, trim_len,  s),
+        sep = '\t', header = False, index = False)
+
+        mean_len_dict[s] = mean_len
+        relative_simple_dict[s] =relative_simple
+
+#%% Now, do the shuffle based on mean of enhancer dataset
+len(mean_len_dict.keys())
+
+done = glob.glob("/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_E*/shuffle/breaks/trimmed/*.bed")
+for d in done:
+    sid = ((d.split("/")[-1]).split(".")[1]).split("-")[-1]
+    print(sid)
+    if sid in mean_len_dict.keys():
+        mean_len_dict.pop(sid)
+        already_done.append(sid)
 
 #%%
-#test_list =["E050", "E029", "E034", "E069", "E072", "E073", "E118", "E123", "E116"]
-
-outpath = "%strimmed/" %path
-if os.path.exists(outpath) == False:
-    os.mkdir(outpath)
-
-
-# In[30]:
-sid_mean_len = {}
-
-for test in test_list:
-
-    print(test)
-    # Entire Enhancer #
-    # Trim enhancers to mean lengths #
-    infile = "%sHsap_H3K27ac_plus_H3K4me3_minus_%s.bed" % (source_path, test)
-
-    trimmed_df, mean_len = trim(infile, trim_len)
-    trimmed_df.to_csv("%strimmed-%s-%s.bed" % (outpath, trim_len,  test,),
-     sep = '\t', header = False, index = False)
-    sid_mean_len[test]= mean_len
-
-
+print(len(test_list))
 #%%
-df = pd.DataFrame()
-for key, val in sid_mean_len.items():
-    ndf = pd.DataFrame({"sid":[key], "mean_len":[val]})
-    df = pd.concat([df, ndf])
 
-desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
-desc_df= pandas.read_csv(desc_file, header = None)
-desc_df.columns = ["sid", "desc"]
-df = pd.merge(df, desc_df, how = "left", on ="sid")
-df["sid2"] = df.sid + "-" + df.desc
+print(len(mean_len_dict.keys()))
+print(len(already_done))
 #%%
-fig, ax = plt.subplots(figsize = (8,30))
-sns.barplot(y = "sid2", x ="mean_len", data = df.sort_values(by = "mean_len"))
-RE = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/results/for_publication/"
-plt.savefig("%sroadmap_noexon_mean_length.pdf"%RE, bbox_inches = 'tight')
-#%%
-# In[36]:
-
-
-source_path = outpath
-samples = glob.glob("%strimmed0-*.bed"%source_path)
-sample_dict = {}
-
-ITERATIONS = 50
-AGE_VAL = 1
-BREAK_VAL = 1
-TFBS_VAL = 0
-SHUF_VAL = 0
-RUN_VAL = 1
-
-RUN = 1 # Launch command or dont
-SBATCH = 0 # Sbatch or run w/ python interpreter
-
+glob_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_E*/shuffle/breaks/"
+samples = glob.glob("%sshuf-cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_*_enh_age_arch_summary_matrix.bed" % glob_path)
 
 for sample in samples:
-    sample_id = ((sample.split("/")[-1]).split("_")[-1]).split(".")[0]
-    sample_dict[sample_id] = sample
+    s = ((sample.split("/")[-4]).split("_")[-1]).split(".")[0]
+    path = "/".join(sample.split("/")[:-1]) +"/"
+    outpath = "%strimmed/" %path
 
-outpath
-# In[37]:
+    if os.path.exists(outpath) == False:
+        os.mkdir(outpath)
 
+    if s in mean_len_dict.keys():
+        trim_len = mean_len_dict[s]
+        relative_simple = relative_simple_dict[s]
+        print(s, trim_len, relative_simple)
+        trimmed_df, mean_len, relative_simple = trim(sample, trim_len, relative_simple)
+        trimmed_df.to_csv("%strimmed-%s-shuf-%s.bed" % (outpath, trim_len,  s),
+         sep = '\t', header = False, index = False)
+#%%
+print(trim_len)
 
-sample_dict
+#%%
 
+#%%
 
-# In[43]:
-
-
-print("start", datetime.datetime.now())
-
-for sample_id, file in sample_dict.items():
-
-    if SBATCH ==1:
-        cmd = "sbatch /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/age_enhancers_w_parallelbreaks.slurm %s %s %s %s %s %s %s" \
-                % (file, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_VAL)
-
-        print("SLURM", sample_id, datetime.datetime.now())
-        print(cmd)
-        if RUN ==1:
-            os.system(cmd)
-    else:
-        cmd = "python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/age_enhancers_w_parallelbreaks.py %s -i %s -a %s -b %s -t %s -sh %s -rt %s"\
-                 % (file, ITERATIONS, AGE_VAL, BREAK_VAL, TFBS_VAL, SHUF_VAL, RUN_VAL)
-
-        print("PYTHON", sample_id, datetime.datetime.now())
-        print(cmd)
-        if RUN ==1:
-            os.system(cmd)
-
-
-print("end", datetime.datetime.now())
-
-
-# In[42]:
-
-
-trimmed_df.head()
-
-
-# In[ ]:
+#%%
+)

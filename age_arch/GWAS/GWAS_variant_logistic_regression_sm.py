@@ -68,6 +68,7 @@ print(outF)
 
 
 multi = pandas.read_csv(outF, sep ='\t', header = None, usecols=[0,1,2,3,4,5,6,7,15])
+multi = multi.loc[multi[0] != "chrX"]
 multi.head()
 
 
@@ -108,7 +109,7 @@ multi["wts"] = 1
 multi.loc[multi.gwas_overlap ==0, "wts"] = 0.0042
 #%%
 
-test_model = 'gwas_overlap ~ old_len + core_remodeling + mrca_2 + count_overlap + core_remodeling*count_overlap'
+test_model = 'gwas_overlap ~ old_len + core_remodeling + mrca_2 + count_overlap'# + core_remodeling*count_overlap'
 results = logistic_regression(test_model, multi, )
 print(results.summary())
 
