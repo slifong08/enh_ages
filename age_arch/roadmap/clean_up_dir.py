@@ -14,5 +14,3 @@ for f in fs:
     cmd = "rm -r %s" % (f)
 
     subprocess.call(cmd, shell = True)
-
-    

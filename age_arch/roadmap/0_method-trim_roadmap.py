@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 
 
 trim_len = "mean"
+trim_len = 310
 
 
 test_list = [] # collect sids that have been trimmed
@@ -81,11 +82,12 @@ def trim(bedfile, trim_len, relative_simple):
 
 
 source_path ="/dors/capra_lab/data/roadmap_epigenomics/release_v9/consolidated/histone/h3k27ac_plus_h3k4me3_minus_peaks/"
-glob_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_E*/breaks/"
-samples = glob.glob("%sno-exon*.bed" % glob_path)
+glob_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/all_roadmap_enh/"
+samples = glob.glob("%sall_roadmap_enh.bed" % glob_path)
 
 for sample in samples:
     s = ((sample.split("/")[-1]).split("_")[-1]).split(".")[0]
+    s = (sample.split("/")[-1]).split(".")[0]
     if s not in test_list:
         test_list.append(s)
         print(s)
@@ -97,16 +99,18 @@ for sample in samples:
         if os.path.exists(outpath) == False:
             os.mkdir(outpath)
 
-        trimmed_df, mean_len, relative_simple = trim(sample, "mean", 0)
+        trimmed_df, mean_len, relative_simple = trim(sample, trim_len, 0)
         trimmed_df.to_csv("%strimmed-%s-%s.bed" % (outpath, trim_len,  s),
         sep = '\t', header = False, index = False)
 
         mean_len_dict[s] = mean_len
         relative_simple_dict[s] =relative_simple
+#%%
+samples
 
 #%% Now, do the shuffle based on mean of enhancer dataset
 len(mean_len_dict.keys())
-
+#%%
 done = glob.glob("/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/cleaned_Hsap_H3K27ac_plus_H3K4me3_minus_E*/shuffle/breaks/trimmed/*.bed")
 for d in done:
     sid = ((d.split("/")[-1]).split(".")[1]).split("-")[-1]
