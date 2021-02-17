@@ -9,7 +9,7 @@ FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/hg38/HEPG2_FANT
 FANTOMFILE = "syn_breaks_HEPG2_FANTOM5_hg38_ages.bed"
 FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
-ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38"
+ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 ENCODEFILE = "HepG2.bed"
 
 ENCODE = os.path.join(ENCODEPATH, ENCODEFILE)
@@ -46,11 +46,13 @@ header = None,
 names = cols)
 
 df.info()
+#%%
 
+df.head()
 
 #%% remove chip-peaks with overlap less than 6bp
 
-df = df.loc[df.overlap >5] # removes 1551 TF overlaps
+df = df.loc[df.overlap >5] # removes 1331 TF overlaps
 
 df.info()
 
@@ -61,7 +63,6 @@ df.info()
 df["arch"] = "simple"
 df.loc[(df.core_remodeling ==1) & (df.core ==1), "arch"] = "complex_core"
 df.loc[(df.core_remodeling ==1) & (df.core ==0), "arch"] = "complex_derived"
-
 
 #%%
 
@@ -87,22 +88,23 @@ def prep_2x2(tf, arch, df):
 
 def quantify_2x2(obs, comparison_name):
 
+    if obs[0][0] > 1:
 
-    OR, P = stats.fisher_exact(obs)
-    table = sm.stats.Table2x2(obs) # get confidence interval
-    odds_ci = table.oddsratio_confint()
-    newdf = pd.DataFrame({"comparison_name":comparison_name,
-                          "a":obs[0][0], "b":obs[0][1],
-                          "c":obs[1][0], "d":obs[1][1],
-                          "OR":[OR], "P":[P],
-                          "ci_lower" :[odds_ci[0]],
-                          "ci_upper" :[odds_ci[1]],
-                        })
+        OR, P = stats.fisher_exact(obs)
+        table = sm.stats.Table2x2(obs) # get confidence interval
+        odds_ci = table.oddsratio_confint()
+        newdf = pd.DataFrame({"comparison_name":comparison_name,
+                              "a":obs[0][0], "b":obs[0][1],
+                              "c":obs[1][0], "d":obs[1][1],
+                              "OR":[OR], "P":[P],
+                              "ci_lower" :[odds_ci[0]],
+                              "ci_upper" :[odds_ci[1]],
+                            })
 
-    if P<0.05:
-        print(comparison_name, obs, OR, P)
+        if P<0.05:
+            print(comparison_name, obs, OR, P)
 
-    return newdf
+        return newdf
 
 
 def fdr_correction(collection_dict):
@@ -111,7 +113,7 @@ def fdr_correction(collection_dict):
 
     pvals = df["P"]
 
-    df["reject_null"], df["FDR_P"] = statsmodels.stats.multitest.fdrcorrection(pvals, alpha=0.05)
+    df["reject_null"], df["FDR_P"] = statsmodels.stats.multitest.fdrcorrection(pvals, alpha=0.2)
 
     return df
 
@@ -132,5 +134,33 @@ for tf in df.tf.unique():
 #%%
 
 results_df = fdr_correction(collection_dict)
+#print(len(results_df))
+results_df
+#%%
+results_df.loc[results_df.reject_null == True]
+
+
+
+#%%
+
+
+simple_collection_dict = {}
+
+for tf in df.tf.unique():
+
+    arch = "simple"
+
+    comparison_name = tf + "-" + arch
+    obs = prep_2x2(tf, arch, df)
+
+    results = quantify_2x2(obs, comparison_name)
+
+    simple_collection_dict[comparison_name] = results
+#%%
+
+results_df = fdr_correction(simple_collection_dict)
+#print(len(results_df))
+results_df
+#%%
 
 results_df.loc[results_df.reject_null == True]
