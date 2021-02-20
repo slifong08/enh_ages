@@ -1,3 +1,17 @@
+### Summary ###
+
+
+# intersect .bed with linsight per chromosome.
+# (linsight data is >1gb, so I split by chromosome to handle smaller data)
+# ultimately, output file adds 5 columns to original .bed file
+# 5 columns are ["chr_lin",  "start_lin", "end_lin","linsight_score", "overlap"]
+
+
+#%%
+
+
+# load modules
+
 import argparse
 import glob
 import numpy as np
@@ -13,9 +27,9 @@ arg_parser.add_argument("bedfile", help='bed file w/ full path')
 
 args = arg_parser.parse_args()
 
-ENHANCERF = bedfile
-ENHANCERPATH = "/".join(bedfile.split("/")[:-1])
-ENHANCERFILE = bedfile.split("/")[-1]
+ENHANCERF = args.bedfile
+ENHANCERPATH = "/".join(ENHANCERF.split("/")[:-1]) + "/"
+ENHANCERFILE = ENHANCERF.split("/")[-1]
 ENHANCER_ID = ".".join(ENHANCERFILE.split(".")[:-1])
 
 
@@ -49,7 +63,7 @@ def chr_lst(): # make a list of autosomes
 def split_by_chr(path, f, id):
 
     chr_fs = glob.glob("%schr*.bed*" % path) # check that you haven't split already.
-    print(len(chr_fs))
+
 
     if len(chr_fs) == 0:
 
@@ -135,8 +149,9 @@ enhchr_dict = make_chr_file_dict(chr_list, ENHANCERPATH, ENHANCER_ID)
 
 
 #%%
-# bedtools intersection of enhancer x linsight, writing all the overlaps.
 
+
+# bedtools intersection of enhancer x linsight, writing all the overlaps.
 for chr_num in chr_list:
 
     enhancer_chr = enhchr_dict[chr_num]
@@ -148,5 +163,6 @@ for chr_num in chr_list:
     bed_intersect(enhancer_chr, linsight_chr, OUTF)
 
 
-#%%
+#%% clean up the mess
+
 intersection_file = cleanup_dir(ENHANCERPATH, ENHANCER_ID, OUTPATH)
