@@ -28,7 +28,7 @@ def get_cell_lines():
     #"H1-hESC":"H1-esc_FANTOM5_tpm_hg19",
     #"PC-3": "PC-3_FANTOM5_tpm_hg19",
     "K562":"CL_0000094_granulocyte_expressed_enhancers",
-    #"MCF7":"CL_0002327_mammary_epithelial_cell_expressed_enhancers", 
+    #"MCF7":"CL_0002327_mammary_epithelial_cell_expressed_enhancers",
     "liver":"UBERON_0002107_liver_expressed_enhancers",
     }
 
@@ -134,7 +134,8 @@ def mwu(tf_density, arch):
     print("means", mean)
 
     if arch == "enh":
-        #stratify dataframe
+
+        #stratify dataframe by simple and complex arch
         simple_tfden = tf_density.loc[tf_density.arch == "simple", "tf_density"]
         complex_tfden = tf_density.loc[tf_density.arch == "complex", "tf_density"]
 
@@ -203,12 +204,16 @@ def make_pdf(file_name, RE):
     return OUTF
 
 
-def prep_2x2(tf, arch, df):
+def prep_2x2(tf, arch1, arch2, df):
 
-    dfarch = df.loc[df.arch == arch]
-    dfbkgd = df.loc[df.arch != arch]
+    # only evaluate enhancers that overlap TF
+    df = df.loc[df.tf != "."]
 
+    # split dataframe by architectures to compare
+    dfarch = df.loc[df.arch == arch1]
+    dfbkgd = df.loc[df.arch == arch2]
 
+    # count how many TF overlaps are in each arch.
     TF_in_arch = len(dfarch.loc[dfarch.tf == tf])
     TF_bkgd = len(dfbkgd.loc[dfbkgd.tf == tf])
     not_TF_in_arch = len(dfarch.loc[dfarch.tf != tf])
@@ -258,7 +263,7 @@ def fdr_correction(collection_dict):
     return df
 
 
-def plot_bar_tf_enrichment(sigresults, cell_line, outf, order):
+def plot_bar_tf_enrichment(sigresults, cell_line, outf):
 
     fig, ax = plt.subplots(figsize = (6,9))
     sns.set("poster")
@@ -268,7 +273,7 @@ def plot_bar_tf_enrichment(sigresults, cell_line, outf, order):
     hue = "arch"
     data = sigresults
 
-    sns.barplot(x=y, y=x, data=data , hue = hue, hue_order = order)
+    sns.barplot(x=y, y=x, data=data , hue = hue, )
 
     ax.legend(bbox_to_anchor = (1,1))
     ax.set(xlabel = "OR log2-scale\n FDR<10%", title = cell_line)
@@ -334,23 +339,26 @@ def run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH):
     collection_dict = {}
 
     for tf in df.tf.unique():
+        arch1 = "derived"
+        arch2 = "complex_core"
+        print(arch1, arch2)
+        if tf != ".":
+            comparison_name = tf + "-" + arch
 
-        for arch in df.arch.unique():
-            if tf != ".":
-                comparison_name = tf + "-" + arch
+            obs = prep_2x2(tf, arch1, arch2, df)
 
-                obs = prep_2x2(tf, arch, df)
+            results = quantify_2x2(obs, comparison_name)
 
-                results = quantify_2x2(obs, comparison_name)
-
-                collection_dict[comparison_name] = results
+            collection_dict[comparison_name] = results
     results_df = fdr_correction(collection_dict)
     sigresults = results_df.loc[results_df.reject_null == True]
     outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s" % (cell_line, arch), RE)
-    plot_bar_tf_enrichment(sigresults, cell_line, outf, order)
+
+    return results_df, tf_density_enh, tf_density_syn, df
+    #plot_bar_tf_enrichment(sigresults, cell_line, outf)
 
 
-    return sigresults, tf_density_enh, tf_density_syn, df
+
 
 #%%
 sample_dict = get_cell_lines()
@@ -372,6 +380,9 @@ results_dict[cell_line] = sigresults
 tf_den_enh[cell_line] = tf_density_enh
 tf_den_syn[cell_line] = tf_density_syn
 
+
+#%%
+sigresults.head()
 #%%
 
 cell_line = "K562"
