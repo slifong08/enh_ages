@@ -9,7 +9,7 @@ FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/
 FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
 FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
-ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
+ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19"
 ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
 ENCODE = os.path.join(ENCODEPATH, ENCODEFILE)
 
@@ -23,18 +23,20 @@ RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/encode3/"
 
 def bed_intersect(fantom, encode, intersection):
 
-    cmd = "bedtools intersect -a %s -b %s -wao > %s" % (fantom, encode, intersection)
+    if os.path.exists(intersection) == False:
+        cmd = "bedtools intersect -a %s -b %s -wao > %s" % (fantom, encode, intersection)
 
-    subprocess.call(cmd, shell = True)
+        subprocess.call(cmd, shell = True)
 
-    print(cmd)
-
+        print(cmd)
+    else:
+        print("previously done enh x encode intersection")
 
 def format_df(df):
 
     # remove chip-peaks with overlap less than 6bp
 
-    df = df.loc[(df.overlap >5) | (df.overlap ==0)].copy() # removes 34802 TF overlaps
+    #df = df.loc[(df.overlap >5) | (df.overlap ==0)].copy() # removes 34802 TF overlaps
 
 
     # add architecture label
@@ -55,6 +57,7 @@ def format_df(df):
     # binary for TF overlap
     df["tfoverlap_bin"] = 1
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
+    df.loc[df.overlap <6, "tfoverlap_bin"] = 0
 
     return df
 

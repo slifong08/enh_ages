@@ -9,11 +9,11 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
-FANTOMBASE = "/dors/capra_lab/projects/enhancer_ages/fantom/data/ENCODE3/"
+ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
-ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19/"
+ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/encode3/"
+RE = "/dors/capra_lab/projects/enhancer_ages/encode/results/"
 
 
 #%% Functions
@@ -21,49 +21,39 @@ RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/encode3/"
 
 def get_cell_lines():
     sample_dict = {
-    "all_fantom_enh": "all_fantom_enh",
-    "A549":"A549_FANTOM5_tpm_hg19",
-    "GM12878_CL":"CL_0000945_lymphocyte_of_B_lineage_expressed_enhancers",
-    "GM12878": "GM12878_FANTOM5_tpm_hg19",
-    "HepG2": "HEPG2_FANTOM5_tpm_hg19",
-    "HepG2_CL": "CL_0000182_hepatocyte_expressed_enhancers",
-    "K562":"CL_0000094_granulocyte_expressed_enhancers",
-    "liver":"UBERON_0002107_liver_expressed_enhancers",
-    #"H1-hESC":"H1-esc_FANTOM5_tpm_hg19",
-    #"MCF7":"CL_0002327_mammary_epithelial_cell_expressed_enhancers",
-    #"PC-3": "PC-3_FANTOM5_tpm_hg19",
+    "HepG2": "dELS_combined",
     }
 
     return sample_dict
 
 
-def get_paths(cell_line, file_tag, fantombase, encodepath):
+def get_paths(cell_line, file_tag, enhbase, encodepath):
 
-    FANTOMPATH = os.path.join(fantombase, file_tag, "ages")
-    FANTOMFILE = "syn_breaks_%s_ages.bed" % file_tag
-    FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
+    ENHPATH = os.path.join(enhbase, file_tag, "ages")
+    ENHFILE = "syn_breaks_%s_ages.bed" % file_tag
+    ENH = os.path.join(ENHPATH, ENHFILE)
 
     if "CL" in cell_line:
         ENCODEFILE = cell_line.split("_CL")[0] + ".bed"
     elif cell_line == "all_fantom_enh":
         ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
     else:
-        ENCODEFILE = cell_line + ".bed"
+        ENCODEFILE = cell_line + ".bed.gz"
 
     ENCODE = os.path.join(encodepath, ENCODEFILE)
 
 
-    INTERSECTIONPATH = os.path.join(fantombase, file_tag)
+    INTERSECTIONPATH = os.path.join(enhbase, file_tag)
     INTERSECTIONFILE = "%s_x_ENCODE.bed" % file_tag
     INTERSECTION = os.path.join(INTERSECTIONPATH, INTERSECTIONFILE)
 
-    return FANTOM, ENCODE, INTERSECTION
+    return ENH, ENCODE, INTERSECTION
 
 
-def bed_intersect(fantom, encode, intersection):
+def bed_intersect(enh, encode, intersection):
 
     if os.path.exists(intersection) == False:
-        cmd = "bedtools intersect -a %s -b %s -wao > %s" % (fantom, encode, intersection)
+        cmd = "bedtools intersect -a %s -b %s -wao > %s" % (enh, encode, intersection)
 
         subprocess.call(cmd, shell = True)
 
@@ -79,8 +69,8 @@ def format_df(intersection_file):
     "seg_index", "core_remodeling", "core",
     "mrca",
     "chr_tf", "start_tf", "end_tf",
-    "tf_id", "peak_len",
-    "tf", "cell_line" , "overlap"
+    "tf_id", "reads", "peak_len",
+    "tf", "old_len", "cell_line" , "overlap"
     ]
 
     df = pd.read_csv(intersection_file,
@@ -430,78 +420,16 @@ tf_den_enh = {}
 tf_den_syn = {}
 
 #%%
-ALPHA = 0.05
-MIN_INSTANCES = 500
-
-#%%
-
-cell_line = "all_fantom_enh"
-val = sample_dict[cell_line]
-
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
 ALPHA = 0.1
-MIN_INSTANCES = 20
+MIN_INSTANCES = 1800
+
 #%%
 
 cell_line = "HepG2"
 val = sample_dict[cell_line]
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-der_v_core.head()
-
-
-#%% run the CL file
-cell_line = "HepG2_CL"
-val = sample_dict[cell_line]
-
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
-
-cell_line = "K562"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-#%%
-
-cell_line = "GM12878"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
 results_dict[cell_line] = df
 tf_den_enh[cell_line] = tf_density_enh
@@ -509,41 +437,6 @@ tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
 #%%
-cell_line = "GM12878_CL"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
+der_v_core.sort_values(by = "FDR_P")
 #%%
-
-cell_line = "A549"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
-
-cell_line = "liver"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
+der_v_bkgd.sort_values(by = "FDR_P")
