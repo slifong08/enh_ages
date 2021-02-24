@@ -45,6 +45,7 @@ def formatdf(f, cell_model):
 
     # limit analysis to bases with activity
     active_cldf = cldf.loc[cldf.activity >= 1].copy()
+    active_cldf["act/synlen"] = active_cldf.activity.divide(active_cldf.syn_len)
 
     wtact = cldf.groupby(["syn_id", "syn_len", "arch"])["activity"].max().reset_index()
     wtact["max_act/synlen"] = wtact.activity.divide(wtact.syn_len)
@@ -128,7 +129,7 @@ plot_dist(k562_active_df)
 #%% plot results
 CELL_MODEL = "K562"
 x = "arch"
-y = "activity"
+y = "act/synlen"
 outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, k562_active_df, outf, CELL_MODEL)
 
@@ -164,7 +165,7 @@ plot_dist(hepg2_active_df)
 #%% plot results
 CELL_MODEL = "HEPG2"
 x = "arch"
-y = "activity"
+y = "act/synlen"
 outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, hepg2_active_df, outf, CELL_MODEL)
 hepg2_active_df.groupby("arch")["activity"].mean()

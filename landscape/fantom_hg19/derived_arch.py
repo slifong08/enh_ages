@@ -7,14 +7,31 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
+colors = [ "amber", "faded green"]
+palette = sns.xkcd_palette(colors)
+sns.palplot(palette)
+
+colors = [ "blue", "greyish"]
+es = sns.xkcd_palette(colors)
+sns.palplot(es)
+
+
+
 FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
 FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
 FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
 SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/first_round_breaks"
-SHUFFILE = "syn_breaks_shuf-all_fantom_enh_ages.bed"
+SHUFFILE = "no-exon_syn_breaks_shuf-all_fantom_enh_ages.bed"
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
-SHUFF
+
+
+RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/landscape/"
+
+
+#%%
+
+
 def format_syndf(enh_age_file):
 
     syn_cols = ["chr_syn", "start_syn", "end_syn",
@@ -49,21 +66,35 @@ def format_syndf(enh_age_file):
     return syn
 
 #%%
+
+
 enh = format_syndf(FANTOM)
 enh["id"] = "FANTOM"
+
 shuf = format_syndf(SHUFF)
 shuf["id"] = "SHUFFLE"
 shuf.head()
 
 df = pd.concat([enh, shuf])
 df.shape
+
+
 #%%
+
 
 core = df.loc[df.core ==1].copy()
 core.head()
+
+
 #%%
+
+
 core["pct_core"] = core.syn_len.divide(core.enh_len)
+
+
 #%%
+
+
 x = "arch"
 y = "pct_core"
 hue = "id"
@@ -72,8 +103,21 @@ data = core
 sns.set("poster")
 
 fig, ax = plt.subplots(figsize=(6,6))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = )
+sns.barplot(x = x, y = y, data = data, hue = hue, palette =es, errwidth= 10)
 ax.set(ylabel = "Percent Core", xlabel = "")
-core.groupby(["arch", "id"])["pct_core"].median()
+
+plt.savefig("%sfantom_percent_core.pdf" % RE, bbox_inches = "tight")
+
+#%%
+"""
+arch          id
+complex_core  FANTOM     0.485368
+              SHUFFLE    0.398585
+simple        FANTOM     1.000000
+              SHUFFLE    1.000000
+#core.groupby(["arch", "id"])["pct_core"].median()
+
+"""
+
 
 #%%
