@@ -189,7 +189,7 @@ def age_enh(test_enh, sample_id, test_path, species):
 
         return outfile
 
-def break_scripts(age_file, sample_id, test_path):
+def break_scripts(age_file, sample_id, test_path, species):
 
     outpath = "%s/breaks/" % test_path
 
@@ -254,7 +254,7 @@ def break_scripts(age_file, sample_id, test_path):
 
     ### reference MRCA file ###
 
-    syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
+    syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/%s_syn_gen_bkgd.tsv" %species
     syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t',
     usecols = ["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]) # read the file
 
@@ -313,6 +313,8 @@ def break_scripts(age_file, sample_id, test_path):
 
     if count >0:
         os_remove(cleanup_file)
+        os_remove(seg_count_file)
+        os_remove(mrca_file)
 
 
 # generate shuffles
@@ -426,7 +428,7 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
 
         if ANALYZE_BREAKS ==1: # assemble age architecture
             print("BREAKS", age_file)
-            break_file = break_scripts(age_file, SAMPLE_ID, TEST_PATH)
+            break_file = break_scripts(age_file, SAMPLE_ID, TEST_PATH, SPECIES)
 
         os_remove(test_enh_formatted)
 
@@ -437,7 +439,7 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
 
         print("NO AGING, JUST", AGE_F)
 
-        break_file = break_scripts(AGE_F, SAMPLE_ID, TEST_PATH)
+        break_file = break_scripts(AGE_F, SAMPLE_ID, TEST_PATH, SPECIES)
 
 
 
@@ -466,19 +468,7 @@ def main(argv):
         shuffle_path = "%s/%s/shuffle" % (TEST_PATH, SAMPLE_ID)
 
         test_enh_formatted = preformatBedfile(TEST_ENH, SAMPLE_ID, TEST_PATH) # format the enhancer bed file and sort
-        """
-        if ITERATIONS !=0:
 
-            exp_sum_list= []
-            val = 0
-            for i in range(ITERATIONS):
-
-                shuffled_f = calculateExpected(test_enh_formatted, SAMPLE_ID,\
-                TEST_PATH, SPECIES, ANALYZE_AGE, \
-                ANALYZE_BREAKS, ANALYZE_TFBS_DEN, val)
-                exp_sum_list.append(shuffled_f)
-                                val +=1
-         """
         pool = Pool(NUM_THREADS)
         partial_calcExp = partial(calculateExpected,\
                                       test_enh_formatted, SAMPLE_ID,\
@@ -489,14 +479,6 @@ def main(argv):
         exp_sum_list = pool.map(partial_calcExp, [i for i in range(ITERATIONS)])
         pool.close()
         pool.join()
-
-        """
-            for i in exp_sum_list:
-
-                shuffle_path = "/".join(i.split("/")[:-1])
-                shuffle_iter = (i.split("/")[-1]).split(".")[0]
-                shuffle_id = 'shuf-' + SAMPLE_ID +"-" + shuffle_iter
-        """
 
         if os.path.exists(shuffle_path) == False:
             mkdir(shuffle_path)
