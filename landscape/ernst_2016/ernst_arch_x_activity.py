@@ -8,8 +8,14 @@ from scipy import stats
 
 MPRAPATH = "/dors/capra_lab/projects/enhancer_ages/ernst16/new_data"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/ernst16/new_results/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/ernst16/"
 
+if os.path.exists(RE)== False:
+    os.mkdir(RE)
+
+colors = [ "amber", "dusty purple", "windows blue"]
+palette = sns.xkcd_palette(colors)
+sns.palplot(palette)
 #%%
 
 
@@ -70,9 +76,9 @@ def plot_activity(x, y, df, outf, cell_model):
     fig, ax = plt.subplots(figsize = (6,6))
     sns.set("poster")
     sns.set_style("white")
-    sns.barplot(x = x, y = y, data = data,  order = order, n_boot=5000
+    sns.barplot(x = x, y = y, data = data,  order = order, palette = palette)
     #showfliers = False, notch = True
-    )
+
 
     counts = df.groupby("arch")[y].count()
     means = df.groupby("arch")[y].mean()
@@ -106,10 +112,10 @@ def get_act_freq(info_df, active_df):
     return freq
 
 
-def plot_dist(active_df):
+def plot_dist(active_df, variable):
     fig, ax = plt.subplots()
     for arch in active_df.arch.unique():
-        test = active_df.loc[active_df.arch == arch, 'activity']
+        test = active_df.loc[active_df.arch == arch, variable]
         sns.kdeplot(test, label = arch)
     ax.legend()
 
@@ -124,9 +130,12 @@ k562_info, k562_active_df, k562_wtact = formatdf(MPRAF, CELL_MODEL)
 
 #%%
 
-plot_dist(k562_active_df)
+plot_dist(k562_active_df, "activity")
+
+plot_dist(k562_active_df, "act/synlen")
 
 #%% plot results
+
 CELL_MODEL = "K562"
 x = "arch"
 y = "act/synlen"
@@ -139,7 +148,7 @@ plot_activity(x, y, k562_active_df, outf, CELL_MODEL)
 CELL_MODEL = "K562"
 x = "arch"
 y = "max_act/synlen"
-outf = make_pdf("%s_ernst_weighted_activity_bases_dist.pdf"% CELL_MODEL, RE)
+outf = make_pdf("%s_ernst_max_activity_per_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, k562_wtact, outf, CELL_MODEL)
 
 
@@ -160,7 +169,8 @@ hepg2_info, hepg2_active_df, wtact_hepg2 = formatdf(MPRAF, CELL_MODEL)
 
 
 #%%
-plot_dist(hepg2_active_df)
+plot_dist(hepg2_active_df, "activity")
+plot_dist(hepg2_active_df, "act/synlen")
 
 #%% plot results
 CELL_MODEL = "HEPG2"
@@ -168,7 +178,7 @@ x = "arch"
 y = "act/synlen"
 outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, hepg2_active_df, outf, CELL_MODEL)
-hepg2_active_df.groupby("arch")["activity"].mean()
+hepg2_active_df.groupby("arch")[y].mean()
 
 
 #%%

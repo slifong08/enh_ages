@@ -11,10 +11,13 @@ colors = [ "amber", "faded green"]
 palette = sns.xkcd_palette(colors)
 sns.palplot(palette)
 
-colors = [ "blue", "greyish"]
+colors = [ "dusty blue", "greyish"]
 es = sns.xkcd_palette(colors)
 sns.palplot(es)
 
+colors = [ "dusty purple", "grey"]
+pur = sns.xkcd_palette(colors)
+sns.palplot(pur)
 
 
 FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
@@ -26,7 +29,7 @@ SHUFFILE = "no-exon_syn_breaks_shuf-all_fantom_enh_ages.bed"
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
 
-RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/landscape/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/"
 
 
 #%%
@@ -79,7 +82,7 @@ df = pd.concat([enh, shuf])
 df.shape
 
 
-#%%
+#%% make df of only cores
 
 
 core = df.loc[df.core ==1].copy()
@@ -90,7 +93,27 @@ core.head()
 
 
 core["pct_core"] = core.syn_len.divide(core.enh_len)
+core["pct_der"] = 1 - core["pct_core"]
 
+#%%
+
+
+x = "arch"
+y = "pct_der"
+hue = "id"
+data = core.loc[core.arch == "complex_core"]
+
+sns.set("poster")
+
+fig, ax = plt.subplots(figsize=(6,6))
+
+# plot
+sns.barplot(x = x, y = y, data = data, hue = hue, palette =es, errwidth= 10)
+
+ax.set(ylabel = "Percent of enhancer length", xlabel = "")
+ax.set_xticklabels(["derived"])
+ax.legend(bbox_to_anchor = (1,1))
+plt.savefig("%sfantom_percent_der.pdf" % RE, bbox_inches = "tight")
 
 #%%
 
@@ -103,21 +126,57 @@ data = core
 sns.set("poster")
 
 fig, ax = plt.subplots(figsize=(6,6))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette =es, errwidth= 10)
-ax.set(ylabel = "Percent Core", xlabel = "")
+# plot cores
 
-plt.savefig("%sfantom_percent_core.pdf" % RE, bbox_inches = "tight")
+sns.barplot(x = x, y = y, data = data, hue = hue, palette =pur, errwidth= 10)
+
+ax.set(ylabel = "Percent of enhancer length", xlabel = "")
+ax.legend(bbox_to_anchor = (1,1))
+plt.savefig("%sfantom_percent_core_only.pdf" % RE, bbox_inches = "tight")
 
 #%%
 """
+#core.groupby(["arch", "id"])["pct_core"].median()
+
 arch          id
 complex_core  FANTOM     0.485368
               SHUFFLE    0.398585
 simple        FANTOM     1.000000
               SHUFFLE    1.000000
-#core.groupby(["arch", "id"])["pct_core"].median()
+
 
 """
 
+#%%
+x = "mrca_2"
+y = "pct_core"
+hue = "id"
+data = core.loc[core.arch == "complex_core"]
+
+sns.set("poster")
+
+xlabs = ["prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+fig, ax = plt.subplots(figsize=(6,6))
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = pur, errwidth= 5)
+ax.set(ylabel = "Percent of enhancer length", xlabel = "")
+
+ax.set_xticklabels(xlabs, rotation = 90)
+ax.legend(bbox_to_anchor = (1,1))
+plt.savefig("%sfantom_percent_core_mrca_2.pdf" % RE, bbox_inches = "tight")
 
 #%%
+
+x = "mrca_2"
+y = "pct_der"
+hue = "id"
+data = core.loc[core.arch == "complex_core"]
+
+sns.set("poster")
+
+xlabs = ["prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+fig, ax = plt.subplots(figsize=(6,6))
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = es, errwidth= 5)
+ax.set(ylabel = "Percent of enhancer length", xlabel = "")
+ax.set_xticklabels(xlabs, rotation = 90)
+ax.legend(bbox_to_anchor = (1,1))
+plt.savefig("%sfantom_percent_der_mrca_2.pdf" % RE, bbox_inches = "tight")
