@@ -13,9 +13,15 @@ FANTOMBASE = "/dors/capra_lab/projects/enhancer_ages/fantom/data/ENCODE3/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/encode3/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom_x_encode3_tfbs/"
 
+colors = [ "amber", "dusty purple", "windows blue"]
+PAL = sns.xkcd_palette(colors)
+sns.palplot(PAL)
 
+colors = [ "windows blue"]
+DERPAL = sns.xkcd_palette(colors)
+sns.palplot(DERPAL)
 #%% Functions
 
 
@@ -85,7 +91,7 @@ def format_df(intersection_file):
 
     df = pd.read_csv(intersection_file,
     sep = '\t',
-    header = None)
+    header = None).drop_duplicates()
 
     df.columns = cols # add column names
 
@@ -190,9 +196,26 @@ def calculate_tf_density(arch, df):
     tf_density.columns = density_cols
 
     # how many enhancers do not overlap  TFs?
-    zero_overlap = tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["id"].count()
+    zero_overlap = tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["id"].count().reset_index()
 
     return tf_density, zero_overlap
+
+
+def calculate_zero_syn_freq(zero_syn, df, cell_line, RE):
+
+    zero_syn.columns = ['arch', "zero_counts"]
+
+    arch_df = df[["arch", "syn_id"]].drop_duplicates()
+
+    total_arch_counts = arch_df.groupby(["arch"])["syn_id"].count().reset_index()
+    total_arch_counts.columns = ['arch', "total_counts"]
+
+    zero_syn = pd.merge(zero_syn, total_arch_counts, on = "arch")
+    zero_syn["freq_zero"] = zero_syn.zero_counts.divide(zero_syn.total_counts)
+    zero_syn["freq_nonzero"] = 1-zero_syn["freq_zero"]
+
+    print(zero_syn)
+    zero_syn.to_csv('%snonzero_%s.csv' % (RE, cell_line), index = False)
 
 
 def plot_bar_tf_density(x, y, data, outf, order, p, med):
@@ -201,7 +224,8 @@ def plot_bar_tf_density(x, y, data, outf, order, p, med):
     fig, ax = plt.subplots(figsize = (6,6))
     sns.set("poster")
 
-    sns.barplot(x, y, data = data, estimator = np.median, order = order)
+    sns.barplot(x, y, data = data, estimator = np.median,
+    order = order, palette = PAL, n_boot = 10000)
 
     ax.set(
     xlabel= "p = %s\n%s" % (p,med),
@@ -210,7 +234,6 @@ def plot_bar_tf_density(x, y, data, outf, order, p, med):
     )
 
     plt.savefig(outf, bbox_inches = 'tight')
-    plt.close()
 
 
 def make_pdf(file_name, RE):
@@ -291,15 +314,15 @@ def fdr_correction(collection_dict, alpha):
 
 def plot_bar_tf_enrichment(df, cell_line, outf, alpha):
 
-    fig, ax = plt.subplots(figsize = (6,9))
+    fig, ax = plt.subplots(figsize = (6,12))
     sns.set("poster")
 
     x = "tf"
     y = "log2"
     hue = "arch"
-    data = df
+    data = df.sort_values(by = y)
 
-    sns.barplot(x=y, y=x, data=data , hue = hue)
+    sns.barplot(x=y, y=x, data=data , hue = hue, palette = DERPAL)
 
     ax.legend(bbox_to_anchor = (1,1))
     ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = cell_line)
@@ -356,6 +379,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     # calculate enhancer TF density
     tf_density_enh, zero_enh = calculate_tf_density(arch, df)
 
+
     # plot all enhancer-level data
     x, y = "arch", "tf_density"
     order = ["simple", "complex"]
@@ -368,6 +392,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
 
     print("\nNon-zero TFBS densities only")
+
+
     # plot all enhancer-level data without zeros
     non_zero_tf_density = tf_density_enh.loc[tf_density_enh.tfoverlap_bin>0]
 
@@ -379,12 +405,15 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
 
     # calculate syn-level TF density
-    print("\nSyn TFBS densities")
     arch = "syn"
     totaln, coren, derivedn, simplen = count_enhancers(df, arch)
     tf_density_syn, zero_syn = calculate_tf_density(arch, df)
 
+    # calculate frequency of derived sequences that do not overlap TFBS
 
+    calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
+
+    print("\nSyn TFBS densities")
     # plot syn block TF density
     order = ["simple", "complex_core", "complex_derived"]
     data = tf_density_syn
@@ -398,7 +427,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     print("\nNon-zero syn TFBS densities only")
     non_zero_syn_tf_density = tf_density_syn.loc[tf_density_syn.tfoverlap_bin>0]
 
-    # plot syn block TF density
+
+    # plot non-zero syn block TF density
     data = non_zero_syn_tf_density
     outf = make_pdf("%s_syn_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
 
@@ -430,10 +460,10 @@ tf_den_enh = {}
 tf_den_syn = {}
 
 #%%
+
 ALPHA = 0.05
 MIN_INSTANCES = 500
 
-#%%
 
 cell_line = "all_fantom_enh"
 val = sample_dict[cell_line]
@@ -448,9 +478,12 @@ der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
 
 
+
 #%%
+
 ALPHA = 0.1
 MIN_INSTANCES = 20
+
 #%%
 
 cell_line = "HepG2"
@@ -547,3 +580,62 @@ tf_den_enh[cell_line] = tf_density_enh
 tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
+#%%
+
+df = tf_den_syn["all_fantom_enh"]
+fulldf = results_dict["all_fantom_enh"]
+syn_ages = fulldf[["syn_id", "mrca", "enh_id"]].drop_duplicates()
+syn_ages.columns= ["id", "mrca", "enh_id"]
+df = pd.merge(df, syn_ages)
+
+core_age = fulldf.groupby(["enh_id"])["mrca"].max().reset_index()
+core_age.columns= ["enh_id", 'core_mrca']
+df = pd.merge(df, core_age)
+
+df.head()
+#%%
+
+# age and taxon file
+syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
+syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
+syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
+
+syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]] # whittle down the df
+df["core_mrca"] = df["core_mrca"].round(3) # round the ages
+
+df = pd.merge(df, syn_gen_bkgd, how = "left", left_on = 'core_mrca', right_on = "mrca")
+#%%
+df.groupby(["core_mrca", "arch"])["tf_density"].median()
+#%%
+x = "mrca_2"
+y = "tf_density"
+hue = "arch"
+data = df
+xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+
+fig, ax = plt.subplots(figsize = (10,10))
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = pal, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
+
+ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
+ax.set_xticklabels(xlabs, rotation = 90)
+ax.legend(bbox_to_anchor = (1,1))
+
+plt.savefig("%sall_fantom_tfbs_mrca.pdf"%RE, bbox_inches="tight")
+
+
+#%%
+x = "mrca_2"
+y = "tf_density"
+hue = "arch"
+data = df.loc[df[y]>0]
+
+fig, ax = plt.subplots(figsize = (10,10))
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = pal, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
+xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
+ax.set_xticklabels(xlabs, rotation = 90)
+ax.legend(bbox_to_anchor = (1,1))
+
+plt.savefig("%sall_fantom_syn_non_zero_tfbs_mrca.pdf"%RE, bbox_inches="tight")
+#%%
+data.groupby(["core_mrca", "arch"])["tf_density"].count()

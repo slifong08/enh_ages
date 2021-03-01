@@ -19,6 +19,13 @@ colors = [ "dusty purple", "grey"]
 pur = sns.xkcd_palette(colors)
 sns.palplot(pur)
 
+colors = [ "amber", "greyish", "faded green", "grey"]
+enh = sns.xkcd_palette(colors)
+sns.palplot(enh)
+
+colors = [ "amber", "greyish",  "dusty purple", "brown grey",  "windows blue", "bluey grey"]
+archpal = sns.xkcd_palette(colors)
+sns.palplot(archpal)
 
 FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
 FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
@@ -33,6 +40,16 @@ RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/"
 
 
 #%%
+
+
+def add_arch_labels(df):
+
+    df["arch"] = "complex_core"
+
+    df.loc[df.core_remodeling ==0, "arch"] = "simple"
+    df.loc[df.core ==0, "arch"] = "complex_derived"
+
+    return df
 
 
 def format_syndf(enh_age_file):
@@ -61,13 +78,18 @@ def format_syndf(enh_age_file):
 
     syn = pd.merge(syn, syn_gen_bkgd, how = "left", on = "mrca")
 
-    syn["arch"] = "simple"
+    labeled_syn = add_arch_labels(syn) # add architecture labels
 
-    syn.loc[(syn.core_remodeling ==1) & (syn.core ==1), "arch"] = "complex_core"
-    syn.loc[(syn.core_remodeling ==1) & (syn.core ==0), "arch"] = "complex_derived"
+    return labeled_syn
 
-    return syn
+def clean_shuffles(df, shuf):
 
+    remove_list = []
+    shuf_remove_ids = df.loc[(df["pct_enh"] ==1) & (df.core ==0)]
+
+    df = df.loc[~df.enh_id.isin(shuf_remove_ids)]
+
+    return df
 #%%
 
 
@@ -82,101 +104,135 @@ df = pd.concat([enh, shuf])
 df.shape
 
 
-#%% make df of only cores
+#%% summarize architecture lengths per enhancer
 
 
-core = df.loc[df.core ==1].copy()
-core.head()
+sum_archlen = df.groupby(['id', 'enh_id', 'enh_len', 'core_remodeling', 'core'])["syn_len"].sum().reset_index().drop_duplicates()
+
+sum_archlen = add_arch_labels(sum_archlen) # add architecture labels
+
+ # calculate percent arch per enhancer
+sum_archlen["pct_enh"] = sum_archlen.syn_len.divide(sum_archlen.enh_len)
+sum_archlen = clean_shuffles(sum_archlen, shuf) # remove the shuffles w/o core
+
+# add oldest ages of enhancer information
+enh_mrcas = df.groupby("enh_id")[["mrca_2", "taxon2"]].max().reset_index()
+sum_archlen = pd.merge(sum_archlen, enh_mrcas, how = "left", on = "enh_id")
+
+sum_archlen.head()
 
 
+#%% plot length of segments
+ticklabs = ["simple", "complex\ncore", "complex\nderived"]
+
+x = "arch"
+y = "syn_len"
+hue = "id"
+data = sum_archlen
+order = ["simple", "complex_core", "complex_derived"]
+
+fig, ax = plt.subplots(figsize = (6,6))
+
+sns.barplot(x=x, y=y, data = data, hue = hue, palette = es, order = order)
+ax.set_xticklabels(ticklabs)
+ax.legend(bbox_to_anchor = (1,1))
+ax.set(ylabel = "sum length (bp)", xlabel = "")
+
+plt.savefig("%ssum_arch_length_all_fantom_shuffle.pdf" %RE, bbox_inches = "tight")
+
+
+#%% mean lengths
+
+
+sum_archlen.groupby(["id", "arch"])["syn_len"].mean()
+'''
+mean lengths
+
+id       arch
+FANTOM   complex_core       195.824845 bp long
+         complex_derived    173.842735
+         simple             276.605902
+
+SHUFFLE  complex_core       177.303235
+         complex_derived    189.748677
+         simple             274.325146
+'''
+
+sum_archlen.groupby(["id", "arch"])["pct_enh"].mean()
 #%%
 
-
-core["pct_core"] = core.syn_len.divide(core.enh_len)
-core["pct_der"] = 1 - core["pct_core"]
-
-#%%
 
 
 x = "arch"
-y = "pct_der"
+y = "pct_enh"
 hue = "id"
-data = core.loc[core.arch == "complex_core"]
+
 
 sns.set("poster")
 
 fig, ax = plt.subplots(figsize=(6,6))
 
 # plot
-sns.barplot(x = x, y = y, data = data, hue = hue, palette =es, errwidth= 10)
+sns.barplot(x = x, y = y, data = data, order = order,
+hue = hue, palette =archpal, errwidth= 10)
 
 ax.set(ylabel = "Percent of enhancer length", xlabel = "")
-ax.set_xticklabels(["derived"])
+ax.set_xticklabels(ticklabs)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_der.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sfantom_percent_all.pdf" % RE, bbox_inches = "tight")
+
+
+
 
 #%%
+sum_archlen["id2"] = sum_archlen["arch"] + "-" + sum_archlen["id"]
 
 
-x = "arch"
-y = "pct_core"
-hue = "id"
-data = core
-
-sns.set("poster")
-
-fig, ax = plt.subplots(figsize=(6,6))
-# plot cores
-
-sns.barplot(x = x, y = y, data = data, hue = hue, palette =pur, errwidth= 10)
-
-ax.set(ylabel = "Percent of enhancer length", xlabel = "")
-ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_core_only.pdf" % RE, bbox_inches = "tight")
-
-#%%
-"""
-#core.groupby(["arch", "id"])["pct_core"].median()
-
-arch          id
-complex_core  FANTOM     0.485368
-              SHUFFLE    0.398585
-simple        FANTOM     1.000000
-              SHUFFLE    1.000000
-
-
-"""
-
-#%%
 x = "mrca_2"
-y = "pct_core"
-hue = "id"
-data = core.loc[core.arch == "complex_core"]
+y = "pct_enh"
+hue = "id2"
+order2 = ["simple-FANTOM", "simple-SHUFFLE",
+"complex_core-FANTOM","complex_core-SHUFFLE",
+ "complex_derived-FANTOM", "complex_derived-SHUFFLE"]
 
 sns.set("poster")
 
-xlabs = ["prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
-fig, ax = plt.subplots(figsize=(6,6))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = pur, errwidth= 5)
+xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+
+fig, ax = plt.subplots(figsize=(12,6))
+sns.barplot(x = x, y = y, data = data, hue = hue, hue_order = order2,
+palette = archpal, errwidth= 5)
+
 ax.set(ylabel = "Percent of enhancer length", xlabel = "")
 
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_core_mrca_2.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sfantom_percent_arch_mrca_2.pdf" % RE, bbox_inches = "tight")
 
 #%%
 
 x = "mrca_2"
-y = "pct_der"
-hue = "id"
-data = core.loc[core.arch == "complex_core"]
+y = "syn_len"
+hue = "id2"
+
 
 sns.set("poster")
 
-xlabs = ["prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
-fig, ax = plt.subplots(figsize=(6,6))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = es, errwidth= 5)
+
+fig, ax = plt.subplots(figsize=(12,6))
+sns.barplot(x = x, y = y, data = data, hue = hue,
+hue_order = order2,  palette = archpal, errwidth= 5)
+
 ax.set(ylabel = "Percent of enhancer length", xlabel = "")
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_der_mrca_2.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sfantom_syn_len_mrca_2.pdf" % RE, bbox_inches = "tight")
+#%%
+
+shuf_remove_ids = sum_archlen.loc[(sum_archlen["mrca_2"] == 0) & (sum_archlen.core ==0), "enh_id"]
+
+test = "chr14:89971043-89971729"
+sum_archlen.loc[sum_archlen.enh_id == test]
+shuf.loc[shuf.enh_id == test]
+testsyn = "chr14:89971596-89971729"
+shuf.loc[shuf.syn_id == testsyn]
