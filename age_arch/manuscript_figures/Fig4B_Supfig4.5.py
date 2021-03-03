@@ -584,7 +584,6 @@ zipped = zip(ordf.test2, ordf.sid)
 
 ci_dict = {}
 #%%
-ordf.head()
 val = 0
 for test2, sid in zipped:
 
