@@ -68,8 +68,6 @@ sns.palplot(es_pal)
 # In[34]:
 
 
-
-
 pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 path = "%sbreaks/" % pre_path
 
