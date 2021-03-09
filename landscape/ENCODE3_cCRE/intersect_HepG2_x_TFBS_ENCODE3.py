@@ -16,6 +16,14 @@ ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 RE = "/dors/capra_lab/projects/enhancer_ages/encode/results/"
 
 
+
+colors = [ "amber", "dusty purple", "windows blue"]
+PAL = sns.xkcd_palette(colors)
+sns.palplot(PAL)
+
+colors = [ "windows blue"]
+DERPAL = sns.xkcd_palette(colors)
+sns.palplot(DERPAL)
 #%% Functions
 
 
@@ -291,7 +299,6 @@ def quantify_2x2(obs, comparison_name, min_instances):
     return newdf
 
 
-
 def fdr_correction(collection_dict, alpha):
 
     df = pd.concat(collection_dict.values())
@@ -470,6 +477,17 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, df
 
 
+def just_get_df(cell_line, val, fantombase, encodepath,):
+    print(cell_line, val)
+    fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
+
+    #Bed command
+    bed_intersect(fantom, encode, intersection)
+
+    #dataframe
+    df = format_df(intersection)
+
+    return df
 
 #%%
 sample_dict = get_cell_lines()
@@ -489,7 +507,7 @@ cell_line = "HepG2"
 val = sample_dict[cell_line]
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core,simple_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
 results_dict[cell_line] = df
 tf_den_enh[cell_line] = tf_density_enh
@@ -497,17 +515,17 @@ tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
 #%%
-der_v_core.sort_values(by = "FDR_P")
+
 #%%
-der_v_bkgd.sort_values(by = "FDR_P")
-#%%
-df.head()
+df = just_get_df(cell_line, val, ENHBASE, ENCODEPATH)
+
 #%%
 
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
+
+# round all values
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
-syn.head()
 df.mrca = df.mrca.round(3)
 
 df = pd.merge(df, syn, how = "left")
@@ -515,7 +533,7 @@ df = pd.merge(df, syn, how = "left")
 TAXON2 = "Eutheria"
 df.arch.unique()
 
-age.shape
+
 
 #%%
 # calculate TF enrichment in architecture/syn blocks
@@ -535,8 +553,70 @@ for TAXON2 in df.taxon2.unique():
 
 
 #%%
-TAXON2 = "Mammalia"
+TAXON2 = "Eutheria"
 age = df.loc[df.taxon2 == TAXON2]
 der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
 #%%
+simpleEuth = age.loc[age.arch == "simple"]
+tf_count = simpleEuth.groupby("tf")["syn_id"].count().reset_index() # count all the TFs in simple
+tf_count.columns = ["tf", "tf_count"]
+len(tf_count) # there are 117 total TFs in simple eutherian enhancers
+len(tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]) # there are 36 TFs w/ more than 1000 counts in simple eutherian enhancers
+len(tf_count.loc[(tf_count.tf_count>=500) & (tf_count.tf !="."), "tf"])# there are 58 TFs w/ more than 1000 counts in simple eutherian enhancers
+sns.histplot(tf_count.tf_count)
+#%%
+tf_1k = tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]
+#%% create all combinations of TFs w/ counts >100
+from itertools import combinations
+
+tf_combos = list(combinations(tf_1k, 2))
+len(tf_combos)# 630 1k tf combos
+len(tf_1k)
+MIN_INSTANCES = 1000
+
+euth_simple_results = {}
+
+#%%
+
+def jaccard(tf1, tf2, df):
+
+    tf1Set = set(df.loc[(df.tf == tf1), "enh_id"])
+    tf2Set = set(df.loc[(df.tf == tf2), "enh_id"])
+
+
+    intersection = len(tf1Set.intersection(tf2Set))
+    union = (len(tf1Set) + len(tf2Set)) - intersection
+
+    jaccard_index = float(intersection) / union
+
+    jaccard_df = pd.DataFrame({"tf1": [tf1],
+    "tf2": [tf2],
+    "tf1Set_len": [len(tf1Set)],
+    "tf2Set_len": [len(tf2Set)],
+    "intersection": [intersection],
+    "union": [union],
+    "jaccard_index":[jaccard_index]
+    })
+
+    return jaccard_df
+#%%
+for tf1, tf2 in tf_combos:
+
+    # make a comparison name
+    comparison_name = tf1 + "/" + tf2
+    inv_comparison_name = tf2 + "/" + tf1
+    if comparison_name not in euth_simple_results.keys() and inv_comparison_name not in euth_simple_results.keys():
+        print(comparison_name)
+
+        results = jaccard(tf1, tf2, simpleEuth)
+
+
+        euth_simple_results[comparison_name] = results
+
+#%%
+simeuth_jaccard = pd.concat(euth_simple_results.values())
+sns.histplot(simeuth_jaccard.jaccard_index)
+
+#%%
+simeuth_jaccard.sort_values(by = "jaccard_index", ascending = False).head(25)

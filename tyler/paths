@@ -1,0 +1,30 @@
+
+hg38:
+Shared(hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_shared_OCRs.bed
+GM12878-specific (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_GM12878-specific_OCRs.bed
+LCL8664-specific (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_LCL8664-specific_OCRs.bed
+
+rheMac10: (all were lifted over from hg38 to rheMac10)
+shared(lifted over to rheMac10): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_shared_OCRs_rheMac10-from-hg38.bed
+GM12878-specific(lifted over to rheMac10): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_GM12878-specific_OCRs_rheMac10-from-hg38.bed
+LCL8664-specific(lifted over to rheMac10): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/ GG-LL_LCL8664-specific_OCRs_rheMac10-from-hg38.bed
+
+
+#1 is a matrix I use for calling active regions.
+#2 is what I use for the differential analysis.
+You should easily be able to head each one and get an idea how they are set up.
+
+1) /data/hodges_lab/ATAC-STARR_V2/data/ATAC-STARR_cts_matricies/GM12878inGM12878_counts.tsv
+
+2) /data/hodges_lab/ATAC-STARR_V2/data/ATAC-STARR_cts_matricies/GM12878inGM12878/differential_analysis/GGvsLL_counts_GG-only.tsv
+### I think 2) is this: /data/hodges_lab/ATAC-STARR_V2/data/ATAC-STARR_cts_matricies/differential_analysis/GGvsLL_counts_GG-only.tsv
+
+You can take a peak at my scripts if your interested in how each was made. Sorry if they aren’t commented very well.
+1) /data/hodges_lab/ATAC-STARR_V2/bin/ATAC-STARR-RE_FG-method_generation/create-counts-matrix.slrm
+2) /data/hodges_lab/ATAC-STARR_V2/bin ATAC-STARR-RE_differential-analysis/prep_counts_DESeq2-method.slrm
+
+If you are interested in how the DESeq2 analysis is done, here are those associated scripts:
+1) /data/hodges_lab/ATAC-STARR_V2/bin/ATAC-STARR-RE_FG-method_generation/Active-RE-calling_DESeq2.Rmd
+2) /data/hodges_lab/ATAC-STARR_V2/bin ATAC-STARR-RE_differential-analysis/prep/ATAC-STARR_Differential-Analysis_DESeq2.Rmd
+
+Let me know if you have any questions/need more clarification and if/when you want the different region files to analyze for enhancer age and complexity.
