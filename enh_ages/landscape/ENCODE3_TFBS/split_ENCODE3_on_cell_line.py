@@ -1,9 +1,9 @@
 import pandas as pd
 import os, sys
 
-bedfile = sys.argv[1] #infile
-BEDPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19/"
-BEDFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
+#bedfile = sys.argv[1] #infile
+BEDPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
+BEDFILE = "trimmed_encRegTfbsClusteredWithCells.hg38.bed"
 bedfile = os.path.join(BEDPATH, BEDFILE)
 
 
@@ -23,7 +23,7 @@ def split_on_cell_line(cell_line, df, outfile):
 
 path = "/".join(bedfile.split("/")[:-1])
 
-df = pd.read_csv(bedfile, sep = '\t', header = None)
+df = pd.read_csv(bedfile, sep = '\t', header = None, usecols = [0,1,2,3, 4, 6, 8])
 
 cols = ["chr", "start_new", "end_new", "old_enh_id",
 "old_len",  "tf", "cell_line"]
@@ -40,11 +40,11 @@ cls = df.cell_line.unique() # array of unique cell lines, and overlaps
 for cell_line in cls:
 
     if "/" in cell_line:
-        c = "_".join(cell_line.split("/")) # do some formatting. 
+        c = "_".join(cell_line.split("/")) # do some formatting.
     else:
         c = cell_line
 
     if "," not in c: # split only on single cell lines
 
-        outfile = "%s/%s.bed" % (path, c)
+        outfile = "%s/cells/%s.bed" % (path, c)
         split_on_cell_line(cell_line, df, outfile)

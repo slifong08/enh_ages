@@ -82,6 +82,7 @@ def format_syndf(enh_age_file):
 
     return labeled_syn
 
+
 def clean_shuffles(df):
 
     remove_list = []
@@ -90,6 +91,8 @@ def clean_shuffles(df):
     df = df.loc[~df.enh_id.isin(shuf_remove_ids)]
 
     return df
+
+
 #%%
 
 
@@ -155,7 +158,11 @@ ax.legend(bbox_to_anchor = (1,1))
 outf = "%smrca_x_syn_lengths_arch.pdf" % RE
 
 plt.savefig(outf, bbox_inches = 'tight')
+
+
 #%% plot length of segments
+
+
 ticklabs = ["simple", "complex\ncore", "complex\nderived"]
 
 x = "arch"
@@ -182,7 +189,7 @@ sum_archlen.groupby(["id", "arch"])["syn_len"].mean()
 mean lengths
 
 id       arch
-FANTOM   complex_core       195.824845 bp long
+FANTOM   complex_core       17.824845 bp long
          complex_derived    173.842735
          simple             276.605902
 
