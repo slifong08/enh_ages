@@ -256,10 +256,19 @@ def prep_2x2(tf, arch1, arch2, df):
 
     a, b, c, d = TF_in_arch, not_TF_in_arch, TF_bkgd, not_TF_in_bkgd
 
-    obs = [[a,b], [c,d]]
 
-    return obs, comparison_name
+    checkrowone = a + b
 
+    if checkrowone > 0:
+        obs = [[a,b], [c,d]]
+
+        return obs, comparison_name
+    else:
+        print("no obs for", tf)
+
+        obs = [[0,0], [0,0]]
+
+        return obs, comparison_name
 
 def quantify_2x2(obs, comparison_name, min_instances):
 
@@ -275,8 +284,12 @@ def quantify_2x2(obs, comparison_name, min_instances):
                               "ci_lower" :[odds_ci[0]],
                               "ci_upper" :[odds_ci[1]],
                             })
+    else:
+        newdf = pd.DataFrame() # return empty dataframe
 
-        return newdf
+
+    return newdf
+
 
 
 def fdr_correction(collection_dict, alpha):
@@ -331,27 +344,34 @@ def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
 
             results = quantify_2x2(obs, comparison_name, min_instances)
 
-            collection_dict[comparison_name] = results
+            if results.empty ==False:
+                collection_dict[comparison_name] = results
 
     #FDR correction
+    if len(collection_dict) > 0: # if there are any results
 
-    results_df = fdr_correction(collection_dict, alpha)
+        results_df = fdr_correction(collection_dict, alpha)
 
-    df = results_df.loc[results_df.reject_null == True]
+        df = results_df.loc[results_df.reject_null == True]
 
-    if len(df)>0:
-        if taxon2 != None:
-            outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
-            plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+        if len(df)>0: # if there are any significant results, plot them!
+
+            if taxon2 != None:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
+                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+            else:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
+                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+            return results_df
+
         else:
-            outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
-
-            plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+                print("\nno sig results for comparison", arch1, "v.", arch2, "in", taxon2)
 
     else:
-        print("\nno sig results for comparison", arch1, "v.", arch2)
-
-    return results_df
+        print("\nnot any results for comparison", arch1, "v.", arch2, "in", taxon2)
 
 
 def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
@@ -483,7 +503,7 @@ der_v_bkgd.sort_values(by = "FDR_P")
 #%%
 df.head()
 #%%
-del SYN_GROUP
+
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
@@ -500,6 +520,23 @@ age.shape
 #%%
 # calculate TF enrichment in architecture/syn blocks
 for TAXON2 in df.taxon2.unique():
+    print(TAXON2)
     age = df.loc[df.taxon2 == TAXON2]
+
     arch1, arch2 = "complex_derived", "complex_core"
     der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+
+    arch1, arch2 = "simple", "complex_core"
+    simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+    arch1, arch2 = "simple", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+
+#%%
+TAXON2 = "Mammalia"
+age = df.loc[df.taxon2 == TAXON2]
+der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+#%%
