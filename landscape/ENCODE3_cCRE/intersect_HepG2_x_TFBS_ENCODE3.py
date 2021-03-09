@@ -27,33 +27,33 @@ def get_cell_lines():
     return sample_dict
 
 
-def get_paths(cell_line, file_tag, enhbase, encodepath):
+def get_paths(cell_line, file_tag, fantombase, encodepath):
 
-    ENHPATH = os.path.join(enhbase, file_tag, "ages")
-    ENHFILE = "syn_breaks_%s_ages.bed" % file_tag
-    ENH = os.path.join(ENHPATH, ENHFILE)
+    FANTOMPATH = os.path.join(fantombase, file_tag, "ages")
+    FANTOMFILE = "syn_breaks_%s_ages.bed" % file_tag
+    FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
     if "CL" in cell_line:
-        ENCODEFILE = cell_line.split("_CL")[0] + ".bed"
+        ENCODEFILE = "cells/" + cell_line.split("_CL")[0] + ".bed.gz"
     elif cell_line == "all_fantom_enh":
-        ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
+        ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.bed"
     else:
-        ENCODEFILE = cell_line + ".bed.gz"
+        ENCODEFILE = "cells/" + cell_line + ".bed.gz"
 
     ENCODE = os.path.join(encodepath, ENCODEFILE)
 
 
-    INTERSECTIONPATH = os.path.join(enhbase, file_tag)
+    INTERSECTIONPATH = os.path.join(fantombase, file_tag)
     INTERSECTIONFILE = "%s_x_ENCODE.bed" % file_tag
     INTERSECTION = os.path.join(INTERSECTIONPATH, INTERSECTIONFILE)
 
-    return ENH, ENCODE, INTERSECTION
+    return FANTOM, ENCODE, INTERSECTION
 
 
-def bed_intersect(enh, encode, intersection):
+def bed_intersect(fantom, encode, intersection):
 
     if os.path.exists(intersection) == False:
-        cmd = "bedtools intersect -a %s -b %s -wao > %s" % (enh, encode, intersection)
+        cmd = "bedtools intersect -a %s -b %s -wao > %s" % (fantom, encode, intersection)
 
         subprocess.call(cmd, shell = True)
 
@@ -69,13 +69,13 @@ def format_df(intersection_file):
     "seg_index", "core_remodeling", "core",
     "mrca",
     "chr_tf", "start_tf", "end_tf",
-    "tf_id", "reads", "peak_len",
-    "tf", "old_len", "cell_line" , "overlap"
+    "tf_id", "peak_len",
+    "tf", "cell_line" , "overlap"
     ]
 
     df = pd.read_csv(intersection_file,
     sep = '\t',
-    header = None)
+    header = None).drop_duplicates()
 
     df.columns = cols # add column names
 
@@ -96,6 +96,8 @@ def format_df(intersection_file):
     #calculate enhancer and syntenic block length
     df["enh_len"] = df.end - df.start
     df["syn_len"] = df.end_syn - df.start_syn
+    df.loc[df.syn_len <6, "syn_len"] = 0
+
 
     # binary for TF overlap, any TF that overlaps less than 6bp is not counted.
     df["tfoverlap_bin"] = 1
@@ -140,10 +142,10 @@ def mwu(tf_density, arch):
         complex_tfden = tf_density.loc[tf_density.arch == "complex", "tf_density"]
 
         # calculate MWU
-        test, p = stats.mannwhitneyu(simple_tfden, complex_tfden)
-        print("\n", "simple v. complex enh MWU stat =", round(test,3), "p =", p )
+        test_arch, p_arch = stats.mannwhitneyu(simple_tfden, complex_tfden)
+        print("\n", "simple v. complex enh MWU stat =", round(test_arch,3), "p =", p_arch )
 
-        return test, p, median
+        return test_arch, p_arch, median
 
     elif arch == "syn":
 
@@ -154,10 +156,10 @@ def mwu(tf_density, arch):
         testcore, pcore = stats.mannwhitneyu(simple_tfden, core_tfden)
         print("\n", "simple v. complexcore MWU stat =", round(testcore,3), "p =", pcore)
 
-        test, p = stats.mannwhitneyu(derived_tfden, core_tfden)
-        print("\n", "core v. derived MWU stat =", round(test,3), "p =", p)
+        test_der, p_der = stats.mannwhitneyu(derived_tfden, core_tfden)
+        print("\n", "core v. derived MWU stat =", round(test_der,3), "p =", p_der)
 
-        return testcore, pcore, test, p, median
+        return testcore, pcore, test_der, p_der, median
 
 
 def calculate_tf_density(arch, df):
@@ -180,9 +182,26 @@ def calculate_tf_density(arch, df):
     tf_density.columns = density_cols
 
     # how many enhancers do not overlap  TFs?
-    zero_overlap = tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["id"].count()
+    zero_overlap = tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["id"].count().reset_index()
 
     return tf_density, zero_overlap
+
+
+def calculate_zero_syn_freq(zero_syn, df, cell_line, RE):
+
+    zero_syn.columns = ['arch', "zero_counts"]
+
+    arch_df = df[["arch", "syn_id"]].drop_duplicates()
+
+    total_arch_counts = arch_df.groupby(["arch"])["syn_id"].count().reset_index()
+    total_arch_counts.columns = ['arch', "total_counts"]
+
+    zero_syn = pd.merge(zero_syn, total_arch_counts, on = "arch")
+    zero_syn["freq_zero"] = zero_syn.zero_counts.divide(zero_syn.total_counts)
+    zero_syn["freq_nonzero"] = 1-zero_syn["freq_zero"]
+
+    print(zero_syn)
+    zero_syn.to_csv('%snonzero_%s.csv' % (RE, cell_line), index = False)
 
 
 def plot_bar_tf_density(x, y, data, outf, order, p, med):
@@ -191,7 +210,8 @@ def plot_bar_tf_density(x, y, data, outf, order, p, med):
     fig, ax = plt.subplots(figsize = (6,6))
     sns.set("poster")
 
-    sns.barplot(x, y, data = data, estimator = np.median, order = order)
+    sns.barplot(x, y, data = data, estimator = np.median,
+    order = order, palette = PAL, n_boot = 10000)
 
     ax.set(
     xlabel= "p = %s\n%s" % (p,med),
@@ -200,7 +220,6 @@ def plot_bar_tf_density(x, y, data, outf, order, p, med):
     )
 
     plt.savefig(outf, bbox_inches = 'tight')
-    plt.close()
 
 
 def make_pdf(file_name, RE):
@@ -237,10 +256,19 @@ def prep_2x2(tf, arch1, arch2, df):
 
     a, b, c, d = TF_in_arch, not_TF_in_arch, TF_bkgd, not_TF_in_bkgd
 
-    obs = [[a,b], [c,d]]
 
-    return obs, comparison_name
+    checkrowone = a + b
 
+    if checkrowone > 0:
+        obs = [[a,b], [c,d]]
+
+        return obs, comparison_name
+    else:
+        print("no obs for", tf)
+
+        obs = [[0,0], [0,0]]
+
+        return obs, comparison_name
 
 def quantify_2x2(obs, comparison_name, min_instances):
 
@@ -256,11 +284,12 @@ def quantify_2x2(obs, comparison_name, min_instances):
                               "ci_lower" :[odds_ci[0]],
                               "ci_upper" :[odds_ci[1]],
                             })
+    else:
+        newdf = pd.DataFrame() # return empty dataframe
 
-        if P<0.05:
-            print("\n", comparison_name, obs, round(OR, 2), round(P, 4))
 
-        return newdf
+    return newdf
+
 
 
 def fdr_correction(collection_dict, alpha):
@@ -279,25 +308,31 @@ def fdr_correction(collection_dict, alpha):
     return df
 
 
-def plot_bar_tf_enrichment(df, cell_line, outf, alpha):
+def plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2):
 
-    fig, ax = plt.subplots(figsize = (6,9))
+    fig, ax = plt.subplots(figsize = (6,12))
     sns.set("poster")
 
     x = "tf"
     y = "log2"
     hue = "arch"
-    data = df
+    data = df.sort_values(by = y)
 
-    sns.barplot(x=y, y=x, data=data , hue = hue)
+    sns.barplot(x=y, y=x, data=data , hue = hue, palette = DERPAL)
 
     ax.legend(bbox_to_anchor = (1,1))
-    ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = cell_line)
+
+    if taxon2 !=None:
+        label = cell_line + "_" + taxon2
+    else:
+        label = cell_line
+
+    ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = label)
 
     plt.savefig(outf, bbox_inches = "tight")
 
 
-def run_2x2(arch1, arch2, df, min_instances, alpha):
+def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
 
     collection_dict = {}
 
@@ -309,23 +344,34 @@ def run_2x2(arch1, arch2, df, min_instances, alpha):
 
             results = quantify_2x2(obs, comparison_name, min_instances)
 
-            collection_dict[comparison_name] = results
+            if results.empty ==False:
+                collection_dict[comparison_name] = results
 
     #FDR correction
+    if len(collection_dict) > 0: # if there are any results
 
-    results_df = fdr_correction(collection_dict, alpha)
+        results_df = fdr_correction(collection_dict, alpha)
 
-    df = results_df.loc[results_df.reject_null == True]
+        df = results_df.loc[results_df.reject_null == True]
 
-    if len(df)>0:
-        outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
 
-        plot_bar_tf_enrichment(df, cell_line, outf, alpha)
+        if len(df)>0: # if there are any significant results, plot them!
+
+            if taxon2 != None:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
+                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+            else:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
+                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+            return results_df
+
+        else:
+                print("\nno sig results for comparison", arch1, "v.", arch2, "in", taxon2)
 
     else:
-        print("\nno sig results for comparison", arch1, "v.", arch2)
-
-    return results_df
+        print("\nnot any results for comparison", arch1, "v.", arch2, "in", taxon2)
 
 
 def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
@@ -346,6 +392,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     # calculate enhancer TF density
     tf_density_enh, zero_enh = calculate_tf_density(arch, df)
 
+
     # plot all enhancer-level data
     x, y = "arch", "tf_density"
     order = ["simple", "complex"]
@@ -353,47 +400,53 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     data = tf_density_enh
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s"  % (cell_line, arch), RE)
 
-    test, p, median = mwu(tf_density_enh, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p, median)
+    test_arch, p_arch, median = mwu(tf_density_enh, arch)
+    plot_bar_tf_density(x, y, data, outf, order, p_arch, median)
 
 
     print("\nNon-zero TFBS densities only")
+
+
     # plot all enhancer-level data without zeros
     non_zero_tf_density = tf_density_enh.loc[tf_density_enh.tfoverlap_bin>0]
 
     data = non_zero_tf_density
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
-    test, p, median = mwu(non_zero_tf_density, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p, median)
+    test_arch_, p_arch_, median = mwu(non_zero_tf_density, arch)
+    plot_bar_tf_density(x, y, data, outf, order, p_arch_, median)
 
 
 
     # calculate syn-level TF density
-    print("\nSyn TFBS densities")
     arch = "syn"
     totaln, coren, derivedn, simplen = count_enhancers(df, arch)
     tf_density_syn, zero_syn = calculate_tf_density(arch, df)
 
+    # calculate frequency of derived sequences that do not overlap TFBS
 
+    calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
+
+    print("\nSyn TFBS densities")
     # plot syn block TF density
     order = ["simple", "complex_core", "complex_derived"]
     data = tf_density_syn
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s" % (cell_line, arch), RE)
 
-    testcore, pcore, test, p, median = mwu(tf_density_syn, arch)
-    new_p = "core_v_der p = %s, simple_v_core = %s" %(pcore, p)
+    testcore, pcore, test_der, p_der, median = mwu(tf_density_syn, arch)
+    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
     plot_bar_tf_density(x, y, data, outf, order, new_p, median)
 
 
     print("\nNon-zero syn TFBS densities only")
     non_zero_syn_tf_density = tf_density_syn.loc[tf_density_syn.tfoverlap_bin>0]
 
-    # plot syn block TF density
+
+    # plot non-zero syn block TF density
     data = non_zero_syn_tf_density
     outf = make_pdf("%s_syn_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
 
-    testcore, pcore, test, p, median = mwu(non_zero_syn_tf_density, arch)
-    new_p = "core_v_der p = %s, simple_v_core = %s" %(pcore, p)
+    testcore, pcore, test_der, p_der, median = mwu(non_zero_syn_tf_density, arch)
+    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
     plot_bar_tf_density(x, y, data, outf, order, new_p, median)
 
 
@@ -403,12 +456,19 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
     # calculate TF enrichment in architecture/syn blocks
     arch1, arch2 = "complex_derived", "complex_core"
-    der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA)
+    der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
     arch1, arch2 = "complex_derived", "bkgd"
-    der_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA)
+    der_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
-    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df
+    arch1, arch2 = "simple", "complex_core"
+    simple_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    arch1, arch2 = "simple", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, df
+
 
 
 #%%
@@ -421,7 +481,7 @@ tf_den_syn = {}
 
 #%%
 ALPHA = 0.1
-MIN_INSTANCES = 1800
+MIN_INSTANCES =100
 
 #%%
 
@@ -429,7 +489,7 @@ cell_line = "HepG2"
 val = sample_dict[cell_line]
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
 results_dict[cell_line] = df
 tf_den_enh[cell_line] = tf_density_enh
@@ -440,3 +500,43 @@ der_v_core_dict[cell_line] = der_v_core
 der_v_core.sort_values(by = "FDR_P")
 #%%
 der_v_bkgd.sort_values(by = "FDR_P")
+#%%
+df.head()
+#%%
+
+SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+syn = pd.read_csv(SYN_GROUP, sep = '\t')
+syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+syn.head()
+df.mrca = df.mrca.round(3)
+
+df = pd.merge(df, syn, how = "left")
+
+TAXON2 = "Eutheria"
+df.arch.unique()
+
+age.shape
+
+#%%
+# calculate TF enrichment in architecture/syn blocks
+for TAXON2 in df.taxon2.unique():
+    print(TAXON2)
+    age = df.loc[df.taxon2 == TAXON2]
+
+    arch1, arch2 = "complex_derived", "complex_core"
+    der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+
+    arch1, arch2 = "simple", "complex_core"
+    simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+    arch1, arch2 = "simple", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+
+#%%
+TAXON2 = "Mammalia"
+age = df.loc[df.taxon2 == TAXON2]
+der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+#%%

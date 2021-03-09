@@ -232,6 +232,46 @@ def bootstrapCI(list): # bootstrap C.I.s
     return ci, stdev
 
 
+def sim_and_bootstrap_freq_overlap(df):
+
+
+    sig, non_sig = df["a"].iloc[0], df["b"].iloc[0] # get counts of sig, non sig enhancer overlap
+
+    freq_list = []
+
+    # make a list of 0s and 1s
+    sample = [1]*sig + [0]*non_sig
+    #this is a vector of all enhancer architectures overlapping sig/non-sig
+    #MPRA variants in arensbergen
+
+    total = sig + non_sig
+
+    # create 1k randomly sampled vectors to estimate frequency of overlaps
+
+    # sample w/ replacement!
+    # calculate frequency of 1s per randomly sampled dataset
+    # append frequency to frequency_list
+
+    for n in np.arange(1000): # sample 1000x
+
+        sample_list = np.random.choice(sample, replace = True, size =total)
+        # size = total # of enhancers
+        # with replacement
+        # sample 1s and 0s
+        random_sig = Counter(sample_list)[1] # count 1s
+        freq = random_sig/total # get frequency of sig. MPRA variants randomly sampled
+        freq_list.append(freq) # append frequency to list.
+
+    sns.countplot(freq_list)
+    ci, std = bootstrapCI(freq_list) # calculate bootstrapped cis
+
+    df["ci_lower"], df["ci_upper"] =  ci[0], ci[1]
+
+    df["stdev"] = std # stdev on the bootstrappedCI distribution
+
+    return df
+
+    
 def get_arch_snp_counts(df, sig):
 
     # Simple
@@ -389,46 +429,6 @@ def count_OR_df(count):
     count["FRACcd"] = count.SUMcd.divide(count.total) # fraction of complex alleles in total allele dataset
 
     return count
-
-
-def sim_and_bootstrap_freq_overlap(df):
-
-
-    sig, non_sig = df["a"].iloc[0], df["b"].iloc[0] # get counts of sig, non sig enhancer overlap
-
-    freq_list = []
-
-    # make a list of 0s and 1s
-    sample = [1]*sig + [0]*non_sig
-    #this is a vector of all enhancer architectures overlapping sig/non-sig
-    #MPRA variants in arensbergen
-
-    total = sig + non_sig
-
-    # create 10k randomly sampled vectors to estimate frequency of overlaps
-
-    # sample w/ replacement!
-    # calculate frequency of 1s per randomly sampled dataset
-    # append frequency to frequency_list
-
-    for n in np.arange(1000): # sample 1000x
-
-        sample_list = np.random.choice(sample, replace = True, size =total)
-        # size = total # of enhancers
-        # with replacement
-        # sample 1s and 0s
-        random_sig = Counter(sample_list)[1] # count 1s
-        freq = random_sig/total # get frequency of sig. MPRA variants randomly sampled
-        freq_list.append(freq) # append frequency to list.
-
-    sns.countplot(freq_list)
-    ci, std = bootstrapCI(freq_list) # calculate bootstrapped cis
-
-    df["ci_lower"], df["ci_upper"] =  ci[0], ci[1]
-
-    df["stdev"] = std # stdev on the bootstrappedCI distribution
-
-    return df
 
 
 def plot_freq(test, cell_model, enh_dataset, outf):

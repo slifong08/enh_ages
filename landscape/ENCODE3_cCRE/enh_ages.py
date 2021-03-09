@@ -25,7 +25,7 @@ df.head()
 
 #%%
 shufdf = pd.read_csv(SHUFF, sep = '\t', header = None, usecols =[0,1,2,3,4,5,6,7,8], names = cols)
-
+shufdf =pd.DataFrame()
 shufdf.head()
 #%%
 print(df.max_seg.median()) # median number of segments ==1

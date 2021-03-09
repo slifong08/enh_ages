@@ -20,15 +20,12 @@ def trim(bedfile, trim_len):
 
     df["new_len"] = trim_len
 
-    midpoint = (df.start + (df.old_len)/2).astype(int)
-    newstart = ((midpoint- (trim_len/2)).round(0)).astype(int)
-    newend = ((midpoint + (trim_len/2)).round(0)).astype(int)
+    # BUG WAS HERE. GOT OLD_LEN AND TRIM_LEN VARS mixed.
+    df["midpoint"] = (df.start + (df.old_len)/2).astype(int) # identify the midpoint of each enhancer
 
-    df["midpoint"] = midpoint # identify the midpoint of each enhancer
+    df["start_new"] = ((df.midpoint- (trim_len/2)).round(0)).astype(int) # calculate new start as the midpoint - (mean length/2)
 
-    df["start_new"] = newstart # calculate new start as the midpoint - (mean length/2)
-
-    df["end_new"] = newend
+    df["end_new"] = ((df.midpoint + (trim_len/2)).round(0)).astype(int)
 
     trimmed = df[["chr", "start_new", "end_new", "old_enh_id",
     "old_len", "new_len", "tf", "reads", "cell_line"]].drop_duplicates()

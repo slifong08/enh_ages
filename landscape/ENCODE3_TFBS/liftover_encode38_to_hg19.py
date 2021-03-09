@@ -5,12 +5,14 @@
 # liftOvers the entire file between hg builds
 # write liftOver and notlifted files.
 import os
+import subprocess
 
 TO = 19
 FROM = 38
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.hg38.bed"
+ENCODEFILE = "trimmed_test.bed"
 
 ENCODE = os.path.join(ENCODEPATH, ENCODEFILE)
 
@@ -48,7 +50,7 @@ def liftover(bedfile, bedpath, outpath, chain, to):
     subprocess.call(cmd, shell = True)
 
     cmd = "rm %s" % temp
-    subprocess.call(cmd, shell = True)
+    #subprocess.call(cmd, shell = True)
     return lifted
 
 #%%

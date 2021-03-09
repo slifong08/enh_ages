@@ -22,6 +22,8 @@ sns.palplot(PAL)
 colors = [ "windows blue"]
 DERPAL = sns.xkcd_palette(colors)
 sns.palplot(DERPAL)
+
+
 #%% Functions
 
 
@@ -50,11 +52,11 @@ def get_paths(cell_line, file_tag, fantombase, encodepath):
     FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
     if "CL" in cell_line:
-        ENCODEFILE = cell_line.split("_CL")[0] + ".bed"
+        ENCODEFILE = "cells/" + cell_line.split("_CL")[0] + ".bed.gz"
     elif cell_line == "all_fantom_enh":
         ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
     else:
-        ENCODEFILE = cell_line + ".bed"
+        ENCODEFILE = "cells/" + cell_line + ".bed.gz"
 
     ENCODE = os.path.join(encodepath, ENCODEFILE)
 
@@ -112,6 +114,8 @@ def format_df(intersection_file):
     #calculate enhancer and syntenic block length
     df["enh_len"] = df.end - df.start
     df["syn_len"] = df.end_syn - df.start_syn
+    df.loc[df.syn_len <6, "syn_len"] = 0
+
 
     # binary for TF overlap, any TF that overlaps less than 6bp is not counted.
     df["tfoverlap_bin"] = 1
@@ -156,10 +160,10 @@ def mwu(tf_density, arch):
         complex_tfden = tf_density.loc[tf_density.arch == "complex", "tf_density"]
 
         # calculate MWU
-        test, p = stats.mannwhitneyu(simple_tfden, complex_tfden)
-        print("\n", "simple v. complex enh MWU stat =", round(test,3), "p =", p )
+        test_arch, p_arch = stats.mannwhitneyu(simple_tfden, complex_tfden)
+        print("\n", "simple v. complex enh MWU stat =", round(test_arch,3), "p =", p_arch )
 
-        return test, p, median
+        return test_arch, p_arch, median
 
     elif arch == "syn":
 
@@ -170,10 +174,10 @@ def mwu(tf_density, arch):
         testcore, pcore = stats.mannwhitneyu(simple_tfden, core_tfden)
         print("\n", "simple v. complexcore MWU stat =", round(testcore,3), "p =", pcore)
 
-        test, p = stats.mannwhitneyu(derived_tfden, core_tfden)
-        print("\n", "core v. derived MWU stat =", round(test,3), "p =", p)
+        test_der, p_der = stats.mannwhitneyu(derived_tfden, core_tfden)
+        print("\n", "core v. derived MWU stat =", round(test_der,3), "p =", p_der)
 
-        return testcore, pcore, test, p, median
+        return testcore, pcore, test_der, p_der, median
 
 
 def calculate_tf_density(arch, df):
@@ -290,9 +294,6 @@ def quantify_2x2(obs, comparison_name, min_instances):
                               "ci_upper" :[odds_ci[1]],
                             })
 
-        if P<0.05:
-            print("\n", comparison_name, obs, round(OR, 2), round(P, 4))
-
         return newdf
 
 
@@ -387,8 +388,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     data = tf_density_enh
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s"  % (cell_line, arch), RE)
 
-    test, p, median = mwu(tf_density_enh, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p, median)
+    test_arch, p_arch, median = mwu(tf_density_enh, arch)
+    plot_bar_tf_density(x, y, data, outf, order, p_arch, median)
 
 
     print("\nNon-zero TFBS densities only")
@@ -399,8 +400,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
     data = non_zero_tf_density
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
-    test, p, median = mwu(non_zero_tf_density, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p, median)
+    test_arch_, p_arch_, median = mwu(non_zero_tf_density, arch)
+    plot_bar_tf_density(x, y, data, outf, order, p_arch_, median)
 
 
 
@@ -419,8 +420,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     data = tf_density_syn
     outf = make_pdf("%s_enh_x_encode3_tf_density_%s" % (cell_line, arch), RE)
 
-    testcore, pcore, test, p, median = mwu(tf_density_syn, arch)
-    new_p = "core_v_der p = %s, simple_v_core = %s" %(pcore, p)
+    testcore, pcore, test_der, p_der, median = mwu(tf_density_syn, arch)
+    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
     plot_bar_tf_density(x, y, data, outf, order, new_p, median)
 
 
@@ -432,8 +433,8 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     data = non_zero_syn_tf_density
     outf = make_pdf("%s_syn_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
 
-    testcore, pcore, test, p, median = mwu(non_zero_syn_tf_density, arch)
-    new_p = "core_v_der p = %s, simple_v_core = %s" %(pcore, p)
+    testcore, pcore, test_der, p_der, median = mwu(non_zero_syn_tf_density, arch)
+    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
     plot_bar_tf_density(x, y, data, outf, order, new_p, median)
 
 
@@ -477,12 +478,12 @@ tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
 
-
+der_v_core.head()
 
 #%%
 
 ALPHA = 0.1
-MIN_INSTANCES = 20
+MIN_INSTANCES = 50
 
 #%%
 
@@ -541,6 +542,7 @@ tf_den_enh[cell_line] = tf_density_enh
 tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
+
 #%%
 cell_line = "GM12878_CL"
 val = sample_dict[cell_line]
@@ -580,6 +582,8 @@ tf_den_enh[cell_line] = tf_density_enh
 tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
+
+
 #%%
 
 df = tf_den_syn["all_fantom_enh"]
@@ -614,7 +618,7 @@ data = df
 xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
 
 fig, ax = plt.subplots(figsize = (10,10))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = pal, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = PAL, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
 
 ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
 ax.set_xticklabels(xlabs, rotation = 90)
@@ -630,7 +634,7 @@ hue = "arch"
 data = df.loc[df[y]>0]
 
 fig, ax = plt.subplots(figsize = (10,10))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = pal, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
+sns.barplot(x = x, y = y, data = data, hue = hue, palette = PAL, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
 xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
 ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
 ax.set_xticklabels(xlabs, rotation = 90)
@@ -638,4 +642,95 @@ ax.legend(bbox_to_anchor = (1,1))
 
 plt.savefig("%sall_fantom_syn_non_zero_tfbs_mrca.pdf"%RE, bbox_inches="tight")
 #%%
-data.groupby(["core_mrca", "arch"])["tf_density"].count()
+
+df["core"] = "core"
+df.loc[df.arch == "complex_derived", "core"] = "der"
+df.loc[df.len <6, "len"] = 0
+
+
+complex_only = df.loc[df.arch.str.contains("complex") & (df.len > 0)]
+
+
+regions = complex_only.groupby(["enh_id", "core"])[["tfoverlap_bin", "len"]].sum().reset_index() # summarize complex enhancers by regions
+regions["tf_density"] = regions.tfoverlap_bin.divide(regions.len) # calculate the total regional syn density
+
+regions.head()
+#%%
+
+coreder_den = regions.pivot(index = "enh_id", columns = "core", values = "tf_density").reset_index()
+coreder_len = regions.pivot(index = "enh_id", columns = "core", values = "len").reset_index()
+
+coreder_len["sum_len"] = coreder_len.der + coreder_len.core # get the full length of the enhancer
+coreder_len["ratio_der"] = coreder_len.der.divide(coreder_len["sum_len"]) # get the ratio of derived length per enhancer
+coreder_len["pct"] = coreder_len["sum_len"].rank(pct = True) # rank lengths
+
+coreder_len.head()
+
+coreder_len.describe()
+#%%
+'''
+
+core	core	der	sum_len	ratio_der	pct
+count	10758.000000	10725.000000	10528.000000	10528.000000	10528.000000
+mean	199.353783	177.452867	373.782390	0.461647	0.500047
+std	145.930430	158.158972	187.829319	0.281999	0.288688
+min	6.000000	6.000000	15.000000	0.007609	0.000095
+25%	89.000000	62.000000	257.000000	0.209934	0.250237
+50%	175.000000	141.000000	350.000000	0.442009	0.500285
+75%	278.000000	249.000000	436.000000	0.703121	0.749430
+max	1669.000000	2791.000000	2860.000000	0.993852	1.000000
+'''
+#%% assess enhancer length  v. derived ratio inner quartiles
+iqrlen = coreder_len.loc[(coreder_len.pct<= 0.75) & (coreder_len.pct>=0.25)]
+ids = iqrlen.enh_id
+iqrlen.shape
+x = "sum_len"
+y = "ratio_der"
+
+outf = f"{RE}all_fantom_enh_lenIRQ_x_ratio_der.pdf"
+data = iqrlen
+sns.jointplot(x=x, y = y, data = data, kind = "hex")
+iqrlen.shape
+iqrlen.describe()
+
+plt.savefig(outf, bbox_inches = "tight")
+#%%
+iqrden = coreder_den.loc[coreder_den.enh_id.isin(iqrlen.enh_id)]
+iqrden.head()
+
+#%%
+iqrden['total'] = iqrden.core +  iqrden.der
+iqrden = iqrden.loc[(iqrden['core'] >0) & (iqrden['der'] >0)]
+iqrden.shape
+
+iqrden["ratio_der_core_den"] = iqrden.der/iqrden.core
+iqrden.describe()
+
+
+#%%
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+         iqrden.iloc[:, 1], iqrden.iloc[:, 2], random_state=0)
+X_train = np.array(X_train).reshape(-1,1)
+y_train = np.array(y_train).reshape(-1,1)
+
+
+reg = LinearRegression().fit(X_train, y_train)
+reg.score(X_train, y_train)
+#%%
+len(X_train)
+#%%
+x = X_train[:, 0] # derived
+y = y_train[:, 0] # core
+
+sns.jointplot(x=x, y = y,)
+
+outf = f"{RE}all_fantom_enh_lenIRQ_core_v_der_tfbs_den.pdf"
+
+plt.savefig(outf, bbox_inches = "tight")
+#%%
+sns.histplot(iqrden.loc[iqrden.ratio_der_core_den<1.76, "ratio_der_core_den"])
+#%%
