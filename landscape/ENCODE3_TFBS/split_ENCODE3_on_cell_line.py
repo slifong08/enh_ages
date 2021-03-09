@@ -40,11 +40,11 @@ cls = df.cell_line.unique() # array of unique cell lines, and overlaps
 for cell_line in cls:
 
     if "/" in cell_line:
-        c = "_".join(cell_line.split("/")) # do some formatting. 
+        c = "_".join(cell_line.split("/")) # do some formatting.
     else:
         c = cell_line
 
     if "," not in c: # split only on single cell lines
 
-        outfile = "%s/%s.bed" % (path, c)
+        outfile = "%s/cells/%s.bed" % (path, c)
         split_on_cell_line(cell_line, df, outfile)
