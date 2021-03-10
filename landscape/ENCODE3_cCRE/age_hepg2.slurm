@@ -4,7 +4,7 @@
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --mem=4GB
+#SBATCH --mem=16GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/enh_age/
 
 #SBATCH --job-name=age_enh
@@ -23,4 +23,4 @@ ml load Anaconda3
 # ${6} = "-sh <<shuffle, age, breaks, tfbs_den enhancers>>" # str
 # ${7} = "-rb <<runbed, age, breaks, tfbs_den enhancers>>" # str
 
-python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/awk_breaks.py ${1} -i ${2} -a ${3} -b ${4} -t ${5} -sh ${6} -rt ${7}
+python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/awk_breaks.py ${1} -i ${2} -a ${3} -b ${4} -t ${5} -sh ${6} -rt ${7} -s ${8}
