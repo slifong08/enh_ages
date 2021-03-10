@@ -1,3 +1,4 @@
+from itertools import combinations, combinations_with_replacement, product
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -9,11 +10,16 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
+
+from joblib import Parallel, delayed
+import multiprocessing
+
+
 ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/encode/results/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2"
 
 
 
@@ -24,12 +30,14 @@ sns.palplot(PAL)
 colors = [ "windows blue"]
 DERPAL = sns.xkcd_palette(colors)
 sns.palplot(DERPAL)
+
+all_simple_jaccard
 #%% Functions
 
 
 def get_cell_lines():
     sample_dict = {
-    "HepG2": "dELS_combined",
+    "HepG2": "no-exon_dELS_combined",
     }
 
     return sample_dict
@@ -115,369 +123,8 @@ def format_df(intersection_file):
     return df
 
 
-def count_enhancers(df, arch):
+def get_df(cell_line, val, fantombase, encodepath):
 
-    if arch == "enh":
-        enh_df = df.groupby(["enh_id", "core_remodeling", "overallarch"])[["mrca", "seg_index"]].max().reset_index()
-
-        totalenh_n = len(enh_df) #30279 enhancers total
-        simpleenh_n = len(enh_df.loc[enh_df.overallarch == "simple"]) #14098 simple enhancers
-        complexenh_n = len(enh_df.loc[enh_df.overallarch != "simple"]) # 8744 complex enhancers
-
-
-        return totalenh_n, simpleenh_n, complexenh_n
-
-    elif arch == "syn":
-
-        total = len(df)
-        core_n = df.loc[df.arch == "complex_core"]["syn_id"].count()
-        derived_n = df.loc[df.arch == "complex_derived"]["syn_id"].count()
-        simple_n = df.loc[df.arch == "simple"]["syn_id"].count()
-
-        return total, core_n, derived_n, simple_n
-
-
-def mwu(tf_density, arch):
-
-    # calculate means
-    median = (tf_density.groupby("arch")["tf_density"].median())
-    print("\narchitecture medians", median)
-
-    if arch == "enh":
-
-        #stratify dataframe by simple and complex arch
-        simple_tfden = tf_density.loc[tf_density.arch == "simple", "tf_density"]
-        complex_tfden = tf_density.loc[tf_density.arch == "complex", "tf_density"]
-
-        # calculate MWU
-        test_arch, p_arch = stats.mannwhitneyu(simple_tfden, complex_tfden)
-        print("\n", "simple v. complex enh MWU stat =", round(test_arch,3), "p =", p_arch )
-
-        return test_arch, p_arch, median
-
-    elif arch == "syn":
-
-        simple_tfden = tf_density.loc[tf_density.arch == "simple", "tf_density"]
-        core_tfden = tf_density.loc[tf_density.arch == "complex_core", "tf_density"]
-        derived_tfden = tf_density.loc[tf_density.arch == "complex_derived", "tf_density"]
-
-        testcore, pcore = stats.mannwhitneyu(simple_tfden, core_tfden)
-        print("\n", "simple v. complexcore MWU stat =", round(testcore,3), "p =", pcore)
-
-        test_der, p_der = stats.mannwhitneyu(derived_tfden, core_tfden)
-        print("\n", "core v. derived MWU stat =", round(test_der,3), "p =", p_der)
-
-        return testcore, pcore, test_der, p_der, median
-
-
-def calculate_tf_density(arch, df):
-
-    density_cols = ["id", "len", "arch", "tfoverlap_bin", "tf_density",]
-
-
-    if arch == "enh":
-
-        tf_density = df.groupby(["enh_id", "enh_len", "overallarch"])["tfoverlap_bin"].sum().reset_index().drop_duplicates()
-        tf_density["tf_density"] = tf_density["tfoverlap_bin"].divide(tf_density.enh_len)
-
-
-    elif arch == "syn":
-
-        tf_density = df.groupby(["syn_id", "syn_len", "arch"])["tfoverlap_bin"].sum().reset_index()
-        tf_density["tf_density"] = tf_density["tfoverlap_bin"].divide(tf_density.syn_len)
-
-    # rename columns
-    tf_density.columns = density_cols
-
-    # how many enhancers do not overlap  TFs?
-    zero_overlap = tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["id"].count().reset_index()
-
-    return tf_density, zero_overlap
-
-
-def calculate_zero_syn_freq(zero_syn, df, cell_line, RE):
-
-    zero_syn.columns = ['arch', "zero_counts"]
-
-    arch_df = df[["arch", "syn_id"]].drop_duplicates()
-
-    total_arch_counts = arch_df.groupby(["arch"])["syn_id"].count().reset_index()
-    total_arch_counts.columns = ['arch', "total_counts"]
-
-    zero_syn = pd.merge(zero_syn, total_arch_counts, on = "arch")
-    zero_syn["freq_zero"] = zero_syn.zero_counts.divide(zero_syn.total_counts)
-    zero_syn["freq_nonzero"] = 1-zero_syn["freq_zero"]
-
-    print(zero_syn)
-    zero_syn.to_csv('%snonzero_%s.csv' % (RE, cell_line), index = False)
-
-
-def plot_bar_tf_density(x, y, data, outf, order, p, med):
-
-    # plot enhancer TF density
-    fig, ax = plt.subplots(figsize = (6,6))
-    sns.set("poster")
-
-    sns.barplot(x, y, data = data, estimator = np.median,
-    order = order, palette = PAL, n_boot = 10000)
-
-    ax.set(
-    xlabel= "p = %s\n%s" % (p,med),
-    title = outf.split("/")[-1],
-    ylabel = "TFBS density\nmedian"
-    )
-
-    plt.savefig(outf, bbox_inches = 'tight')
-
-
-def make_pdf(file_name, RE):
-
-    OUTFILE = file_name + ".pdf"
-    OUTF = os.path.join(RE, OUTFILE)
-
-    return OUTF
-
-
-def prep_2x2(tf, arch1, arch2, df):
-
-    # only evaluate enhancers that overlap TF.
-    # This excludes enhancers with zero overlaps from background set.
-    df = df.loc[df.tfoverlap_bin >0]
-
-    # split dataframe by two architectures to compare
-    dfarch = df.loc[df.arch == arch1]
-
-    if arch2 == "bkgd":
-        arch2 = "all_enh_bkgd"
-        dfbkgd = df.loc[df.arch != arch1]
-
-    else:
-        dfbkgd = df.loc[df.arch == arch2]
-
-    comparison_name = tf + "-" + arch1 + "_v_" + arch2
-
-    # count how many TF overlaps are in each arch.
-    TF_in_arch = len(dfarch.loc[dfarch.tf == tf])
-    TF_bkgd = len(dfbkgd.loc[dfbkgd.tf == tf])
-    not_TF_in_arch = len(dfarch.loc[dfarch.tf != tf])
-    not_TF_in_bkgd = len(dfbkgd.loc[dfbkgd.tf != tf])
-
-    a, b, c, d = TF_in_arch, not_TF_in_arch, TF_bkgd, not_TF_in_bkgd
-
-
-    checkrowone = a + b
-
-    if checkrowone > 0:
-        obs = [[a,b], [c,d]]
-
-        return obs, comparison_name
-    else:
-        print("no obs for", tf)
-
-        obs = [[0,0], [0,0]]
-
-        return obs, comparison_name
-
-def quantify_2x2(obs, comparison_name, min_instances):
-
-    if obs[0][0] > min_instances or obs[1][0]>min_instances:
-
-        OR, P = stats.fisher_exact(obs)
-        table = sm.stats.Table2x2(obs) # get confidence interval
-        odds_ci = table.oddsratio_confint()
-        newdf = pd.DataFrame({"comparison_name":comparison_name,
-                              "a":obs[0][0], "b":obs[0][1],
-                              "c":obs[1][0], "d":obs[1][1],
-                              "OR":[OR], "P":[P],
-                              "ci_lower" :[odds_ci[0]],
-                              "ci_upper" :[odds_ci[1]],
-                            })
-    else:
-        newdf = pd.DataFrame() # return empty dataframe
-
-
-    return newdf
-
-
-def fdr_correction(collection_dict, alpha):
-
-    df = pd.concat(collection_dict.values())
-
-    pvals = df["P"]
-
-    df["reject_null"], df["FDR_P"] = statsmodels.stats.multitest.fdrcorrection(pvals, alpha=alpha)
-
-    # other dataframe formatting
-    df["arch"] = df["comparison_name"].apply(lambda x: x.split("-")[1])
-    df["tf"] = df["comparison_name"].apply(lambda x: x.split("-")[0])
-    df["log2"]= np.log2(df["OR"])
-
-    return df
-
-
-def plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2):
-
-    fig, ax = plt.subplots(figsize = (6,12))
-    sns.set("poster")
-
-    x = "tf"
-    y = "log2"
-    hue = "arch"
-    data = df.sort_values(by = y)
-
-    sns.barplot(x=y, y=x, data=data , hue = hue, palette = DERPAL)
-
-    ax.legend(bbox_to_anchor = (1,1))
-
-    if taxon2 !=None:
-        label = cell_line + "_" + taxon2
-    else:
-        label = cell_line
-
-    ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = label)
-
-    plt.savefig(outf, bbox_inches = "tight")
-
-
-def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
-
-    collection_dict = {}
-
-    for tf in df.tf.unique():
-
-        if tf != ".":
-
-            obs, comparison_name = prep_2x2(tf, arch1, arch2, df)
-
-            results = quantify_2x2(obs, comparison_name, min_instances)
-
-            if results.empty ==False:
-                collection_dict[comparison_name] = results
-
-    #FDR correction
-    if len(collection_dict) > 0: # if there are any results
-
-        results_df = fdr_correction(collection_dict, alpha)
-
-        df = results_df.loc[results_df.reject_null == True]
-
-
-        if len(df)>0: # if there are any significant results, plot them!
-
-            if taxon2 != None:
-                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
-                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
-
-            else:
-                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
-                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
-
-            return results_df
-
-        else:
-                print("\nno sig results for comparison", arch1, "v.", arch2, "in", taxon2)
-
-    else:
-        print("\nnot any results for comparison", arch1, "v.", arch2, "in", taxon2)
-
-
-def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
-
-    print(cell_line, val)
-    fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
-
-    #Bed command
-    bed_intersect(fantom, encode, intersection)
-
-    #dataframe
-    df = format_df(intersection)
-
-    #get some basic info about Fantom enhancer overlap
-    arch = "enh"
-    totaln, simplen, complexn = count_enhancers(df, arch)
-
-    # calculate enhancer TF density
-    tf_density_enh, zero_enh = calculate_tf_density(arch, df)
-
-
-    # plot all enhancer-level data
-    x, y = "arch", "tf_density"
-    order = ["simple", "complex"]
-
-    data = tf_density_enh
-    outf = make_pdf("%s_enh_x_encode3_tf_density_%s"  % (cell_line, arch), RE)
-
-    test_arch, p_arch, median = mwu(tf_density_enh, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p_arch, median)
-
-
-    print("\nNon-zero TFBS densities only")
-
-
-    # plot all enhancer-level data without zeros
-    non_zero_tf_density = tf_density_enh.loc[tf_density_enh.tfoverlap_bin>0]
-
-    data = non_zero_tf_density
-    outf = make_pdf("%s_enh_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
-    test_arch_, p_arch_, median = mwu(non_zero_tf_density, arch)
-    plot_bar_tf_density(x, y, data, outf, order, p_arch_, median)
-
-
-
-    # calculate syn-level TF density
-    arch = "syn"
-    totaln, coren, derivedn, simplen = count_enhancers(df, arch)
-    tf_density_syn, zero_syn = calculate_tf_density(arch, df)
-
-    # calculate frequency of derived sequences that do not overlap TFBS
-
-    calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
-
-    print("\nSyn TFBS densities")
-    # plot syn block TF density
-    order = ["simple", "complex_core", "complex_derived"]
-    data = tf_density_syn
-    outf = make_pdf("%s_enh_x_encode3_tf_density_%s" % (cell_line, arch), RE)
-
-    testcore, pcore, test_der, p_der, median = mwu(tf_density_syn, arch)
-    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
-    plot_bar_tf_density(x, y, data, outf, order, new_p, median)
-
-
-    print("\nNon-zero syn TFBS densities only")
-    non_zero_syn_tf_density = tf_density_syn.loc[tf_density_syn.tfoverlap_bin>0]
-
-
-    # plot non-zero syn block TF density
-    data = non_zero_syn_tf_density
-    outf = make_pdf("%s_syn_x_encode3_tf_density_%s_non_zero_tf_density" % (cell_line, arch), RE)
-
-    testcore, pcore, test_der, p_der, median = mwu(non_zero_syn_tf_density, arch)
-    new_p = "simple_v_core p = %s,  core_v_der= %s" %(pcore, p_der)
-    plot_bar_tf_density(x, y, data, outf, order, new_p, median)
-
-
-    ### TF ENRICHMENT IN ARCHITECTURE ###
-    # DER V. CORE
-    # DER V. BKGD
-
-    # calculate TF enrichment in architecture/syn blocks
-    arch1, arch2 = "complex_derived", "complex_core"
-    der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
-
-    arch1, arch2 = "complex_derived", "bkgd"
-    der_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
-
-    arch1, arch2 = "simple", "complex_core"
-    simple_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
-
-    arch1, arch2 = "simple", "bkgd"
-    simple_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
-
-    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, df
-
-
-def just_get_df(cell_line, val, fantombase, encodepath,):
     print(cell_line, val)
     fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
 
@@ -489,100 +136,155 @@ def just_get_df(cell_line, val, fantombase, encodepath,):
 
     return df
 
-#%%
-sample_dict = get_cell_lines()
 
-results_dict = {}
-der_v_core_dict, der_v_bkgd_dict = {}, {} # collect all the dataframes for tf enrichment
-tf_den_enh = {}
-tf_den_syn = {}
+def get_mrca2(df):
 
-#%%
-ALPHA = 0.1
-MIN_INSTANCES =100
+    SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+    syn = pd.read_csv(SYN_GROUP, sep = '\t')
 
-#%%
+    # round all values
+    syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+    df.mrca = df.mrca.round(3)
 
-cell_line = "HepG2"
-val = sample_dict[cell_line]
+    df = pd.merge(df, syn, how = "left")
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core,simple_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+    cores = df.groupby("enh_id")["mrca_2", 'taxon2'].max().reset_index()
+    cores.columns = ["enh_id", "coremrca_2", "coretaxon2"]
 
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-#%%
+    df = pd.merge(df, cores, how = "left")
 
-#%%
-df = just_get_df(cell_line, val, ENHBASE, ENCODEPATH)
-
-#%%
-
-SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
-syn = pd.read_csv(SYN_GROUP, sep = '\t')
-
-# round all values
-syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
-df.mrca = df.mrca.round(3)
-
-df = pd.merge(df, syn, how = "left")
-
-TAXON2 = "Eutheria"
-df.arch.unique()
+    return df
 
 
+def describe_tf_overlaps(df):
 
-#%%
-# calculate TF enrichment in architecture/syn blocks
-for TAXON2 in df.taxon2.unique():
-    print(TAXON2)
-    age = df.loc[df.taxon2 == TAXON2]
+    #%% count how many tfs have how many overlaps
 
-    arch1, arch2 = "complex_derived", "complex_core"
-    der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    tf_count = df.groupby("tf")["syn_id"].count().reset_index() # count all the TFs in simple
+    tf_count.columns = ["tf", "tf_count"]
 
+    len(tf_count) # there are 117 total TFs in simple eutherian enhancers
 
-    arch1, arch2 = "simple", "complex_core"
-    simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
-
-    arch1, arch2 = "simple", "bkgd"
-    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    median = tf_count.tf_count.median()
 
 
-#%%
-TAXON2 = "Eutheria"
-age = df.loc[df.taxon2 == TAXON2]
-der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    fig, ax =plt.subplots(figsize = (6,6))
+    sns.histplot(tf_count.tf_count)
 
-#%%
-simpleEuth = age.loc[age.arch == "simple"]
-tf_count = simpleEuth.groupby("tf")["syn_id"].count().reset_index() # count all the TFs in simple
-tf_count.columns = ["tf", "tf_count"]
-len(tf_count) # there are 117 total TFs in simple eutherian enhancers
-len(tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]) # there are 36 TFs w/ more than 1000 counts in simple eutherian enhancers
-len(tf_count.loc[(tf_count.tf_count>=500) & (tf_count.tf !="."), "tf"])# there are 58 TFs w/ more than 1000 counts in simple eutherian enhancers
-sns.histplot(tf_count.tf_count)
-#%%
-tf_1k = tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]
-#%% create all combinations of TFs w/ counts >100
-from itertools import combinations
+    ax.set( xlabel = f"peaks per dataset\nmedian peaks/dataset = {median}",
+    ylabel = "TF datasets",
+     title = "all HepG2 TF counts")
 
-tf_combos = list(combinations(tf_1k, 2))
-len(tf_combos)# 630 1k tf combos
-len(tf_1k)
-MIN_INSTANCES = 1000
+    outfile = f'{RE}HepG2_ENCODE_TFBS_tf_count.pdf'
 
-euth_simple_results = {}
+    plt.savefig(outfile, bbox_inches = 'tight')
 
-#%%
 
-def jaccard(tf1, tf2, df):
+# get TFs with min number of instances.
+def get_tf_combos(taxon2, arch, min_instances, df ):
 
-    tf1Set = set(df.loc[(df.tf == tf1), "enh_id"])
-    tf2Set = set(df.loc[(df.tf == tf2), "enh_id"])
+    #constrain df to age and architecture of interest
+
+
+    if "complex" in arch: # get TF counts based on core age
+
+        age_arch = df.loc[(df.coretaxon2 == taxon2) & (df.arch.str.contains(arch))]
+
+    elif taxon2 == "all":
+        age_arch = df.loc[(df.arch.str.contains(arch))]
+
+    else:
+        age_arch = df.loc[(df.taxon2 == taxon2) & (df.arch.str.contains(arch))]
+
+    # count how many enhancers are in this category
+    enh_count = len(age_arch.enh_id.unique())
+
+    print(enh_count, "enhancers in", taxon2, arch)
+
+    # count the number of peaks per TF in architecture
+    tf_count = age_arch.groupby("tf")["syn_id"].count().reset_index()
+    tf_count.columns = ["tf", "tf_count"] # rename columns
+
+    # get all possible combos of TF w/ peak count greater than min number of instances of peak.
+    tf_min_list = tf_count.loc[(tf_count.tf_count >= MIN_INSTANCES) & (tf_count.tf !="."), "tf"]
+
+
+    # create all combinations of TFs w/ counts >MIN_INSTANCES
+    #tf_combos = list(combinations(tf_min_list, 2)) # AB AC AD BC BD CD
+    #tf_combos = list(combinations_with_replacement(tf_min_list, 2)) # AA AB AC AD BB BC BD CC CD DD
+
+    tf_combos = list(product(tf_min_list, repeat = 2)) #AA AB AC AD BA BB BC BD CA CB CC CD DA DB DC DD
+
+
+    print(len(tf_min_list), "TFs over min_instance thresh", len(tf_combos), "TF combinations")
+
+    return tf_combos
+
+
+def run_parallel_jaccard(taxon2, arch, df, arch_comparison, enhbase, tf_combo_list):
+
+    ### RUN PARALLEL Jaccards  ASSEMBLY ###
+
+    num_cores = multiprocessing.cpu_count()
+    print("number of cores", num_cores)
+
+    # run parallel jobs
+    outdir = os.path.join(enhbase, arch_comparison)
+
+    if os.path.exists(outdir) ==False: # make a directory for results
+        os.mkdir(outdir)
+
+    jaccardfile = f"summary_jaccard_{arch_comparison}.txt"
+    jaccardf = os.path.join(outdir, jaccardfile)
+
+    if os.path.exists(jaccardf) == False:
+
+        Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_jaccard)(taxon2, arch, df, arch_comparison, outdir, tf_pair) for tf_pair in tf_combo_list)
+
+    return outdir
+
+
+def run_jaccard(taxon2, arch, df, arch_comparison, outdir, tf):
+
+    tf1 = tf[0]
+    tf2 = tf[1]
+
+    if taxon2 != "all": # filter dataframe by age and architecture?
+        test = df.loc[(df.coretaxon2 == taxon2) & (df.arch.str.contains(arch))]
+
+    else:
+        test = df.loc[(df.arch.str.contains(arch))] # or filter just on architecture.
+
+
+    if "core_v_der" in arch_comparison: # if you're comparing core v. derived
+        df1 = test.loc[(test.core ==1)]
+        df2 = test.loc[(test.core !=1)]
+
+    else:
+        df1 = test
+        df2 = test
+
+    # make a comparison name
+    comparison_name = tf1 + "/" + tf2 + "-" + taxon2
+
+
+    results = jaccard_function(tf1, tf2, df1, df2)
+
+    results["arch_comparison"] = arch_comparison
+
+    outfile = f"{arch_comparison}_{taxon2}_{tf1}_{tf2}.tsv"
+    outf = os.path.join(outdir, outfile)
+
+    results.to_csv(outf, sep ='\t', header = False, index = False)
+
+    return age_arch_results
+
+
+def jaccard_function(tf1, tf2, df1, df2):
+
+    tf1Set = set(df1.loc[(df1.tf == tf1), "enh_id"])
+    tf2Set = set(df2.loc[(df2.tf == tf2), "enh_id"])
 
 
     intersection = len(tf1Set.intersection(tf2Set))
@@ -600,23 +302,199 @@ def jaccard(tf1, tf2, df):
     })
 
     return jaccard_df
+
+
+def open_df(outdir, arch_comparison):
+
+    jaccardfile = f"summary_jaccard_{arch_comparison}.txt"
+    jaccardf = os.path.join(outdir, jaccardfile)
+
+    if os.path.exists(jaccardf) == False:
+        cmd = f"cat {outdir}/*.tsv > {jaccardf}"
+        subprocess.call(cmd, shell = True)
+
+    print(jaccardf)
+    cols = ["tf1", "tf2", "tf1Set_len", "tf2Set_len",
+    "intersection", "union", "jaccard_index", "arch_comparison"]
+
+    jaccardDF = pd.read_csv(jaccardf, sep = '\t', header = None, names =cols)
+
+    if len(jaccardDF) >5: # clean up the other files.
+        cmd = f'rm {outdir}/*.tsv'
+        subprocess.call(cmd, shell = True)
+
+    return jaccardDF_complex
+
+
+def plot_jaccard(jaccardDF, arch_comparison, re):
+
+    # HISTOGRAM
+
+    sns.set_context("talk")
+    fig, ax = plt.subplots(figsize = (6,6))
+
+    sns.histplot(jaccardDF.jaccard_index)
+    median = jaccardDF.jaccard_index.median()
+    ax.set( xlabel = f"Jaccard index\nmedian Jaccard = {median}",
+    ylabel = "count",
+    title = f"{arch_comparison}")
+
+    outfile = f'{re}HepG2_ENCODE_TFBS_jaccard_hist_{arch_comparison}.pdf'
+
+    plt.savefig(outfile, bbox_inches = 'tight')
+
+
+    jaccard_table = pd.pivot(jaccardDF.sort_values(by="tf1"),
+                            values = "jaccard_index",
+                            index = "tf2",
+                            columns = "tf1")
+
+
+    sns.set_context("paper")
+
+    mask = jaccard_table < 0 # mask any zero values.
+
+
+    # CLUSTER MAP
+    g = sns.clustermap(jaccard_table.fillna(-0.001),
+    figsize = (12,12),
+    #row_cluster = False,
+    mask = mask)
+
+    g.fig.suptitle(f'{arch_comparison} TF Co-binding\n Jaccard Index')
+
+    outfile = f'{RE}{arch_comparison}_HepG2_ENCODE_TFBS_co-binding_heatmap_clustermap.pdf'
+    plt.savefig(outfile, bbox_inches = 'tight')
+
+
 #%%
-for tf1, tf2 in tf_combos:
-
-    # make a comparison name
-    comparison_name = tf1 + "/" + tf2
-    inv_comparison_name = tf2 + "/" + tf1
-    if comparison_name not in euth_simple_results.keys() and inv_comparison_name not in euth_simple_results.keys():
-        print(comparison_name)
-
-        results = jaccard(tf1, tf2, simpleEuth)
 
 
-        euth_simple_results[comparison_name] = results
+sample_dict = get_cell_lines()
 
-#%%
-simeuth_jaccard = pd.concat(euth_simple_results.values())
-sns.histplot(simeuth_jaccard.jaccard_index)
+ALPHA = 0.1
+MIN_INSTANCES = 1000
+
+cell_line = "HepG2"
+val = sample_dict[cell_line]
+
+
+df = get_df(cell_line, val, ENHBASE, ENCODEPATH)
+
+print("this many TFS overlap dataset", len(df.tf.unique()))
 
 #%%
-simeuth_jaccard.sort_values(by = "jaccard_index", ascending = False).head(25)
+
+df = get_mrca2(df)
+describe_tf_overlaps(df)
+
+#%% run all simple
+
+
+TAXON2 = "all"
+ARCH = "simple"
+ARCH_COMPARISON = "simple"
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+outdir
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
+
+#%% Run all complex
+
+
+TAXON2 = "all"
+ARCH = "complex"
+ARCH_COMPARISON = "complex"
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+outdir
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
+
+
+#%%
+
+
+TAXON2 = "all"
+ARCH = "complex"
+ARCH_COMPARISON = "core_v_der"
+
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
+
+#%%
+
+
+TAXON2 = "Eutheria"
+MIN_INSTANCES = 500
+ARCH = "simple"
+ARCH_COMPARISON = "simple_eutherian"
+
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
+
+#%%
+
+TAXON2 = "Eutheria"
+ARCH = "complex"
+ARCH_COMPARISON = "complex_eutherian"
+
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
+
+#%%
+
+TAXON2 = "Eutheria"
+ARCH = "complex"
+ARCH_COMPARISON = "core_v_der_eutherian"
+
+tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
+
+outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
+
+new = open_df(outdir, ARCH_COMPARISON)
+
+# Jaccard hist
+plot_jaccard(new, ARCH_COMPARISON, RE)
+
+del ARCH, ARCH_COMPARISON, tf_combos, outdir, new

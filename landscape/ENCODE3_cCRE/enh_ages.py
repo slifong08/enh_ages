@@ -6,14 +6,14 @@ import seaborn as sns
 from scipy import stats
 
 
-ENHPATH = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/dELS_combined/"
-ENHFILE = "dELS_combined_enh_age_arch_summary_matrix.bed"
+ENHPATH = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/no-exon_dELS_combined/"
+ENHFILE = "no-exon_dELS_combined_enh_age_arch_summary_matrix.bed"
 
 ENHF = os.path.join(ENHPATH, "breaks", ENHFILE)
 
 
 SHUFPATH = os.path.join(ENHPATH, "shuffle/breaks")
-SHUFFILE = "shuf-dELS_combined_enh_age_arch_summary_matrix.bed"
+SHUFFILE = "shuf-no-exon_dELS_combined_enh_age_arch_summary_matrix.bed"
 
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
@@ -25,7 +25,7 @@ df.head()
 
 #%%
 shufdf = pd.read_csv(SHUFF, sep = '\t', header = None, usecols =[0,1,2,3,4,5,6,7,8], names = cols)
-shufdf =pd.DataFrame()
+
 shufdf.head()
 #%%
 print(df.max_seg.median()) # median number of segments ==1
@@ -43,11 +43,11 @@ catdf["enh_len"] = catdf.end - catdf.start
 #%% basic info
 catdf.groupby(["id", "arch"])["enh_id"].count()
 
-#dELS simple = 58.5%
-15312/(15312+10880)
+#dELS simple = 58.6%
+14654/(14654+10342)
 
-#5x shuffle = 56.1%
-71103/(71103+55612)
+#5x shuffle = 59.1%
+135947/(135947+94033)
 
 catdf.groupby(["id", "arch"])["enh_len"].describe()
 #%%

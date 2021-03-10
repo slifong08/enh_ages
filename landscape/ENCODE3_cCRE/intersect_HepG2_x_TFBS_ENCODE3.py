@@ -13,7 +13,7 @@ ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/encode/results/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/"
 
 
 
@@ -29,7 +29,7 @@ sns.palplot(DERPAL)
 
 def get_cell_lines():
     sample_dict = {
-    "HepG2": "dELS_combined",
+    "HepG2": "no-exon_dELS_combined",
     }
 
     return sample_dict
@@ -499,7 +499,7 @@ tf_den_syn = {}
 
 #%%
 ALPHA = 0.1
-MIN_INSTANCES =100
+MIN_INSTANCES =10
 
 #%%
 
@@ -514,12 +514,10 @@ tf_den_enh[cell_line] = tf_density_enh
 tf_den_syn[cell_line] = tf_density_syn
 der_v_bkgd_dict[cell_line] = der_v_bkgd
 der_v_core_dict[cell_line] = der_v_core
-#%%
+
 
 #%%
-df = just_get_df(cell_line, val, ENHBASE, ENCODEPATH)
 
-#%%
 
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
@@ -534,10 +532,11 @@ TAXON2 = "Eutheria"
 df.arch.unique()
 
 
-
 #%%
+
 # calculate TF enrichment in architecture/syn blocks
 for TAXON2 in df.taxon2.unique():
+
     print(TAXON2)
     age = df.loc[df.taxon2 == TAXON2]
 
@@ -551,72 +550,5 @@ for TAXON2 in df.taxon2.unique():
     arch1, arch2 = "simple", "bkgd"
     simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-
-#%%
-TAXON2 = "Eutheria"
-age = df.loc[df.taxon2 == TAXON2]
-der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
-
-#%%
-simpleEuth = age.loc[age.arch == "simple"]
-tf_count = simpleEuth.groupby("tf")["syn_id"].count().reset_index() # count all the TFs in simple
-tf_count.columns = ["tf", "tf_count"]
-len(tf_count) # there are 117 total TFs in simple eutherian enhancers
-len(tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]) # there are 36 TFs w/ more than 1000 counts in simple eutherian enhancers
-len(tf_count.loc[(tf_count.tf_count>=500) & (tf_count.tf !="."), "tf"])# there are 58 TFs w/ more than 1000 counts in simple eutherian enhancers
-sns.histplot(tf_count.tf_count)
-#%%
-tf_1k = tf_count.loc[(tf_count.tf_count>=1000) & (tf_count.tf !="."), "tf"]
-#%% create all combinations of TFs w/ counts >100
-from itertools import combinations
-
-tf_combos = list(combinations(tf_1k, 2))
-len(tf_combos)# 630 1k tf combos
-len(tf_1k)
-MIN_INSTANCES = 1000
-
-euth_simple_results = {}
-
-#%%
-
-def jaccard(tf1, tf2, df):
-
-    tf1Set = set(df.loc[(df.tf == tf1), "enh_id"])
-    tf2Set = set(df.loc[(df.tf == tf2), "enh_id"])
-
-
-    intersection = len(tf1Set.intersection(tf2Set))
-    union = (len(tf1Set) + len(tf2Set)) - intersection
-
-    jaccard_index = float(intersection) / union
-
-    jaccard_df = pd.DataFrame({"tf1": [tf1],
-    "tf2": [tf2],
-    "tf1Set_len": [len(tf1Set)],
-    "tf2Set_len": [len(tf2Set)],
-    "intersection": [intersection],
-    "union": [union],
-    "jaccard_index":[jaccard_index]
-    })
-
-    return jaccard_df
-#%%
-for tf1, tf2 in tf_combos:
-
-    # make a comparison name
-    comparison_name = tf1 + "/" + tf2
-    inv_comparison_name = tf2 + "/" + tf1
-    if comparison_name not in euth_simple_results.keys() and inv_comparison_name not in euth_simple_results.keys():
-        print(comparison_name)
-
-        results = jaccard(tf1, tf2, simpleEuth)
-
-
-        euth_simple_results[comparison_name] = results
-
-#%%
-simeuth_jaccard = pd.concat(euth_simple_results.values())
-sns.histplot(simeuth_jaccard.jaccard_index)
-
-#%%
-simeuth_jaccard.sort_values(by = "jaccard_index", ascending = False).head(25)
+    arch1, arch2 = "complex_derived", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
