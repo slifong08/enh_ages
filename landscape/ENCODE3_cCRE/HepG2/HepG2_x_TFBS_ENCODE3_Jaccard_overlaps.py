@@ -31,7 +31,7 @@ colors = [ "windows blue"]
 DERPAL = sns.xkcd_palette(colors)
 sns.palplot(DERPAL)
 
-all_simple_jaccard
+
 #%% Functions
 
 
@@ -159,7 +159,7 @@ def get_mrca2(df):
 
 def describe_tf_overlaps(df):
 
-    #%% count how many tfs have how many overlaps
+    # count how many tfs have how many overlaps
 
     tf_count = df.groupby("tf")["syn_id"].count().reset_index() # count all the TFs in simple
     tf_count.columns = ["tf", "tf_count"]
@@ -241,6 +241,8 @@ def run_parallel_jaccard(taxon2, arch, df, arch_comparison, enhbase, tf_combo_li
     if os.path.exists(jaccardf) == False:
 
         Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_jaccard)(taxon2, arch, df, arch_comparison, outdir, tf_pair) for tf_pair in tf_combo_list)
+    else:
+        print(f"you've run this {arch_comparison}{taxon2}")
 
     return outdir
 
@@ -278,7 +280,7 @@ def run_jaccard(taxon2, arch, df, arch_comparison, outdir, tf):
 
     results.to_csv(outf, sep ='\t', header = False, index = False)
 
-    return age_arch_results
+    return results
 
 
 def jaccard_function(tf1, tf2, df1, df2):
@@ -323,7 +325,7 @@ def open_df(outdir, arch_comparison):
         cmd = f'rm {outdir}/*.tsv'
         subprocess.call(cmd, shell = True)
 
-    return jaccardDF_complex
+    return jaccardDF
 
 
 def plot_jaccard(jaccardDF, arch_comparison, re):
@@ -357,7 +359,7 @@ def plot_jaccard(jaccardDF, arch_comparison, re):
 
     # CLUSTER MAP
     g = sns.clustermap(jaccard_table.fillna(-0.001),
-    figsize = (12,12),
+    figsize = (20,20),
     #row_cluster = False,
     mask = mask)
 
@@ -400,7 +402,7 @@ tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
 outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
 outdir
 new = open_df(outdir, ARCH_COMPARISON)
-
+new
 # Jaccard hist
 plot_jaccard(new, ARCH_COMPARISON, RE)
 
@@ -414,7 +416,7 @@ ARCH = "complex"
 ARCH_COMPARISON = "complex"
 tf_combos  = get_tf_combos(TAXON2, ARCH, MIN_INSTANCES, df)
 
-
+#%%
 outdir = run_parallel_jaccard(TAXON2, ARCH, df, ARCH_COMPARISON, ENHBASE, tf_combos)
 outdir
 new = open_df(outdir, ARCH_COMPARISON)
@@ -467,6 +469,7 @@ del ARCH, ARCH_COMPARISON, tf_combos, outdir, new
 #%%
 
 TAXON2 = "Eutheria"
+MIN_INSTANCES = 500
 ARCH = "complex"
 ARCH_COMPARISON = "complex_eutherian"
 
