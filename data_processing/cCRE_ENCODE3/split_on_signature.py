@@ -27,7 +27,7 @@ def split_signature(bedfile):
     PATH = "/".join(bedfile.split("/")[:-1])
 
     os.chdir(PATH)
-    cmd = f''' awk '{print >$6"_{CELL_LINE}.bed"}' {bedfile}'''
+    cmd = f''' awk '{print >$10"_{CELL_LINE}.bed"}' {bedfile}'''
 
     subprocess.call(cmd, shell = True)
 
