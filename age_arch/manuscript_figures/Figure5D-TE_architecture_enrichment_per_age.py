@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # intersect enhancers with TEs and measure architecture fold enrichment per age.
-# hg19 genome build required. 
+# hg19 genome build required.
 
 import argparse
 import datetime
@@ -70,10 +70,14 @@ REPEATMASKER = f"{TE_PATH}filtered_formated_hg19fromhg38-TE_coords.tsv"
 
 def get_syn_gen_bkgd():
 
-    SYN_GEN_BKGD_FILE = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_taxon.bed"
-    syn_gen_bkgd= pd.read_csv(SYN_GEN_BKGD_FILE, sep = '\t') # read the file
-    syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
+    # load ages, map taxons
 
+    SYN_GEN_BKGD_FILE = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_taxon.bed"
+
+    syn_gen_bkgd= pd.read_csv(SYN_GEN_BKGD_FILE, sep = '\t') # read the file
+
+    # round the ages
+    syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3)
 
     # handle the TEs that have an old age
     old = pd.DataFrame({"mrca": [0.39], "taxon": ["older_than_mammalia"], "mrca_2": [0.39],
@@ -85,6 +89,7 @@ def get_syn_gen_bkgd():
 
 
 def format_te_file(te_fam, syn_gen_bkgd):
+
     # FORMAT TE FAMILY FILE to match syntenic background
 
     # open file as df
@@ -114,6 +119,7 @@ def format_te_file(te_fam, syn_gen_bkgd):
 
 def bed_intersection(enhf, repeatmasker, outpath, sid):
 
+    # intersect enhancer file with repeatmasker file
 
     outf = "%s%s_x_te.bed" % (outpath, sid)
 
@@ -129,7 +135,7 @@ def bed_intersection(enhf, repeatmasker, outpath, sid):
 
 def cleandf(outpath, outf):
 
-    # make sure file is tab separated.
+    # make sure intersection file is tab separated.
     outid = (outf.split("/")[-1]).split(".")[0]
     newf = "%scleaned_%s.bed"% (outpath, outid)
     cmd = '''awk 'BEGIN{OFS="\t"}{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12}' %s > %s''' % (outf, newf)
@@ -140,6 +146,7 @@ def cleandf(outpath, outf):
 
 def format_df(intersected_f, sid):
 
+    # format the intersection dataframe (enhancers + overlapping TEs)
     df = pd.read_csv(intersected_f, sep = '\t', header = None)
 
 
@@ -180,7 +187,9 @@ def format_te_overlaps(df):
 
     # create a binary column for TE overlaps
     df["te_bin"] = 0 # te overlap binary
-    df.te_bin.loc[df["len_te"]>= 6] = 1 # re-write all the len_te that are less than 10bp long.
+
+    # re-write all the len_te that are less than 6bp long.
+    df.te_bin.loc[df["len_te"]>= 6] = 1
 
     # format the TE, TE family annotations
     df["fam"] = df.te_fam.loc[df.te_fam != 0].apply(lambda x: (x.split("_")[-1]))
@@ -195,15 +204,14 @@ def merge_enh_te_info(enhdf, famdf):
     enh_mrca = enhdf[["enh_id","mrca", "mrca_2", "taxon2"]].drop_duplicates()
     enh_mrca.columns = ["enh_id", "core_mrca", "core_mrca_2", "taxon2"]
 
-    # merge enhancer+TE intersection with TE family information
-
+    # merge enhancer+TE intersection with TE family info
     enh_te = pd.merge(enhdf[["enh_id", "old_enh_id", "te", "fam",
                              "te_fam","core_remodeling",
                              "te_bin", "len_te", "mrca", "mrca_2"]],
                              famdf, how = "left")\
                              .drop_duplicates()
 
-    # merge enh+TE information with enhancer ages information
+    # merge enh+TE information with enhancer ages info
     enh_te = pd.merge(enh_te, enh_mrca, how = "left", on = "enh_id")
 
     # annotate when the TE origin is older, younger, or same age as enhancer origin
@@ -226,6 +234,7 @@ def get_numbers(baseFam):
     num_enh_w_te = len(baseFam.loc[baseFam.te_bin==1].enh_id.unique()) #13277/30434 enhancers overlap TEs
     print("number of enhancers w/ overlapping TEs", num_enh_w_te)
 
+    # total enhancers
     num_enh = len(baseFam.enh_id.unique())
     print("number of enhancers", num_enh)
 
@@ -235,12 +244,14 @@ def prep_df_for_OR(enh_te):
     # get enhancer_id, arch, age, and TE overlap (some enhancers overlap multiple TEs, so we need to reduce the datafram )
     base = enh_te.groupby(["enh_id", "core_remodeling", "mrca_2"])["te_bin"].max().reset_index()
 
-    # merge enh, arch, oldest age, bin w/ TE families per fam
+    # merge enh, arch, oldest age, bin w/ TE families per info
     # left join
     baseFam = pd.merge(base, enh_te[["enh_id", "fam"]].drop_duplicates(), how = "left")
 
-    get_numbers(baseFam) # count te, enh ooverlaps
+    # count te, enh ooverlaps
+    get_numbers(baseFam)
 
+    # filter dataframe to only enhancers that overlap TEs
     baseTE = baseFam.loc[baseFam.te_bin==1]
 
     return baseTE, baseFam
@@ -248,11 +259,12 @@ def prep_df_for_OR(enh_te):
 
 def fdr_formatting(results_dict):
 
-    df = pd.concat(results_dict.values()) # concat results dict
+    # concat results dict
+    df = pd.concat(results_dict.values())
 
-    fdr_bool, fdr_pval =  multitest.fdrcorrection(df.pvalue, alpha=0.10, method='indep', is_sorted=False) # FDR 5%
+    # 10% FDR
+    df["reject_null"], df["fdr_pval"] =  multitest.fdrcorrection(df.pvalue, alpha=0.10, method='indep', is_sorted=False)
 
-    df["fdr_pval"] = fdr_pval # add FDR to df
     df["-log10p"] = np.log10(df["fdr_pval"])*-1 # -log10(p)
 
     df["log2_odds"]= np.log2(df["odds"]) # log2(OR)
@@ -267,11 +279,11 @@ def get_mrca_OR(enh_te, baseTE):
     fams = baseTE.fam.unique() # get list of TE families
     mrcas = baseTE.mrca_2.unique() # list of mrcas
 
-    for mrca in mrcas: #
+    for mrca in mrcas: # for each age (mrca)
 
         mrca_dict = {}
 
-        for fam in fams[1:]:
+        for fam in fams[1:]: # test TE familiy enrichment in architectures
 
             test = baseTE.loc[baseTE.mrca_2 == mrca]
 
@@ -287,7 +299,7 @@ def get_mrca_OR(enh_te, baseTE):
 
             obs = [[a,b], [c,d]]
 
-            if a >= 5 or b >= 5:
+            if a >= 5 or b >= 5: # only test when >=5 TE family instances in arch.
 
                 odds, pvalue = stats.fisher_exact(obs)
 
@@ -313,7 +325,6 @@ def get_mrca_OR(enh_te, baseTE):
 
 def format_OR_results(ORdf, syn_gen_bkgd):
 
-
     # add taxon2 info
     ORdf = pd.merge(ORdf, syn_gen_bkgd[["mrca_2", "taxon2"]], how = "left", on = "mrca_2").drop_duplicates()
 
@@ -321,8 +332,7 @@ def format_OR_results(ORdf, syn_gen_bkgd):
     ORdf.loc[abs(ORdf["fdr_pval"]) == 0, "-log10p"] = 1 #
 
     # MANIPULATION: articifically set odds to 2 when odds are positively inf
-    # (when TE is ONLY in complex, but NEVER in SIMPLE)
-
+    # (e.g. when TE is ONLY in complex, but NEVER in SIMPLE)
     ORdf.loc[ORdf["log2_odds"] == np.inf, "log2_odds"] = 2
 
     return ORdf
@@ -330,7 +340,7 @@ def format_OR_results(ORdf, syn_gen_bkgd):
 
 def get_pval_table_for_plotting(ORdf_formatted):
 
-    # pivot - rows = fams, ages = cols, values = -log10p
+    # pivot pvalues - rows = fams, ages = cols, values = -log10p
     pval = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="-log10p")
 
     # fill in all the insignificant log10 pvals (ie the log10p vales that are 0 or None)
@@ -340,7 +350,7 @@ def get_pval_table_for_plotting(ORdf_formatted):
     pval = pval.drop([0.0], axis = 1)
 
     # like pval pivot, but for log2_odds as table values
-    # pivot - rows = fams, ages = cols, values = log2_odds
+    # pivot logodds - rows = fams, ages = cols, values = log2_odds
     logodds = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="log2_odds")
     logodds = logodds.drop([0.0], axis = 1)
 
@@ -392,7 +402,7 @@ def plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile):
 
     labels =  pval_asterisks
 
-
+    ### prepare to plot the heatmap ###
     # Create a custom diverging colormap
     amber = '#feb308'
     faded_green = '#7bb274'
@@ -450,39 +460,48 @@ newf = cleandf(OUTPATH, outf) # clean up intersection file
 
 #%% Format enhdf
 
-enhdf = format_df(newf, SID)
-enhdf = format_te_overlaps(enhdf)
+enhdf = format_df(newf, SID) # format the intersection file
+enhdf = format_te_overlaps(enhdf) # format the TE overlaps in intersection file
 
-enh_te = merge_enh_te_info(enhdf, famdf)
+enh_te = merge_enh_te_info(enhdf, famdf) # merge enh_te intersection w/ te fam info
 
 
 ### only test enhancers that overlap TEs ###
 
 
-# calculate enrichment of TE in complex, simple arch per mrca
+# reduce dataframe to calculate OR enrichment using FET
 baseTE, baseFam = prep_df_for_OR(enh_te)
 
+# calculate enrichment of TE in complex, simple arch per mrca using FET + FDR<10%
 ORdf = get_mrca_OR(enh_te, baseTE)
 
+# format OR results
 ORdf_formatted = format_OR_results(ORdf, syn_gen_bkgd)
 
+# get pval, log2odds, pval asterisks tables for plotting results.
 pval, log2odds, pval_asterisks  = get_pval_table_for_plotting(ORdf_formatted)
 
+# file name for results
 outfile = f"{RE}/fig5d-te_fam_cluster_enrichment_pval.pdf"
 
+# plot the results
 plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile)
 
 
 #%%
 ### test all enhancers, regardless whether they overlap TEs ###
 
+# calculate enrichment of TE in complex, simple arch per mrca using FET + FDR<10%
+ORdf = get_mrca_OR(enh_te, baseTE)
 
-ORdf = get_mrca_OR(enh_te, baseFam)
-
+# format OR results
 ORdf_formatted = format_OR_results(ORdf, syn_gen_bkgd)
 
+# get pval, log2odds, pval asterisks tables for plotting results.
 pval, log2odds, pval_asterisks  = get_pval_table_for_plotting(ORdf_formatted)
 
+# file name for results
 outfile = f"{RE}/fig5d-all_enh_te_fam_cluster_enrichment_pval.pdf"
 
+# plot the results 
 plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile)
