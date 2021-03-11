@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# intersect enhancers with TE and measure architecture fold enrichment per age.
+# intersect enhancers with TEs and measure architecture fold enrichment per age.
+# hg19 genome build required. 
 
 import argparse
 import datetime
@@ -47,7 +48,7 @@ def make_data_path(path):
         os.mkdir(path)
 
 
-#%%
+#%% Paths and files to load.
 
 # directory to stash intersection data
 OUTPATH = os.path.join(ENHPATH, "te")
@@ -62,6 +63,7 @@ TE_PATH = "/dors/capra_lab/users/abraha1/projects/transposable_elements/data/"
 TE_FAM = f"{TE_PATH}hg19_TE_counts_wlin.txt"
 DFAM_FILE = f"{TE_PATH}dfam/hg38_dfam.nrph.hits_genomicCoordinates_tidy.bed"
 REPEATMASKER = f"{TE_PATH}filtered_formated_hg19fromhg38-TE_coords.tsv"
+
 
 #%% FUNCTIONS
 
