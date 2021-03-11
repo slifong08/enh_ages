@@ -4,7 +4,7 @@
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
 #SBATCH --time=24:00:00
-#SBATCH --mem=4GB
+#SBATCH --mem=16GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/enh_age/
 
 #SBATCH --job-name=age_enh

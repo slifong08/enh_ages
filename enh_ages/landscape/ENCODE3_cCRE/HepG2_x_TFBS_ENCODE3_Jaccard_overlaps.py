@@ -31,7 +31,7 @@ colors = [ "windows blue"]
 DERPAL = sns.xkcd_palette(colors)
 sns.palplot(DERPAL)
 
-all_simple_jaccard
+
 #%% Functions
 
 
@@ -149,7 +149,7 @@ def get_mrca2(df):
     df = pd.merge(df, syn, how = "left")
 
 
-    cores = df.groupby("enh_id")["mrca_2", 'taxon2'].max().reset_index()
+    cores = df.groupby("enh_id")[["mrca_2", 'taxon2']].max().reset_index()
     cores.columns = ["enh_id", "coremrca_2", "coretaxon2"]
 
     df = pd.merge(df, cores, how = "left")
@@ -182,11 +182,9 @@ def describe_tf_overlaps(df):
 
 
 # get TFs with min number of instances.
-def get_tf_combos(taxon2, arch, min_instances, df ):
+def get_tf_combos(taxon2, arch, min_instances, df):
 
     #constrain df to age and architecture of interest
-
-
     if "complex" in arch: # get TF counts based on core age
 
         age_arch = df.loc[(df.coretaxon2 == taxon2) & (df.arch.str.contains(arch))]
@@ -242,6 +240,8 @@ def run_parallel_jaccard(taxon2, arch, df, arch_comparison, enhbase, tf_combo_li
 
         Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_jaccard)(taxon2, arch, df, arch_comparison, outdir, tf_pair) for tf_pair in tf_combo_list)
 
+    else:
+        print(f"ran this analysis {arch_comparison}-{taxon2}")
     return outdir
 
 
@@ -278,7 +278,7 @@ def run_jaccard(taxon2, arch, df, arch_comparison, outdir, tf):
 
     results.to_csv(outf, sep ='\t', header = False, index = False)
 
-    return age_arch_results
+    return results
 
 
 def jaccard_function(tf1, tf2, df1, df2):
@@ -323,7 +323,7 @@ def open_df(outdir, arch_comparison):
         cmd = f'rm {outdir}/*.tsv'
         subprocess.call(cmd, shell = True)
 
-    return jaccardDF_complex
+    return jaccardDF
 
 
 def plot_jaccard(jaccardDF, arch_comparison, re):
