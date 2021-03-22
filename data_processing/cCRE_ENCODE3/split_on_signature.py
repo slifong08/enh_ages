@@ -27,9 +27,13 @@ def split_signature(bedfile):
     PATH = "/".join(bedfile.split("/")[:-1])
 
     os.chdir(PATH)
-    cmd = f''' awk '{print >$10"_{CELL_LINE}.bed"}' {bedfile}'''
+
+    cmd = ''' awk '{print >$10"_%s.bed"}' %s''' %(CELL_LINE, bedfile)
 
     subprocess.call(cmd, shell = True)
+
+    cmd = f"gzip {bedfile}"
+    subprocess.call(cmd, shell=True)
 
 #%%
 split_signature(BEDFILE)
