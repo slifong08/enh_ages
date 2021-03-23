@@ -59,14 +59,16 @@ df = open_df(outf)
 df.head()
 df.shape
 df.groupby("species")["overlap_bin"].sum()
+
 """
 overlap_bin
 GM12878_specific    3
 LCL8664_specific    4
 Name: overlap_bin, dtype: int64
 """
-
-obs = [[3,4999], [4, 5002]]
+df.groupby("species")["overlap_bin"].count()
+#%%
+obs = [[3,(4999-3)], [4, (5003-4)]]
 OR, P = stats.fisher_exact(obs)
 print(OR, P)
 # OR = 0.75 P = 1.0

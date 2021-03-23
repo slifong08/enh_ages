@@ -1,8 +1,13 @@
 
 hg38:
-Shared(hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_shared_OCRs.bed
-GM12878-specific (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_GM12878-specific_OCRs.bed
-LCL8664-specific (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_LCL8664-specific_OCRs.bed
+
+ALL: GG-LL_all_OCRs.bed
+
+Shared accessibility (relaxed) (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_shared_OCRs.bed
+
+GM12878-specific accessibility (relaxed) (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_GM12878-specific_OCRs.bed ./GG-LL_GM12878-specific_OCRs_rank.bed
+GG-LL_GM12878-specific_OCRs.bed
+LCL8664-specific accessibility (relaxed) (hg38): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_LCL8664-specific_OCRs.bed
 
 rheMac10: (all were lifted over from hg38 to rheMac10)
 shared(lifted over to rheMac10): /data/hodges_lab/ATAC-STARR_V2/data/Differential_ATAC-like_peaks/GG-LL_shared_OCRs_rheMac10-from-hg38.bed
