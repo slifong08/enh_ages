@@ -20,9 +20,6 @@
 # Analyze the genomic shuffle of FANTOM eRNA enhancers for breaks v. actual transcribed enhancers.
 
 
-# In[1]:
-
-
 import glob
 import pandas
 import matplotlib.pyplot as plt
@@ -41,7 +38,11 @@ RE = "/dors/capra_lab/projects/enhancer_ages/1000g/results/"
 
 #Fantom
 PATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/architecture_coordinates/"
-fs = glob.glob(f"{PATH}all_fantom/*.bed")
+fs = [
+    f"{PATH}all_fantom/no-exon_FANTOM_complexcore_age_breaks.bed",
+    f"{PATH}all_fantom/no-exon_FANTOM_complexenh_age_breaks.bed",
+    f"{PATH}all_fantom/no-exon_FANTOM_derived_age_breaks.bed",
+    f"{PATH}all_fantom/no-exon_FANTOM_simple_age_breaks.bed"]
 
 #1000g
 THOU_PATH = "/dors/capra_lab/projects/enhancer_ages/1000g/data/maf/"
@@ -60,33 +61,6 @@ def load_syn_gen_bkgd():
     syngenbkgd[["mrca", "mrca_2"]] = syngenbkgd[["mrca", "mrca_2"]].round(3)
 
     return syngenbkgd
-
-
-def subtract_exons(inF, sid):
-
-    outP = "/".join(inF.split("/")[:-1]) + "/"
-    outF = "%sno-exon_%s.bed" % (outP, sid)
-
-    ExonP = "/dors/capra_lab/users/fongsl/data/ensembl/"
-    ExonF = "%sensGene_hg19_coding_exons.bed" % ExonP
-
-    outF = "%sno-exon_%s_age_breaks.bed" % (outP, sid)
-
-    if os.path.exists(outF) == False:
-        # use -v argument to subtract exons from shuffle file.
-        cmd = "bedtools intersect -a %s -b %s -v > %s" % (inF, ExonF, outF)
-
-        subprocess.call(cmd, shell = True)
-        no_exon =  len(open(outF).readlines(  ))
-
-        outF_ex = "%sexonOverlap_%s.bed" % (outP, sid)
-        cmd = "bedtools intersect -a %s -b %s > %s" %  (inF, ExonF, outF_ex)
-
-        subprocess.call(cmd, shell = True)
-        exon =  len(open(outF_ex).readlines(  ))
-
-        print(sid, no_exon, exon)
-    return outF
 
 
 def intersect_1000G(file_list, common_var_beds, thou_path):
@@ -293,22 +267,22 @@ def plot_arch_maf_mrca(cdf):
     plt.savefig(outplot, bbox_inches = "tight")
 
 
-def get_metrics(cdf, RE):
+def get_metrics(cdf, RE, x):
 
     #counts
-    counts = cdf.groupby("code")["AF"].count()
+    counts = cdf.groupby("code")[x].count()
     counts["metric"] = "counts"
 
     #medians
-    medians = cdf.groupby("code")["AF"].median()
+    medians = cdf.groupby("code")[x].median()
     medians["metric"] = "median"
 
     #means
-    means = cdf.groupby("code")["AF"].mean()
+    means = cdf.groupby("code")[x].mean()
     means["metric"] = "mean"
 
     # file to write dataframe
-    outstat_file = f"{RE}1000g_no_singleton_metrics.tsv"
+    outstat_file = f"{RE}1000g_no_singleton_metric_{x}.tsv"
     # concat dataframes
     outstats = pd.concat([counts, medians, means])
 
@@ -330,22 +304,11 @@ def get_snp_density(cdf):
     snp_den["snp_den"] = snp_den.overlap.divide(snp_den.seg_len) # calculate the SNP density
 
     return snp_den
-#%% Subtract exons
-
-sample_list_noex = []
-
-
-for inF in fs:
-
-    sid = ".".join((inF.split("/")[-1]).split(".")[:-1])
-    noex = subtract_exons(inF, sid)
-
-    sample_list_noex.append(noex)
 
 
 #%% # Fantom arch intersection w/ 1000G
 
-outfiles = intersect_1000G(sample_list_noex, common_var_beds, THOU_PATH)
+outfiles = intersect_1000G(fs, common_var_beds, THOU_PATH)
 
 
 #%% # shuffle arch intersection w/ 1000G
@@ -353,9 +316,9 @@ outfiles = intersect_1000G(sample_list_noex, common_var_beds, THOU_PATH)
 SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/architecture_coordinates/"
 shuff_samples = f"{SHUFPATH}shuffle_FANTOM*.bed"
 shuff_samples_list = glob.glob(shuff_samples)
-
+shuff_samples_list
 shuff_outfiles = intersect_1000G(shuff_samples_list, common_var_beds, THOU_PATH)
-
+shuff_outfiles
 #%% # Analysis
 
 syngenbkgd = load_syn_gen_bkgd()
@@ -367,17 +330,17 @@ shuf = get_dataframes(shuff_outfiles, syngenbkgd)
 #%% # Singletons only
 #SINGLETONS: 1 mutation/2504 individuals = 0.000399 mutations / individuals.
 # get dataframes for singletons
-freq = get_singletons(df
-freq
+freq = get_singletons(df)
+
 shuf_freq = get_singletons(shuf)
-shuf_freq
+
 
 #%% prepare to plot singletons
 plot = pandas.concat([shuf_freq, freq])
 
 # get fold change
 singletonfc = singleton_foldchange(freq, shuf_freq)
-singletonfc
+
 # plot singletons
 plot_singletons(plot, singletonfc)
 
@@ -385,11 +348,9 @@ plot_singletons(plot, singletonfc)
 
 cdf = df.loc[df["AF"] > 0.0004] # FILTER remove singletons + enhancers w/ no variant overlap
 
-get_metrics(cdf, RE)
+get_metrics(cdf, RE, "AF")
 plot_arch_maf(cdf)
 plot_arch_maf_mrca(cdf)
-
-
 
 # # SNP Density x architecture
 

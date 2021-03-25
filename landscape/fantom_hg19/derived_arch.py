@@ -119,14 +119,14 @@ sum_archlen = add_arch_labels(sum_archlen) # add architecture labels
 
  # calculate percent arch per enhancer
 sum_archlen["pct_enh"] = sum_archlen.syn_len.divide(sum_archlen.enh_len)
-sum_archlen = clean_shuffles(sum_archlen, shuf) # remove the shuffles w/o core
+
 
 # add oldest ages of enhancer information
 enh_mrcas = df.groupby("enh_id")[["mrca_2", "taxon2"]].max().reset_index()
 sum_archlen = pd.merge(sum_archlen, enh_mrcas, how = "left", on = "enh_id")
 
 sum_archlen.head()
-
+shuf_remove_ids = sum_archlen.loc[(sum_archlen["mrca_2"] == 0) & (sum_archlen.core ==0), "enh_id"]
 sum_archlen = sum_archlen[~sum_archlen["enh_id"].isin(shuf_remove_ids)]
 #%%
 
@@ -185,11 +185,13 @@ plt.savefig("%ssum_arch_length_all_fantom_shuffle.pdf" %RE, bbox_inches = "tight
 
 
 sum_archlen.groupby(["id", "arch"])["syn_len"].mean()
+
+
 '''
 mean lengths
 
 id       arch
-FANTOM   complex_core       17.824845 bp long
+FANTOM   complex_core       195.824845 bp long
          complex_derived    173.842735
          simple             276.605902
 
@@ -197,6 +199,20 @@ SHUFFLE  complex_core       177.303235
          complex_derived    189.748677
          simple             274.325146
 '''
+fantom_core_len = sum_archlen.loc[(sum_archlen.id == "FANTOM")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
+
+shuffle_core_len = sum_archlen.loc[(sum_archlen.id == "SHUFFLE")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
+
+fantom_der_len = sum_archlen.loc[(sum_archlen.id == "FANTOM")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
+
+shuffle_der_len = sum_archlen.loc[(sum_archlen.id == "SHUFFLE")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
+
+
+stats.mannwhitneyu(fantom_core_len, shuffle_core_len)
+# MannwhitneyuResult(statistic=5618698988.0, pvalue=6.696739105823158e-59)
+
+stats.mannwhitneyu(fantom_der_len, shuffle_der_len)
+# MannwhitneyuResult(statistic=5679021719.5, pvalue=3.4235490637653475e-49)
 
 sum_archlen.groupby(["id", "arch"])["pct_enh"].mean()
 #%%

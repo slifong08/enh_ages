@@ -16,7 +16,6 @@ ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/"
 
 
-
 colors = [ "amber", "dusty purple", "windows blue"]
 PAL = sns.xkcd_palette(colors)
 sns.palplot(PAL)
