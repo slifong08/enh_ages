@@ -40,9 +40,6 @@ arg_parser.add_argument("-a", "--age", type=int, default=1,
 arg_parser.add_argument("-b", "--breaks", type=int, default=1,
                         help="assemble breaks from aged sequence w/ syntenic blocks")
 
-arg_parser.add_argument("-t", "--tfbs_den", type=int, default=0,
-                        help="calculate tfbs density using 161 ChIP-Seq datasets in aged sequence w/ syntenic blocks")
-
 arg_parser.add_argument("-sh", "--shuffle", type=int, default=0,
                         help="shuffle and calculate ages/breaks for input file")
 
@@ -61,13 +58,12 @@ SPECIES = args.species
 RUN_TEST_ENH = args.run_testbed
 ANALYZE_AGE = args.age
 ANALYZE_BREAKS = args.breaks
-ANALYZE_TFBS_DEN = args.tfbs_den
 ANALYZE_SHUFFLE = args.shuffle
 
 NUM_THREADS = 100
 
 
-print("\n", ANALYZE_AGE, ANALYZE_BREAKS, ANALYZE_TFBS_DEN, ANALYZE_SHUFFLE, RUN_TEST_ENH)
+print("\n", ANALYZE_AGE, ANALYZE_BREAKS, ANALYZE_SHUFFLE, RUN_TEST_ENH)
 
 # EXTRACT OTHER CONSTANTS
 TEST_PATH = "/".join(TEST_ENH.split("/")[:-1])
@@ -87,13 +83,6 @@ def loadConstants(species):  # note chrom.sizes not used in current implementati
             'mm10': ("/dors/capra_lab/users/bentonml/data/dna/mm10/mm10_blacklist_gap.bed", "/dors/capra_lab/data/dna/mouse/mm10/mm10_trim.chrom.sizes")
             }[species]
 
-# make directory
-def mkdir(path):
-    if os.path.isdir(path) == False:
-
-        cmd = "mkdir %s" % path
-        print("MKDIR", cmd)
-        os.system(cmd)
 
 # remove files
 def os_remove(files):
@@ -140,19 +129,21 @@ def bedintersect_syn(f, species, chr_num, sample_id, outpath):
 def age_enh(test_enh, sample_id, test_path, species):
 
     print("AGING", sample_id, test_enh, test_path, species)
-    outpath = "%s/ages" % test_path # mkdir ./ages/
-    mkdir(outpath)
+    outpath = "%s/ages" % test_path # os.mkdir ./ages/
+
+    if os.path.exists(outpath) == False:
+        os.mkdir(outpath)
 
     os.chdir(outpath)
 
-    sex_chr = ["chrX", "chrM", "chrY"]
+    SEX_CHR = ["chrX", "chrM", "chrY"]
 
 
     # for files w/ regions from multiple chromosomes.
     if "chr" not in sample_id:
 
-
         chr_cmd = '''awk '{print >$1"_%s_temp.bed"}' %s''' % (sample_id, test_enh) # split test into chrN.bed files
+        print(chr_cmd)
         os.system(chr_cmd)
 
 
@@ -162,7 +153,7 @@ def age_enh(test_enh, sample_id, test_path, species):
 
             chr_num = (f.split("/")[-1]).split("_")[0]
 
-            if chr_num not in sex_chr: # filter out sex chromosomes.
+            if chr_num not in SEX_CHR: # filter out sex chromosomes.
                 sort_bed(f) # sort the file
                 bedintersect_syn(f, species, chr_num, sample_id, outpath) # syntenic blcok intersection
                 os_remove(f) # remove the chromosome file temp
@@ -194,7 +185,7 @@ def break_scripts(age_file, sample_id, test_path, species):
     outpath = "%s/breaks/" % test_path
 
     if os.path.exists(outpath) == False:
-        mkdir(outpath)
+        os.mkdir(outpath)
 
 
     # sort bed file
@@ -325,7 +316,7 @@ def break_scripts(age_file, sample_id, test_path, species):
 
 
 # generate shuffles
-def calculateExpected(test_enh, sample_id, shuffle_path, species, analyze_age, analyze_breaks, analyze_tfbs_den, iters):
+def calculateExpected(test_enh, sample_id, shuffle_path, species, iters):
 
 
     print("shuffling", shuffle_path, iters)
@@ -334,24 +325,19 @@ def calculateExpected(test_enh, sample_id, shuffle_path, species, analyze_age, a
 
     exp_sum = 0
 
-    if os.path.exists(shuffle_path) == False:
-
-        mkdir(shuffle_path)
-
     shuffle_id = "shuf-%s-%s" % (sample_id, iters)
+    unformatted_rand_out = '%s/%s-%s_unformatted.bed'% (shuffle_path, shuffle_id, iters)
 
-    unformatted_rand_out = '%s/%s-%s_unformatted.bed'% (shuffle_path, shuffle_id, iters) # make shuffle file
-
+    # make shuffle file
     BEDshuf = "bedtools shuffle -i %s -g %s -excl %s -chrom -noOverlapping -maxTries 5000 > %s" % (test_enh, CHROM_SZ, BLACKLIST, unformatted_rand_out)
 
-    os.system(BEDshuf)
+    subprocess.call(BEDshuf, shell = True)
 
-    #sid = '%s-%s'% (shuffle_id, iters) # make shuffle file
+    #format the shuffle file again
+    rand_out = preformatBedfile(unformatted_rand_out, shuffle_id, shuffle_path)
 
-    rand_out = preformatBedfile(unformatted_rand_out, shuffle_id, shuffle_path) #format the shuffle file again
-
-    rm = "rm %s" % unformatted_rand_out
-    os.system(rm)
+    #rm
+    os.remove(unformatted_rand_out)
 
     return rand_out
 
@@ -365,46 +351,19 @@ def preformatBedfile(test_enh, sample_id, test_path):
     else:
         test_enh_cut = "%s/cut-%s.bed" % (test_path, sample_id) # prepare to format test_enh
 
+    # cut and sort the first 4 columns.
     cmd = '''awk '{print $1"\t", $2"\t", $3"\t", $4}' %s | tr -d " "| sort -k1,1 -k2,2 -k3,3 > %s''' % (test_enh, test_enh_cut)
-
     print("standardizing Bed format")
     subprocess.call(cmd, shell=True)
 
+    # add sample_id as 4th column
     temp = "%ssid_%s.bed" %(test_path, sample_id)
     awk_cmd = '''awk '{$4="%s"}1' FS="\t" OFS="\t"'' %s > %s && mv %s %s''' %(sample_id, test_enh_cut, temp, temp,  test_enh_cut)
-    subprocess.call(awk_cmd, shell=True)
+    #subprocess.call(awk_cmd, shell=True)
 
 
     return test_enh_cut
 
-
-# concatenate shuffles before aging concatenated shuffles w/ bedintersect_syn.
-def concat_shuffles(shuffle_path, shuffle_id):
-
-    print("CONCATENATING SHUFFLES")
-
-    catf = "%s/cat_%s_enh_ages.bed" % (shuffle_path, shuffle_id)
-    cattemp = "%s/%s_cat_temp.bed" % (shuffle_path, shuffle_id)
-    cmd = "cat %s/%s*.bed > %s" %(shuffle_path, shuffle_id, catf)
-
-    subprocess.call(cmd, shell = True)
-
-    stripTabs(catf, cattemp)
-
-    # add enhancer id column
-    add_enh_id = '''awk '{$(NF+1)=$1":"$2"-"$3 ; print}' %s > %s && mv %s %s''' % (catf, cattemp, cattemp, catf)
-    print("add enh_id")
-    subprocess.call(add_enh_id, shell = True)
-
-    # make sure file is tab separated
-    tab_cmd = '''awk '{$1=$1}1' OFS="\t" %s > %s && mv %s %s''' % (catf, cattemp, cattemp, catf)
-    print("add tabs")
-    subprocess.call(tab_cmd, shell = True)
-
-    rm = 'rm %s/%s*-*.bed' % (shuffle_path, shuffle_id)
-    subprocess.call(rm, shell = True)
-
-    return catf
 
 
 # put the pipeline together
@@ -413,7 +372,7 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
     outpath = "%s/%s" % (TEST_PATH, SAMPLE_ID)
 
     if os.path.exists(outpath) == False and "shuffle" not in outpath:
-        mkdir(outpath)
+        os.mkdir(outpath)
 
         TEST_PATH = outpath
 
@@ -426,7 +385,10 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
     if ANALYZE_AGE ==1:
         print("AGING")
 
-        test_enh_formatted = preformatBedfile(TEST_ENH, SAMPLE_ID, TEST_PATH) # format the enhancer bed file and sort
+        if "shuf" in SAMPLE_ID:
+            test_enh_formatted = TEST_ENH
+        else:
+            test_enh_formatted = preformatBedfile(TEST_ENH, SAMPLE_ID, TEST_PATH) # format the enhancer bed file and sort
 
         age_file = age_enh(test_enh_formatted, SAMPLE_ID, TEST_PATH, SPECIES) # age the enhancer file
 
@@ -467,20 +429,22 @@ def main(argv):
         SPECIES, ANALYZE_AGE, ANALYZE_BREAKS)
 
 
-    if ANALYZE_SHUFFLE != 0:
+    if ANALYZE_SHUFFLE == 1:
 
         # create pool and run simulations in parallel
 
         shuffle_id =  "shuf-"+(SAMPLE_ID).split("_enhancers")[0]
         shuffle_path = "%s/%s/shuffle" % (TEST_PATH, SAMPLE_ID)
 
+        if os.path.exists(shuffle_path) == False:
+            os.mkdir(shuffle_path)
+
         test_enh_formatted = preformatBedfile(TEST_ENH, SAMPLE_ID, TEST_PATH) # format the enhancer bed file and sort
 
         pool = Pool(NUM_THREADS)
         partial_calcExp = partial(calculateExpected,\
                                       test_enh_formatted, SAMPLE_ID,\
-                                      shuffle_path, SPECIES, ANALYZE_AGE, \
-                                      ANALYZE_BREAKS, ANALYZE_TFBS_DEN)
+                                      shuffle_path, SPECIES)
 
 
         exp_sum_list = pool.map(partial_calcExp, [i for i in range(ITERATIONS)])
@@ -488,18 +452,28 @@ def main(argv):
         pool.join()
 
         if os.path.exists(shuffle_path) == False:
-            mkdir(shuffle_path)
+            os.mkdir(shuffle_path)
 
-        if "enh_ages.bed" in TEST_ENH and "cat" not in TEST_ENH:
+        if "enh_ages.bed" in TEST_ENH:
+
             print("SHUFFLE_ID", shuffle_id)
             runscripts(TEST_ENH, shuffle_id, TEST_PATH,\
             SPECIES, ANALYZE_AGE, ANALYZE_BREAKS)
 
-        elif "cat" not in TEST_ENH:
-            catf = concat_shuffles(shuffle_path, shuffle_id)
+        elif "enh_ages.bed" not in TEST_ENH:
 
-            runscripts(catf, shuffle_id, shuffle_path,\
-            SPECIES, ANALYZE_AGE, ANALYZE_BREAKS)
+            shuf_fs = glob.glob(f"{shuffle_path}/{shuffle_id}*.bed") # get all the shuffle files
+
+            val = 0
+
+            for shuf_f in shuf_fs: # age each shuffle file.
+
+                iter_id = shuffle_id + "-" + str(val)
+                print("iter_id", iter_id)
+                runscripts(shuf_f, iter_id, shuffle_path,\
+                SPECIES, ANALYZE_AGE, ANALYZE_BREAKS)
+
+                val +=1
         else:
             print("sarah, address these problems with shuffle not running")
 

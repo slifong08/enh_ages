@@ -91,7 +91,7 @@ def plot_activity(x, y, df, outf, cell_model):
     ax.set(
     xticklabels = xticklabs,
     xlabel = "core v. der mwu p = %s\n%s" % (p, means),
-    ylabel = "predicted activity (bp)",
+    ylabel = "predicted activity (bp)/syn len",
     title = cell_model
     )
 
@@ -141,9 +141,16 @@ x = "arch"
 y = "act/synlen"
 outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, k562_active_df, outf, CELL_MODEL)
+k562_active_df.groupby("arch")[y].mean()
 
+"""
+arch            act/synlen
+complex_core       0.009983
+complex_derived    0.014807
+simple             0.006812
+"""
 
-#%% weighted activity
+#%% max weighted activity
 
 CELL_MODEL = "K562"
 x = "arch"
@@ -156,8 +163,14 @@ plot_activity(x, y, k562_wtact, outf, CELL_MODEL)
 
 k562_freq = get_act_freq(k562_info, k562_active_df)
 k562_freq
-# about 2.5% of basepairs per architecture have activity >=2
-
+# about 2.5% of basepairs per architecture have activity >=2 (data not shown)
+# about 7.5 - 8% of basepairs per architecture have activity >=1 (data not shown)
+"""
+	arch	total_bp_count	active_bp_count	freq
+0	complex_core	123074	9906	0.080488
+1	complex_derived	108501	8119	0.074829
+2	simple	343675	26658	0.077567
+"""
 #%% ### HEPG2 ###
 
 CELL_MODEL = "HEPG2"
@@ -180,7 +193,12 @@ outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
 plot_activity(x, y, hepg2_active_df, outf, CELL_MODEL)
 hepg2_active_df.groupby("arch")[y].mean()
 
-
+"""
+arch        activity/syn_len
+complex_core       0.010030
+complex_derived    0.013797
+simple             0.006812
+"""
 #%%
 CELL_MODEL = "HEPG2"
 x = "arch"
@@ -192,4 +210,11 @@ plot_activity(x, y, wtact_hepg2, outf, CELL_MODEL)
 
 hepg2_freq = get_act_freq(hepg2_info, hepg2_active_df)
 hepg2_freq
-# about 2.5% of basepairs per architecture have activity >=2
+# about 2.5% of basepairs per architecture have activity >=2 (data not shown)
+# about 6.6 - 8% of basepairs per architecture have activity >=1
+"""
+	arch	total_bp_count	active_bp_count	freq
+0	complex_core	133777	9090	0.067949
+1	complex_derived	103403	6894	0.066671
+2	simple	345740	27672	0.080037
+"""
