@@ -8,6 +8,7 @@ import subprocess
 import seaborn as sns
 from scipy import stats
 import statsmodels
+import statsmodels.api as sm
 
 
 #%%
@@ -29,13 +30,18 @@ RE = ENHF.split("data/")[0]
 #%%
 GENOME_BUILD = "hg38"
 
-ENHPATH = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/no-exon_dELS_combined/"
-ENHFILE = "no-exon_dELS_combined_enh_age_arch_summary_matrix.bed"
+ENHPATH = "/dors/capra_lab/users/fongsl/tyler/data/"
+ENHFILE = "GG-LL_species-specific_OCRs_rank/breaks/GG-LL_species-specific_OCRs_rank_enh_age_arch_summary_matrix_W_SPECIES.bed"
 
-ENHF = os.path.join(ENHPATH, "breaks", ENHFILE)
+ENHF = os.path.join(ENHPATH, ENHFILE)
 
-SHUFPATH = os.path.join(ENHPATH, "shuffle/breaks")
-SHUFFILE = "shuf-no-exon_dELS_combined_enh_age_arch_summary_matrix.bed"
+# real shuffles
+SHUFPATH = os.path.join(ENHPATH, "GG-LL_species-specific_OCRs_rank/shuffle/breaks")
+SHUFFILE = "shuf-GG-LL_species-specific_OCRs_rank-0_enh_age_arch_summary_matrix.bed"
+
+# all other OCRs
+SHUFPATH = os.path.join(ENHPATH, "GG-LL_subtract_species_specific_OCR/breaks")
+SHUFFILE = "GG-LL_subtract_species_specific_OCR_ages_enh_age_arch_summary_matrix.bed"
 
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
@@ -45,7 +51,7 @@ RE = os.path.join(ENHF.split("data/")[0], "results/")
 if os.path.exists(RE) == False:
     os.mkdir(RE)
 
-
+RE
 #%% palettes
 
 
@@ -70,13 +76,43 @@ sns.palplot(EPAL)
 
 def open_df(F):
 
-    cols = ["chr", "start", "end", "enh_id","id",
-    "max_seg", "core_remodeling", "arch", "mrca"]
+    if "shuf" in F:
+        cols = [0,1,2,3,4,5,6,7,8]
+        col_names = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
+        "seg_index", "core_remodeling", "arch", "mrca"]
 
-    df = pd.read_csv(F, sep = '\t', header = None, usecols =[0,1,2,3,4,5,6,7,8], names = cols).drop_duplicates()
+        df = pd.read_csv(F,
+        sep = '\t',
+        header = None,
+        usecols = cols,
+        names = col_names,
+        ).drop_duplicates()
 
-    df["enh_len"] = df.end - df.start
-    df[["max_seg", "core_remodeling"]] = df[["max_seg", "core_remodeling"]].astype(int)
+
+    elif "subtract" in F:
+        cols  = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
+        "seg_index", "core_remodeling", "arch", "mrca"]
+
+        df = pd.read_csv(F,
+        sep = '\t',
+        ).drop_duplicates()
+
+        df = df[cols]
+
+    else:
+        cols = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
+        "seg_index", "core_remodeling", "arch", "mrca", "species_specific"]
+
+        df = pd.read_csv(F,
+        sep = '\t',
+        ).drop_duplicates()
+
+        df = df[cols]
+
+    df[["start_enh", "end_enh"]]=df[["start_enh", "end_enh"]].astype(int)
+
+    df["enh_len"] = df.end_enh - df.start_enh
+    df[["seg_index", "core_remodeling"]] = df[["seg_index", "core_remodeling"]].astype(int)
 
     SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
     syn = pd.read_csv(SYN_GROUP, sep = '\t')
@@ -87,7 +123,7 @@ def open_df(F):
 
     df = pd.merge(df, syn, how = "left")
 
-    if "shuf" in F:
+    if "shuf" in F or "subtract" in F:
         df['id'] = "shuf"
     else:
         df['id'] = "enh"
@@ -97,8 +133,8 @@ def open_df(F):
 
 def get_percent_simple(catdf):
 
-    median_segs = catdf.groupby("id").max_seg.median()
-    print("median number of age segments\n", median_segs, "\n")
+    median_segs = catdf.groupby("id").seg_index.median()
+    print("median number of age segments =", median_segs, "\n")
 
     count_arch = catdf.groupby(["id", "arch"])["enh_id"].count().reset_index()
 
@@ -254,7 +290,10 @@ def plot_len(catdf):
     hue = hue,
     hue_order = order,
     palette = ESPAL)
-    ax.set(ylabel = "length(bp)", ylim = (250, 325))
+
+    ax.set(ylabel = "length(bp)",
+    #ylim = (250, 325)
+    )
     ax.set_xticklabels(xlabs, rotation = 90)
     ax.legend(bbox_to_anchor = (1,1))
 
@@ -266,15 +305,15 @@ def plot_len(catdf):
 def plot_cdf(catdf):
 
 
-    enh_cdf = catdf.loc[catdf["id"] == "enh"]["max_seg"].reset_index()
-    shuf_cdf = catdf.loc[catdf["id"] == "shuf"]["max_seg"].reset_index()
+    enh_cdf = catdf.loc[catdf["id"] == "enh"]["seg_index"].reset_index()
+    shuf_cdf = catdf.loc[catdf["id"] == "shuf"]["seg_index"].reset_index()
 
-    enh_cdf["pct"] = enh_cdf['max_seg'].rank(pct = True)
-    shuf_cdf["pct"] = shuf_cdf['max_seg'].rank(pct = True)
+    enh_cdf["pct"] = enh_cdf['seg_index'].rank(pct = True)
+    shuf_cdf["pct"] = shuf_cdf['seg_index'].rank(pct = True)
 
 
     fig, ax = plt.subplots(figsize = (6,6))
-    x = "max_seg"
+    x = "seg_index"
     y = "pct"
     data = enh_cdf
     sns.lineplot(x = x, y=y, data = data, color = "blue", label = "enh")
@@ -302,11 +341,11 @@ def or_seg(catdf):
 
     seg_dict = {} # collect results
 
-    for seg_index in catdf.max_seg.unique():
-        seg_enh = len(catdf.loc[(catdf.max_seg == seg_index) & (catdf["id"]=="enh")])
-        not_seg_enh = len(catdf.loc[(catdf.max_seg != seg_index) & (catdf["id"]=="enh")])
-        seg_shuf = len(catdf.loc[(catdf.max_seg == seg_index) & (catdf["id"]=="shuf")])
-        not_seg_shuf = len(catdf.loc[(catdf.max_seg != seg_index) & (catdf["id"]=="shuf")])
+    for seg_index in catdf.seg_index.unique():
+        seg_enh = len(catdf.loc[(catdf.seg_index == seg_index) & (catdf["id"]=="enh")])
+        not_seg_enh = len(catdf.loc[(catdf.seg_index != seg_index) & (catdf["id"]=="enh")])
+        seg_shuf = len(catdf.loc[(catdf.seg_index == seg_index) & (catdf["id"]=="shuf")])
+        not_seg_shuf = len(catdf.loc[(catdf.seg_index != seg_index) & (catdf["id"]=="shuf")])
 
         a, b, c, d = seg_enh, not_seg_enh, seg_shuf,not_seg_shuf
         obs = [[a,b], [c,d]]
@@ -448,8 +487,9 @@ def plot_fet_age(or_age_arch, arch):
 
 
 #%% run analysis
-
+ENHF
 df = open_df(ENHF)
+
 shufdf = open_df(SHUFF)
 
 
@@ -461,11 +501,11 @@ catdf[["taxon", 'mrca']].drop_duplicates().sort_values(by = "mrca")
 
 
 # basic info
-
-
+catdf.head()
 get_percent_simple(catdf)
 
-
+count_arch = catdf.groupby(["id", "arch"])["enh_id"].count().reset_index()
+count_arch
 #%%
 
 # age architecture frequencies and fold changes
@@ -487,7 +527,7 @@ ordf = or_seg(catdf)
 
 plot_or_seg(ordf)
 
-# odds of observing archictures per age
+#%% odds of observing archictures per age
 ARCH = "complexenh"
 or_mrca_arch = or_age_arch(catdf, ARCH)
 plot_fet_age(or_mrca_arch, ARCH)
