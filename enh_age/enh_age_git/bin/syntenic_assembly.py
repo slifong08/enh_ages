@@ -22,7 +22,7 @@ f = sys.argv[1]
 def makeDf(f):
 
     # column names
-    columns = ["chr_enh", "start_enh", "end_enh", "chr_syn", "start_syn", "end_syn", "mrca"]
+    columns = ["#chr_enh", "start_enh", "end_enh", "#chr_syn", "start_syn", "end_syn", "mrca"]
 
     # read dataframe
     df = pd.read_csv(f, sep = '\t', header = None, usecols= [0, 1, 2, 4, 5, 6, 11])
@@ -37,7 +37,7 @@ def makeDf(f):
     df.mrca = df.mrca.astype(float).round(3)
 
     # add enhancer id
-    df["enh_id"] = df.chr_enh + ":" + df.start_enh.map(str) + "-" + df.end_enh.map(str)
+    df["enh_id"] = df["#chr_enh"] + ":" + df.start_enh.map(str) + "-" + df.end_enh.map(str)
 
     return df
 
@@ -47,10 +47,10 @@ def assemble_break(df, enh_id, sid, path):
     # base dataframe
     test = df.loc[df["enh_id"]== enh_id]\
         .drop_duplicates()\
-        .sort_values(["chr_syn","start_syn","end_syn"]).reset_index()
+        .sort_values(["#chr_syn","start_syn","end_syn"]).reset_index()
 
     # new dataframe for reassembled breaks
-    new_data = test[["chr_enh","start_enh", "end_enh", "enh_id", "chr_syn"]]\
+    new_data = test[["#chr_enh","start_enh", "end_enh", "enh_id", "#chr_syn"]]\
     .drop_duplicates()
 
 
@@ -124,8 +124,8 @@ def assemble_break(df, enh_id, sid, path):
 
 
     # re-arrange dataframe
-    collect_df = collect_df[["chr_syn","start_syn", "end_syn", "enh_id",
-                             "chr_enh","start_enh", "end_enh",
+    collect_df = collect_df[["#chr_syn","start_syn", "end_syn", "enh_id",
+                             "#chr_enh","start_enh", "end_enh",
                              "seg_index", "core_remodeling", "core",
                              "mrca_seg"]]
 
@@ -161,6 +161,5 @@ cat.to_csv(out_cat, sep = '\t', header = False, index = False)
 print("All finished, %d slices in total" % len(dr))
 
 #zip the age file
-
 gzip_cmd = f"gzip {f}"
 subprocess.call(gzip_cmd, shell = True)

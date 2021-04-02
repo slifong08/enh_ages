@@ -54,9 +54,9 @@ common_var_beds = glob.glob(f"{THOU_PATH}trimmed.chr*.phase3_shapeit2_mvncall_in
 #%% subtract exons function
 
 
-def load_syn_gen_bkgd():
+def load_syn_gen_bkgd(build):
 
-    F = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_taxon.bed"
+    F = f"/dors/capra_lab/projects/enhancer_ages/{build}_syn_taxon.bed"
     syngenbkgd = pandas.read_csv(F, sep='\t')
     syngenbkgd[["mrca", "mrca_2"]] = syngenbkgd[["mrca", "mrca_2"]].round(3)
 

@@ -7,6 +7,22 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
+
+
+FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
+FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
+FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
+
+FANTOM_TFBS_ONLY = f"{FANTOMPATH}enh_tfbs_only.txt"
+
+SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/first_round_breaks"
+SHUFFILE = "no-exon_syn_breaks_shuf-all_fantom_enh_ages.bed"
+SHUFF = os.path.join(SHUFPATH, SHUFFILE)
+
+
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/"
+
+#%%
 colors = [ "amber", "faded green"]
 palette = sns.xkcd_palette(colors)
 sns.palplot(palette)
@@ -27,16 +43,6 @@ colors = [ "amber", "greyish",  "dusty purple", "brown grey",  "windows blue", "
 archpal = sns.xkcd_palette(colors)
 sns.palplot(archpal)
 
-FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
-FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
-FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
-
-SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/first_round_breaks"
-SHUFFILE = "no-exon_syn_breaks_shuf-all_fantom_enh_ages.bed"
-SHUFF = os.path.join(SHUFPATH, SHUFFILE)
-
-
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/"
 
 
 #%%
@@ -99,11 +105,16 @@ def clean_shuffles(df):
 enh = format_syndf(FANTOM)
 enh["id"] = "FANTOM"
 
+tfbs_overlap = pd.read_csv(FANTOM_TFBS_ONLY, sep = '\t')
+tfbs_overlap.head()
 
+enh.shape
+enh = enh.loc[enh.enh_id.isin(tfbs_overlap.enh_id)]
+enh.shape
 shuf = format_syndf(SHUFF)
 
 shuf["id"] = "SHUFFLE"
-shuf.head()
+
 
 df = pd.concat([enh, shuf])
 df.shape
@@ -155,7 +166,7 @@ sns.barplot(x=x, y=y, data = data,
 ax.set(ylabel = "syntenic length", xlabel = "")
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.legend(bbox_to_anchor = (1,1))
-outf = "%smrca_x_syn_lengths_arch.pdf" % RE
+outf = "%sTFBS_ONLY_mrca_x_syn_lengths_arch.pdf" % RE
 
 plt.savefig(outf, bbox_inches = 'tight')
 
@@ -178,43 +189,48 @@ ax.set_xticklabels(ticklabs)
 ax.legend(bbox_to_anchor = (1,1))
 ax.set(ylabel = "sum length (bp)", xlabel = "")
 
-plt.savefig("%ssum_arch_length_all_fantom_shuffle.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%s_TFBS_ONLY_sum_arch_length_all_fantom_shuffle.pdf" %RE, bbox_inches = "tight")
 
 
 #%% mean lengths
 
+comp = "fantom_tfbs_only_v_shuffle"
 
-sum_archlen.groupby(["id", "arch"])["syn_len"].mean()
+lens = sum_archlen.groupby(["id", "arch"])["syn_len"].mean().reset_index()
+pcts = sum_archlen.groupby(["id", "arch"])["pct_enh"].mean().reset_index()
 
+outf = f"{RE}{comp}_lens_metrics.tsv"
+lens.to_csv(outf, sep = '\t')
 
-'''
-mean lengths
+outf = f"{RE}{comp}_pcts_metrics.tsv"
+pcts.to_csv(outf, sep = '\t')
 
-id       arch
-FANTOM   complex_core       195.824845 bp long
-         complex_derived    173.842735
-         simple             276.605902
+fantom_core_len = sum_archlen.loc[(sum_archlen.id == "YES_TFBS")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
 
-SHUFFLE  complex_core       177.303235
-         complex_derived    189.748677
-         simple             274.325146
-'''
-fantom_core_len = sum_archlen.loc[(sum_archlen.id == "FANTOM")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
+shuffle_core_len = sum_archlen.loc[(sum_archlen.id == "NO_TFBS")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
 
-shuffle_core_len = sum_archlen.loc[(sum_archlen.id == "SHUFFLE")& (sum_archlen["arch"] == "complex_core"), "syn_len"]
+fantom_der_len = sum_archlen.loc[(sum_archlen.id == "YES_TFBS")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
 
-fantom_der_len = sum_archlen.loc[(sum_archlen.id == "FANTOM")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
-
-shuffle_der_len = sum_archlen.loc[(sum_archlen.id == "SHUFFLE")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
+shuffle_der_len = sum_archlen.loc[(sum_archlen.id == "NO_TFBS")& (sum_archlen["arch"] == "complex_derived"), "syn_len"]
 
 
-stats.mannwhitneyu(fantom_core_len, shuffle_core_len)
-# MannwhitneyuResult(statistic=5618698988.0, pvalue=6.696739105823158e-59)
+core_stat, core_p = stats.mannwhitneyu(fantom_core_len, shuffle_core_len)
+# tfbs overlapping cores are longer than non-TFBS overlapping cores
+# MannwhitneyuResult(statistic=6404937.5, pvalue=6.22796958050998e-72)
 
-stats.mannwhitneyu(fantom_der_len, shuffle_der_len)
-# MannwhitneyuResult(statistic=5679021719.5, pvalue=3.4235490637653475e-49)
+der_stat, der_p = stats.mannwhitneyu(fantom_der_len, shuffle_der_len)
+# tfbs overlapping derived regions are longer than non-TFBS overlapping cores
+# MannwhitneyuResult(statistic=7359068.0, pvalue=3.2945921502934066e-24)
 
-sum_archlen.groupby(["id", "arch"])["pct_enh"].mean()
+mwu_df = pd.DataFrame({
+"comparison": [comp, comp],
+"mwu_analysis": ["core_w_TFBS_v_wo_TFBS", "der_w_TFBS_v_wo_TFBS"],
+"stat": [core_stat, der_stat],
+"P": [core_p, der_p]
+})
+outf = f"{RE}{comp}_MWU_core_der_lens.tsv"
+
+mwu_df.to_csv(outf, sep = '\t')
 #%%
 
 
@@ -235,7 +251,7 @@ hue = hue, palette =archpal, errwidth= 10)
 ax.set(ylabel = "Percent of enhancer length", xlabel = "")
 ax.set_xticklabels(ticklabs)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_all.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sTFBS_ONLY_fantom_percent_all.pdf" % RE, bbox_inches = "tight")
 
 
 
@@ -262,7 +278,7 @@ ax.set(ylabel = "Percent of enhancer length", xlabel = "")
 
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_percent_arch_mrca_2.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sTFBS_ONLY_fantom_percent_arch_mrca_2.pdf" % RE, bbox_inches = "tight")
 
 #%%
 
@@ -281,7 +297,7 @@ hue_order = order2,  palette = archpal, errwidth= 5)
 ax.set(ylabel = "syntenic length", xlabel = "")
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sfantom_syn_len_mrca_2.pdf" % RE, bbox_inches = "tight")
+plt.savefig("%sTFBS_ONLY_fantom_syn_len_mrca_2.pdf" % RE, bbox_inches = "tight")
 #%%
 
 shuf_remove_ids = sum_archlen.loc[(sum_archlen["mrca_2"] == 0) & (sum_archlen.core ==0), "enh_id"]

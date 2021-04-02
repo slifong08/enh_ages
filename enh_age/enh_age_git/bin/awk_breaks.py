@@ -91,6 +91,7 @@ def os_remove(files):
     print("REMOVE FILE", cmd)
     os.system(cmd)
 
+
 # remove extra tabs
 def stripTabs(infile, tempfile):
     print("STRIPTABS")
@@ -100,6 +101,7 @@ def stripTabs(infile, tempfile):
     rename_cmd = "mv %s %s" % (tempfile, infile) # the infile is now stripped, no need to return file.
     os.system(rename_cmd)
 
+
 # sort bedfile
 def sort_bed(infile):
     sid = (infile.split("/")[-1]).split(".")[0]
@@ -108,6 +110,19 @@ def sort_bed(infile):
     cmd = "sort -k1,1 -k2,2 -k3,3 %s > %s && mv %s %s" % (infile, temp, temp, infile)
     print("SORTING FILE")
     os.system(cmd)
+
+
+# create a list of autosome chromosomes
+def make_chr_list():
+    n = list(np.arange(1, 23))
+    #n.append("X")
+
+    chr_list = []
+    for num in n:
+        chrn = "chr" + str(num)
+        chr_list.append(chrn)
+
+    return chr_list
 
 
 # bedtools intersection w/ chr-specific syntenic block.
@@ -136,7 +151,7 @@ def age_enh(test_enh, sample_id, test_path, species):
 
     os.chdir(outpath)
 
-    SEX_CHR = ["chrX", "chrM", "chrY"]
+    autosomes = make_chr_list()
 
 
     # for files w/ regions from multiple chromosomes.
@@ -153,7 +168,7 @@ def age_enh(test_enh, sample_id, test_path, species):
 
             chr_num = (f.split("/")[-1]).split("_")[0]
 
-            if chr_num not in SEX_CHR: # filter out sex chromosomes.
+            if chr_num in autosomes: # only include autosomes
                 sort_bed(f) # sort the file
                 bedintersect_syn(f, species, chr_num, sample_id, outpath) # syntenic blcok intersection
                 os_remove(f) # remove the chromosome file temp
@@ -179,6 +194,7 @@ def age_enh(test_enh, sample_id, test_path, species):
         print("nothing to delete - single chromosome analysis")
 
         return outfile
+
 
 def break_scripts(age_file, sample_id, test_path, species):
 
@@ -252,7 +268,7 @@ def break_scripts(age_file, sample_id, test_path, species):
     print("opening files")
 
     mrca_df = pd.read_csv(mrca_file, sep='\t', header = None)
-    mrca_df.columns = ["chr_enh", "start_enh", "end_enh", "sample_id", "mrca", "syn_len", "enh_id"]
+    mrca_df.columns = ["#chr_enh", "start_enh", "end_enh", "sample_id", "mrca", "syn_len", "enh_id"]
     mrca_df.sort_values(by = "enh_id")
 
     seg_df = pd.read_csv(seg_count_file, sep='\t', header = None)
@@ -279,7 +295,7 @@ def break_scripts(age_file, sample_id, test_path, species):
     breaksdf.loc[breaksdf["core_remodeling"] ==1, "arch"] = "complexenh"
 
     # reorder columns
-    breaksdf = breaksdf[["chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
+    breaksdf = breaksdf[["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
                 "seg_index", "core_remodeling", "arch", "mrca"]]
 
     # merge with other age, taxon annotations
@@ -294,7 +310,7 @@ def break_scripts(age_file, sample_id, test_path, species):
 
     out_summarized_bed = "%s%s_enh_age_arch_summary_matrix.bed" % (outpath, sample_id)
 
-    breaksdf.to_csv(out_summarized_bed, sep = '\t', index = False, header = False)
+    breaksdf.to_csv(out_summarized_bed, sep = '\t', index = False)
 
     if os.path.exists(headerf) ==False:
 
@@ -342,7 +358,7 @@ def calculateExpected(test_enh, sample_id, shuffle_path, species, iters):
     return rand_out
 
 
-
+# keep only the first 4 columns of the bed file.
 def preformatBedfile(test_enh, sample_id, test_path):
 # before analysis, format bed file. Allow only 4 cols (chr, start, end, sample_id)
 
@@ -409,7 +425,6 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
         print("NO AGING, JUST", AGE_F)
 
         break_file = break_scripts(AGE_F, SAMPLE_ID, TEST_PATH, SPECIES)
-
 
 
 ###

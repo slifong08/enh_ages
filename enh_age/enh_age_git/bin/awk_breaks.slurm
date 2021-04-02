@@ -3,8 +3,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
-#SBATCH --time=18:00:00
-#SBATCH --mem=20GB
+#SBATCH --time=10:00:00
+#SBATCH --mem=8GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/enh_age/
 
 #SBATCH --job-name=age_enh
