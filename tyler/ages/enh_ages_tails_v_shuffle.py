@@ -279,9 +279,9 @@ def arch_frequency(catdf):
     fc_dict = {} # collect fold chanfe results
     summary_age_arch_dict = {} # collect summarized age frequencies per dataset
 
-    for dataset in catdf.dataset_name.unique():
+    for dataset_name in catdf.dataset_name.unique():
 
-        test = catdf.loc[catdf.dataset_name == dataset]
+        test = catdf.loc[catdf.dataset_name == dataset_name]
 
         # count n enhancers in architecture per age
         age_arch = test.groupby(["id", "arch", "mrca_2"])["enh_id"].count().reset_index()
