@@ -348,8 +348,9 @@ res, res_stats = format_df_get_stats(multi, age, desc_df, RE, TRIM_LEN)
 print(res.groupby("arch")["count_overlap"].mean())
 """
 arch        mean of median tissue overlaps in 98 datasets
-complex    7.877551
-simple     5.459184
+complex    10.732765
+simple     8.435433
+p = 0.0
 """
 complex = res.loc[(res.arch == "complex")]["count_overlap"]
 simple = res.loc[(res.arch == "simple")]["count_overlap"]

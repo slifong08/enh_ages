@@ -271,7 +271,7 @@ def sim_and_bootstrap_freq_overlap(df):
 
     return df
 
-    
+
 def get_arch_snp_counts(df, sig):
 
     # Simple

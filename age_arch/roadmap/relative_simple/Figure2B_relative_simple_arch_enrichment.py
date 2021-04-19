@@ -18,20 +18,20 @@ shufcolors = ["amber", "greyish"]
 shuf_pal =sns.xkcd_palette(shufcolors)
 simple_break_percentile = 0.5
 
-CALCULATE_OR = 1 # if 1, recalculate ORs
+CALCULATE_OR = 0 # if 1, recalculate ORs
 
 #%% Files
 
 
 to_do_list = ["E114"]
 
-pre_path = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
-path = "%sbreaks/" % pre_path
+PATH = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/"
+
 
 # file contains both enhancer + 10 shuffled breaks.
-enhFs= glob.glob("%sROADMAP_*_enh_and_shuf_age_arch_summary_matrix.tsv" % (path))
+enhFs= glob.glob(f"{PATH}Hsap_H3K27ac_plus_H3K4me3_minus_E*/non-genic/no-exon_E*_parallel_breaks_enh_age_arch_summary_matrix.bed")
 
-enh_percentiles = "%sall_ROADMAP_breaks_percentiles.bed" % path
+enh_percentiles = f"{PATH}breaks/all_ROADMAP_breaks_percentiles.bed"
 pdf = pd.read_csv(enh_percentiles, sep = '\t')
 
 len(enhFs)
@@ -47,7 +47,7 @@ syn_gen_bkgd
 
 
 # tissue/cell line dataset descriptions
-desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/roadmap_hg19_sample_id_desc.csv"
+desc_file = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/roadmap_hg19_sample_id_desc.csv"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
 

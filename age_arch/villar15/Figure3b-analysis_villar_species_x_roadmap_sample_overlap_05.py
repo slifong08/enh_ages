@@ -109,6 +109,31 @@ def match_len(simple_df, complex_df, base_len):
     return final_matched_id.matching_ids.unique()
 
 
+def get_counts(df, strat):
+
+    if strat == 1:
+        counts = df.groupby(["mrca_2", "core_remodeling"])["enh_id"].count().reset_index()
+
+        # add empty dataframe for complex human enhancers (do not exist by our def)
+        empty = pd.DataFrame({"mrca_2": [0.000],
+        "core_remodeling": [1],
+        "enh_id": [0]
+        })
+
+        counts = pd.concat([counts, empty]) # concat the dataframe
+
+        counts =counts.sort_values(by = ["core_remodeling", 'mrca_2']).reset_index()
+
+    else:
+        counts = df.groupby("arch")["enh_id"].count().reset_index()
+        counts =counts.sort_values(by = "arch", ascending = False).reset_index()
+
+    counts["enh_id"] = counts["enh_id"].astype(int)
+    counts = counts.drop(["index"], axis = 1)
+
+    return counts
+
+
 # In[5]:
 
 
@@ -252,13 +277,6 @@ matched = matched.loc[matched.chr_enh != "chrX"]
 matched.head()
 
 
-# In[77]:
-
-
-b.seg_index.median()
-
-
-# In[78]:
 
 
 matched.groupby("core_remodeling")["enh_id"].count()
@@ -268,7 +286,8 @@ matched.groupby("core_remodeling")["enh_id"].count()
 
 
 
-mwu, p = stats.mannwhitneyu(matched.loc[matched.core_remodeling == 1, "hq_act"],matched.loc[matched.core_remodeling != 1, "hq_act"])
+mwu, p = stats.mannwhitneyu(matched.loc[matched.core_remodeling == 1, "hq_act"],\
+matched.loc[matched.core_remodeling != 1, "hq_act"])
 print(mwu, p)
 
 
@@ -276,17 +295,9 @@ print(mwu, p)
 matched.groupby("core_remodeling")["hq_act"].mean()
 
 
-# In[80]:
-
-
-matched.hq_act.max()
-
-
-# In[83]:
-
-
 order = ["simple", "complexenh"]
 
+matched.head()
 
 #%%
 
@@ -298,25 +309,51 @@ fig = plt.figure(figsize = (12, 8))
 gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
 ax0 = plt.subplot(gs[0])
 
-sns.barplot(x = "arch", y = "hq_act", data = matched,
+splot = sns.barplot(x = "arch", y = "hq_act", data = matched,
             palette = palette, order = order,
             ax = ax0)
-nsimple = len(matched.loc[matched.arch == "simple"])
-ncomplex = len(matched.loc[matched.arch != "simple"])
-labels = ["n = %s"%nsimple, "n = %s"%ncomplex, ]
-ax0.set_xticklabels(labels, rotation = 90)
+STRAT = 0
+counts = get_counts(matched, STRAT)
+for n, p in enumerate(splot.patches):
+    value = counts.iloc[n]["enh_id"]
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.10),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
+
+ax0.set_xticklabels(["simple", "complex"], rotation = 90)
 ax0.set(xlabel="", ylabel ="Number of Active Species", ylim=(0,3))
 ax0.yaxis.set_major_locator(MultipleLocator(1))
 
 sns.set("poster")
 
 ax2 = plt.subplot(gs[1])
-sns.barplot(x = "taxon2", y = "hq_act", hue = "core_remodeling",
+mplot = sns.barplot(x = "taxon2", y = "hq_act", hue = "core_remodeling",
               data = matched.sort_values(by = "mrca_2"),
                 palette = palette,
             ax = ax2)
-
-ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
+STRAT = 1
+counts = get_counts(matched, STRAT)
+counts
+for n, p in enumerate(mplot.patches):
+    value = counts.iloc[n]["enh_id"].astype(int)
+    mplot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.05),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
+xlab = ['Homo', 'Prim', 'Euar', 'Bore', 'Euth', 'Ther', 'Mam',
+'Amni', 'Tetr', 'Vert']
+ax2.set_xticklabels(xlab, rotation = 90)
 sns.set("poster")
 ax2.yaxis.set_major_locator(MultipleLocator(1))
 ax2.set(ylabel="",  ylim=(0,3), yticklabels = "")
