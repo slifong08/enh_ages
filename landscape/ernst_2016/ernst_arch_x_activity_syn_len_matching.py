@@ -44,7 +44,7 @@ def formatdf(f, cell_model):
     # assign architecture
     cldf["arch"] = "complex_core"
     cldf.loc[cldf.core == 0, "arch"] = "complex_derived"
-    cldf.loc[cldf.core_remodeling == 0, "arch"] = "simple"
+    cldf.loc[cldf.core_remodeling == 0, "arch"] = "core"
 
     cldf["syn_id"] = cldf.chr_syn + ":" +cldf.start_syn.map(str) + "-" + cldf.end_syn.map(str)
     cldf["syn_len"] = cldf.end_syn - cldf.start_syn
@@ -76,18 +76,54 @@ def formatdf(f, cell_model):
     return cldf, active_cldf, wtact
 
 
-def make_pdf(file_name, RE):
+def custom_round(x, base=10):
+    return int(base * round(float(x)/base))
 
-    OUTFILE = file_name + ".pdf"
-    OUTF = os.path.join(RE, OUTFILE)
 
-    return OUTF
+def match_len(core_df, der_df, base_len):
+
+    columns = ["syn_id", "syn_len"]
+    columns_names = ["matching_ids", "matching_len"]
+
+    core = core_df[columns].drop_duplicates()
+
+    core.columns = columns_names
+    core.matching_len = core.matching_len.astype(float).apply(lambda x: custom_round(x, base=base_len)) # round to the nearest 100bp
+
+    der = der_df[columns].drop_duplicates()
+    der.columns = columns_names
+
+    der.matching_len = der.matching_len.astype(float).apply(lambda x: custom_round(x, base=base_len))
+
+    lens = set(list(core.matching_len.unique()) + list(der.matching_len.unique())) # find the intersecting lengths
+
+    match_dict = {}
+
+    for length in lens:
+        dern = der.loc[der.matching_len == length].size
+        coren = core.loc[core.matching_len == length].size
+
+        sn = min(dern, coren)
+
+        if length > 0 and sn > 0:
+
+
+            # find 100 matched enhancer samples
+
+            der_ids = der.loc[der.matching_len == length].sample(n = sn, replace = True) # sample w/ replacement
+            core_ids = core.loc[core.matching_len == length].sample(n = sn, replace = True) # sample w/ replacement
+            balanced = pd.concat([core_ids, der_ids])
+            match_dict[sn] = balanced
+
+    final_matched_id = pd.concat(match_dict.values())
+
+    return final_matched_id.matching_ids.unique()
 
 
 def plot_activity(x, y, df, outf, cell_model):
 
 
-    order = ["simple", "complex_core", "complex_derived"]
+    order = ["core", "complex_core", "complex_derived"]
     data = df
 
     fig, ax = plt.subplots(figsize = (6,6))
@@ -103,7 +139,7 @@ def plot_activity(x, y, df, outf, cell_model):
     complex_activity = df.loc[df.arch == "complex_core", y]
 
     stat, p = stats.mannwhitneyu(derived_activity, complex_activity)
-    xticklabs = ["simple", "complex\ncore", "complex\nderived"]
+    xticklabs = ["core", "der\ncore", "der\nderived"]
 
     ax.set(
     xticklabels = xticklabs,
@@ -143,7 +179,7 @@ def plot_stratified_age(act_df, outf, x):
     y = "act/synlen"
     hue = "arch"
     data = act_df
-    order = ["simple", "complex_core", "complex_derived"]
+    order = ["core", "complex_core", "complex_derived"]
 
 
     fig, ax = plt.subplots(figsize = (6,6))
@@ -155,7 +191,7 @@ def plot_stratified_age(act_df, outf, x):
     hue_order = order,
     palette = palette
     )
-    labs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
+    labs = ["prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
     ax.set_xticklabels(labs, rotation = 90)
     ax.legend(bbox_to_anchor = (1,1))
 
@@ -171,48 +207,64 @@ MPRAF = os.path.join(MPRAPATH, MPRAFILE)
 
 k562_info, k562_active_df, k562_wtact = formatdf(MPRAF, CELL_MODEL)
 
+#%%
+
+core_df = k562_active_df.loc[k562_active_df.arch == "complex_core"]
+der_df = k562_active_df.loc[k562_active_df.arch == "complex_derived"]
+
+base_len = 10
+matched_ids = match_len(core_df, der_df, base_len)
+
+matched_k562 = k562_active_df.loc[k562_active_df["syn_id"].isin(matched_ids)]
+#%%
+sns.distplot(k562_active_df.loc[k562_active_df.arch == "complex_core", "syn_len"], label = "core")
+sns.distplot(k562_active_df.loc[k562_active_df.arch == "complex_derived", "syn_len"], label = "der")
+
+plt.legend()
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_NOT_len_matched.pdf"
+plt.savefig(outf, bbox_inches = "tight")
+
 #%% plot activity stratified by age
+sns.distplot(matched_k562.loc[matched_k562.arch == "complex_core", "syn_len"], label = "core")
+sns.distplot(matched_k562.loc[matched_k562.arch == "complex_derived", "syn_len"], label = "der")
+plt.legend()
+outf =  f"{RE}{CELL_MODEL}_ernst_active_bases_dist_len_matched.pdf"
+plt.savefig(outf, bbox_inches = "tight")
+#%%
 CELL_MODEL = "K562"
 
-outf = make_pdf("%s_ernst_active_bases_dist_mrca2.pdf"% CELL_MODEL, RE)
+outf =f"{RE}{CELL_MODEL}_ernst_active_bases_dist_mrca2_len_matched.pdf"
 x = "mrca_2"
-plot_stratified_age(k562_active_df, outf, x)
+plot_stratified_age(matched_k562, outf, x)
 
 
-outf = make_pdf("%s_ernst_active_bases_dist_core_mrca2.pdf"% CELL_MODEL, RE)
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_core_mrca2_len_matched.pdf"
 x = "core_mrca_2"
-plot_stratified_age(k562_active_df, outf, x)
+plot_stratified_age(matched_k562, outf, x)
 
 
 #%%
 
-plot_dist(k562_active_df, "activity")
+plot_dist(matched_k562, "activity")
 
-plot_dist(k562_active_df, "act/synlen")
+plot_dist(matched_k562, "act/synlen")
 
 #%% plot results
 
 CELL_MODEL = "K562"
 x = "arch"
 y = "act/synlen"
-outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
-plot_activity(x, y, k562_active_df, outf, CELL_MODEL)
-k562_active_df.groupby("arch")[y].mean()
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_mrca2_len_matched.pdf"
+plot_activity(x, y, matched_k562, outf, CELL_MODEL)
+matched_k562.groupby("arch")[y].mean()
 
 """
 arch            act/synlen
 complex_core       0.009983
 complex_derived    0.014807
-simple             0.006812
+core             0.006812
 """
 
-#%% max weighted activity
-
-CELL_MODEL = "K562"
-x = "arch"
-y = "max_act/synlen"
-outf = make_pdf("%s_ernst_max_activity_per_bases_dist.pdf"% CELL_MODEL, RE)
-plot_activity(x, y, k562_wtact, outf, CELL_MODEL)
 
 
 #%% how many arch bases are there?
@@ -225,7 +277,7 @@ k562_freq
 	arch	total_bp_count	active_bp_count	freq
 0	complex_core	123074	9906	0.080488
 1	complex_derived	108501	8119	0.074829
-2	simple	343675	26658	0.077567
+2	core	343675	26658	0.077567
 """
 #%% ### HEPG2 ###
 
@@ -238,39 +290,56 @@ hepg2_info, hepg2_active_df, wtact_hepg2 = formatdf(MPRAF, CELL_MODEL)
 
 
 #%%
+
+core_df = hepg2_active_df.loc[hepg2_active_df.arch == "complex_core"]
+der_df = hepg2_active_df.loc[hepg2_active_df.arch == "complex_derived"]
+
+base_len = 10
+matched_ids = match_len(core_df, der_df, base_len)
+
+matched_hepg2 = hepg2_active_df.loc[hepg2_active_df["syn_id"].isin(matched_ids)]
+#%%
 x = "mrca_2"
-outf = make_pdf("%s_ernst_active_bases_dist_mrca2.pdf"% CELL_MODEL, RE)
-plot_stratified_age(hepg2_active_df, outf, x)
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_mrca2_len_matched.pdf"
+plot_stratified_age(matched_hepg2, outf, x)
 
 x = "core_mrca_2"
-outf = make_pdf("%s_ernst_active_bases_dist_core_mrca2.pdf"% CELL_MODEL, RE)
-plot_stratified_age(hepg2_active_df, outf, x)
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_core_mrca2_len_matched.pdf"
+plot_stratified_age(matched_hepg2, outf, x)
 
 #%%
-plot_dist(hepg2_active_df, "activity")
-plot_dist(hepg2_active_df, "act/synlen")
+plot_dist(matched_hepg2, "activity")
+plot_dist(matched_hepg2, "act/synlen")
 
 #%% plot results
 CELL_MODEL = "HEPG2"
 x = "arch"
 y = "act/synlen"
-outf = make_pdf("%s_ernst_active_bases_dist.pdf"% CELL_MODEL, RE)
-plot_activity(x, y, hepg2_active_df, outf, CELL_MODEL)
-hepg2_active_df.groupby("arch")[y].mean()
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_len_matched.pdf"
+plot_activity(x, y, matched_hepg2, outf, CELL_MODEL)
+matched_hepg2.groupby("arch")[y].mean()
 
 """
 arch        activity/syn_len
 complex_core       0.010030
 complex_derived    0.013797
-simple             0.006812
+core             0.006812
 """
 #%%
-CELL_MODEL = "HEPG2"
-x = "arch"
-y = "max_act/synlen"
-outf = make_pdf("%s_ernst_weighted_activity_bases_dist.pdf"% CELL_MODEL, RE)
-plot_activity(x, y, wtact_hepg2, outf, CELL_MODEL)
+sns.distplot(hepg2_active_df.loc[hepg2_active_df.arch == "complex_core", "syn_len"], label = "core")
+sns.distplot(hepg2_active_df.loc[hepg2_active_df.arch == "complex_derived", "syn_len"], label = "der")
 
+plt.legend()
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_NOT_len_matched.pdf"
+plt.savefig(outf, bbox_inches = "tight")
+
+
+#%% plot activity stratified by age
+sns.distplot(matched_hepg2.loc[matched_hepg2.arch == "complex_core", "syn_len"], label = "core")
+sns.distplot(matched_hepg2.loc[matched_hepg2.arch == "complex_derived", "syn_len"], label = "der")
+plt.legend()
+outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_len_matched.pdf"
+plt.savefig(outf, bbox_inches = "tight")
 #%% how many arch bases are there?
 
 hepg2_freq = get_act_freq(hepg2_info, hepg2_active_df)
@@ -281,7 +350,7 @@ hepg2_freq
 	arch	total_bp_count	active_bp_count	freq
 0	complex_core	133777	9076	0.067844
 1	complex_derived	103403	6498	0.062842
-2	simple	345740	27672	0.080037
+2	core	345740	27672	0.080037
 """
 #%%
 

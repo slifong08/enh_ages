@@ -84,13 +84,6 @@ def loadConstants(species):  # note chrom.sizes not used in current implementati
             }[species]
 
 
-# remove files
-def os_remove(files):
-
-    cmd = "rm %s" % files
-    print("REMOVE FILE", cmd)
-    os.system(cmd)
-
 
 # remove extra tabs
 def stripTabs(infile, tempfile):

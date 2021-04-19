@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import os
 import pandas as pd
 from scipy import stats
@@ -6,7 +7,6 @@ import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
 import subprocess
-
 
 
 FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
@@ -17,6 +17,7 @@ FANTOM_TFBS_ONLY = f"{FANTOMPATH}enh_tfbs_only.txt"
 
 SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/first_round_breaks"
 SHUFFILE = "no-exon_syn_breaks_shuf-all_fantom_enh_ages.bed"
+SHUFFILE = "noexon.bed"
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
 
@@ -43,6 +44,22 @@ colors = [ "amber", "greyish",  "dusty purple", "brown grey",  "windows blue", "
 archpal = sns.xkcd_palette(colors)
 sns.palplot(archpal)
 
+
+colors = [ "amber", "dusty purple", "windows blue"]
+PAL = sns.xkcd_palette(colors)
+sns.palplot(PAL)
+
+colors = [ "windows blue"]
+DERPAL = sns.xkcd_palette(colors)
+sns.palplot(DERPAL)
+
+colors = ["amber", "greyish", "faded green", "slate grey"]
+ESPAL = sns.xkcd_palette(colors)
+sns.palplot(ESPAL)
+
+colors = ["amber", "faded green"]
+EPAL = sns.xkcd_palette(colors)
+sns.palplot(EPAL)
 
 
 #%%
@@ -307,3 +324,199 @@ sum_archlen.loc[sum_archlen.enh_id == test]
 shuf.loc[shuf.enh_id == test]
 testsyn = "chr14:89971596-89971729"
 shuf.loc[shuf.syn_id == testsyn]
+#%%
+
+enh[["core_remodeling", "enh_id"]].drop_duplicates().groupby("core_remodeling")["enh_id"].count()
+"""
+core_remodeling
+0    13684
+1     8683
+
+Total = 22367
+% simple = 61.2%
+Name: enh_id, dtype: int64
+"""
+
+#%%
+def MRCA_frequency(catdf, cols, var):
+
+    age_dict = {} # collect age frequency results per dataset
+    summary_age_dict = {} # collect summarized age frequencies per dataset
+
+    for n, dataset in enumerate(catdf["id"].unique()):
+        # count n enhancers in architecture per age
+        test = catdf.loc[catdf["id"] == dataset]
+
+        age = test.groupby(cols)["enh_id"].count().reset_index()
+
+        # rename columns
+        age.columns = cols + ["counts"]
+
+        # sum total n enhancers in architecture
+        cols_no_var = list(set(cols) - set([var]))
+        totals = age.groupby(cols_no_var)["counts"].sum().reset_index()
+        # rename columns
+        totals.columns = cols_no_var + ["total_id"]
+
+        # merge dataframes
+        age = pd.merge(age, totals, how = "left")
+
+        # calculate the % of architecture in each age
+        age["freq"] = age.counts.divide(age.total_id)
+
+        age["dataset_name"] = dataset
+        age_dict[n] = age
+
+        # summarize frequencies across architectures, before/after eutherian.
+        eutherian = age.loc[age["mrca_2"] == 0.19][[ "id", "freq"]]
+        eutherian["category"] = "eutherian"
+
+        younger_thaneuth = age.loc[age["mrca_2"] <0.19].groupby(["id"])["freq"].sum().reset_index()
+        younger_thaneuth["category"] = "younger than eutherian"
+
+        older_thaneuth = age.loc[age["mrca_2"] >0.19].groupby(["id"])["freq"].sum().reset_index()
+        older_thaneuth["category"] = "older than eutherian"
+
+        summarized_freq = pd.concat([eutherian, younger_thaneuth, older_thaneuth])
+        summarized_freq["dataset_name"] = dataset
+
+        summary_age_dict[n] = summarized_freq
+
+    # concat age and summarized frequency dataframes
+    ages = pd.concat(age_dict.values())
+    summarized_freq = pd.concat(summary_age_dict.values())
+
+    # calculate fold-change of enh v. shuf expectation per shuffle
+
+
+    # select only the enhancer and specific shuffle instance
+    enhdf = ages.loc[ages["id"] == "FANTOM"]
+
+    shuf_ = ages.loc[ages["id"] != "FANTOM"]
+
+    merge_cols = list(set(cols) - set(["id"]))
+
+    fc = pd.merge(shuf_, enhdf, how = "left", on =merge_cols)
+
+    # calculate fold changes
+    fc["fold_change"] = fc["freq_y"].divide(fc["freq_x"])
+
+
+    col_id = "_".join(cols)
+    outf = f'{RE}{col_id}_freq.txt'
+    ages.to_csv(outf, sep = '\t', index = False)
+
+    outf = f'{RE}{col_id}_fold_change.txt'
+    fc.to_csv(outf, sep = '\t', index = False)
+
+    outf = f'{RE}summary_{col_id}_freq.txt'
+    summarized_freq.to_csv(outf, sep = '\t', index = False)
+
+
+
+    return ages, fc
+
+def plot_arch_freq(age_arch_freq, age_freq):
+    plots = {"age_arch_tfbs_only" : age_arch_freq, "age_tfbs_only": age_freq}
+
+    for name, frame in plots.items():
+
+        if name == "age_arch_tfbs_only": # arrange order and colors of plot.
+            frame["plot_hue"] = frame["arch"].astype(str) + "-" + frame["id"].astype(str)
+            order = ["simple-FANTOM", "simple-SHUFFLE",
+            "complex_core-FANTOM", "complex_core-SHUFFLE",
+            "complex_derived-FANTOM", "complex_derived-SHUFFLE"]
+            hue = "plot_hue"
+
+        else:
+            order = ["FANTOM", "SHUFFLE"]
+            hue = "id"
+
+        if GENOME_BUILD == "hg38":
+            xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"] # set xlabels
+        else:
+            xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+
+        sns.set("talk")
+        fig, ax = plt.subplots(figsize = (6,6))
+        x, y = "mrca_2", "freq"
+        data = frame
+
+        sns.barplot(x = x, y=y,
+        data = data,
+        hue = hue,
+        hue_order = order,
+        palette = archpal)
+
+        ax.set_xticklabels(xlabs, rotation = 90)
+        ax.legend(bbox_to_anchor = (1,1))
+
+        outf = f"{RE}{name}_freq_per_age.pdf"
+
+        plt.savefig(outf, bbox_inches= "tight")
+
+def plot_arch_fc(age_arch_fc, age_fc, arch):
+
+    plots = {"age_arch_tfbs_only":age_arch_fc, "age_tfbs_only": age_fc}
+
+    for name, fc in plots.items():
+
+        fc['log2'] = np.log2(fc["fold_change"])
+
+        archs = ["simple", "complex_core", "complex_derived"]
+
+        if name == "age_arch_tfbs_only" and arch = "all":
+            order = ["simple", "complex_core", "complex_derived"]
+            hue = "arch"
+            data = fc
+
+        if name == "age_arch_tfbs_only" and arch in archs:
+            order = [arch]
+            hue = "arch"
+            data = fc.loc[fc.arch == arch]
+
+
+        else:
+            arch = None
+            order = ["FANTOM"]
+            hue = "id_y"
+
+
+        if GENOME_BUILD == "hg38":
+            xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
+        else:
+            xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+
+        sns.set("talk")
+        fig, ax = plt.subplots(figsize = (6,6))
+        x, y = "mrca_2", "log2"
+
+
+        sns.barplot(x = x, y=y,
+        data = data,
+        hue = hue,
+        hue_order = order,
+        palette = PAL)
+        ax.set(ylabel = "Fold-Change v. Bkgd\n(log2-scaled)")
+        ax.set_xticklabels(xlabs, rotation = 90)
+        ax.legend(bbox_to_anchor = (1,1))
+        outf = f"{RE}{name}_{arch}_fold_change_per_age.pdf"
+
+
+    plt.savefig(outf, bbox_inches= "tight")
+
+
+#%%
+cols = ["id", "arch", "mrca_2"]
+var = "mrca_2"
+age_arch_freq, age_arch_fc = MRCA_frequency(df, cols, var)
+
+
+cols = ["id", "mrca_2"]
+var = "mrca_2"
+age_freq, age_fc = MRCA_frequency(df, cols, var)
+
+#%%
+GENOME_BUILD = "hg19"
+plot_arch_freq(age_arch_freq, age_freq)
+plot_arch_fc(age_arch_fc, age_fc, "all")

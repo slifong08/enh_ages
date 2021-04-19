@@ -1,6 +1,9 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 import pandas as pd
 from scipy import stats
+import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
 import subprocess
@@ -18,7 +21,7 @@ INTERSECTIONFILE = "All_FANTOM_x_ENCODE_hg19.bed"
 INTERSECTION = os.path.join(INTERSECTIONPATH, INTERSECTIONFILE)
 
 RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/encode3/"
-
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/encode3/"
 #%% Functions
 
 def bed_intersect(fantom, encode, intersection):
@@ -46,9 +49,10 @@ def format_df(df):
 
     df["overallarch"] = "simple"
     df.loc[df.core_remodeling ==1, "overallarch"] = "complex"
+
     # add syn identifier
     df["syn_id"] = df.chr_syn + ":" + df.start_syn.map(str) + "-" + df.end_syn.map(str)
-
+    df["tf"] = df.tf_id.apply(lambda x: x.split("_")[0])
     #calculate enhancer and syntenic block length.
 
     df["enh_len"] = df.end - df.start
@@ -120,7 +124,24 @@ def fdr_correction(collection_dict):
 
     return df
 
+def get_tfbs_overlap_fraction(df, groupby, val):
 
+    overlap = df.loc[df.tfoverlap_bin > 0].groupby(groupby)[val].count().reset_index()
+    overlap.columns = ["arch", "overlap"]
+
+    nooverlap = df.loc[df.tfoverlap_bin == 0].groupby(groupby)[val].count().reset_index()
+    nooverlap.columns = ["arch", "nooverlap"]
+
+    overlap = pd.merge(overlap, nooverlap, how  = "left")
+
+    overlap["total"] = overlap["overlap"] + overlap["nooverlap"]
+    overlap["frac_overlap"] = overlap.overlap.divide(overlap.total)
+    overlap["frac_nooverlap"] = overlap.nooverlap.divide(overlap.total)
+
+    outfile = f"{RE}fraction_TFBS_overlap_{groupby}.tsv"
+    overlap.to_csv(outfile, sep = '\t')
+
+    return overlap
 #%% Bed command
 
 bed_intersect(FANTOM, ENCODE, INTERSECTION)
@@ -132,13 +153,13 @@ cols = ["chr_syn", "start_syn", "end_syn",
 "seg_index", "core_remodeling", "core",
 "mrca",
 "chr_tf", "start_tf", "end_tf",
-"tf_id", "peak_len", "reads",
-"tf",  "overlap"
+"tf_id", "peak_len", "tf",
+"cell_line",  "overlap"
 ]
 
 df_ = pd.read_csv(INTERSECTION,
 sep = '\t',
-header = None)
+)
 
 df_.columns = cols # add column names
 
@@ -149,6 +170,10 @@ df = format_df(df_) # format the dataframe
 df.info()
 
 df.head()
+outf = f"{RE}ALL_FANTOM_TF.txt"
+a = df.tf.unique()
+pd.to_DataFrame(a)
+a.to_csv(outf, sep = '\t', header = False, index = False)
 #%%
 
 #%%
@@ -172,10 +197,14 @@ tf_density["tf_density"] = tf_density["tfoverlap_bin"].divide(tf_density.enh_len
 
 
 
-#%% how many enhancers do not overlap  TFs?
+#%% how many enhancers do not overlap TFs?
+
+groupby = "overallarch"
+val = "enh_id"
+overlap = get_tfbs_overlap_fraction(tf_density, groupby, val)
+overlap
 
 
-tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("overallarch")["enh_id"].count()
 
 #%% plot enhancer TF density (including zeros)
 
@@ -227,16 +256,11 @@ tf_density["tf_density"] = tf_density["tfoverlap_bin"].divide(tf_density.syn_len
 tf_density.head()
 
 #%% zero overlaps ?
-tf_density.loc[tf_density.tfoverlap_bin == 0].groupby("arch")["syn_id"].count()
 
-core_n = tf_density.loc[tf_density.arch == "complex_core"]["syn_id"].count()
-derived_n = tf_density.loc[tf_density.arch == "complex_derived"]["syn_id"].count()
-
-print(core_n, derived_n)
-
-4031/11793  # cores with no overlaps
-6820/15749 # derived with no overlaps
-
+groupby = "arch"
+val = "syn_id"
+overlap = get_tfbs_overlap_fraction(tf_density, groupby, val)
+overlap
 #%% plot syntenic block TF density
 
 
@@ -275,6 +299,9 @@ for tf in df.tf.unique():
         results = quantify_2x2(obs, comparison_name)
 
         collection_dict[comparison_name] = results
+#%%
+
+
 #%%
 
 results_df = fdr_correction(collection_dict)
