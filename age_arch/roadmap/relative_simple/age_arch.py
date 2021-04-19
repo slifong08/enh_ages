@@ -424,7 +424,7 @@ def plot_arch_fc(age_arch_fc, age_fc, sample_id):
         if GENOME_BUILD == "hg38":
             xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
         else:
-            xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+            xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
 
         sns.set("talk")
         fig, ax = plt.subplots(figsize = (6,6))
