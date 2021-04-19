@@ -21,7 +21,7 @@ fraction_overlap = sys.argv[1]
 fraction_overlap = 0.5
 
 #%% path to trimmed means
-fpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/download/h3k27ac_plus_h3k4me3_minus_peaks/"
+fpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/"
 
 
 # -a
@@ -37,7 +37,7 @@ print(test_list)
 # -a columns = chr start end enh_id maxmrca maxbreaks arch_type
 
 # -b base
-all_beds = glob.glob("%sHsap_H3K27ac_plus_H3K4me3_minus_E*.bed" % fpath)
+all_beds = glob.glob("%s/*/Hsap_H3K27ac_plus_H3K4me3_minus_E*.bed" % fpath)
 
 outpath = "/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19_roadmap_samples_enh_age/multiintersect/"
 
