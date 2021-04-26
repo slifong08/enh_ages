@@ -9,7 +9,7 @@ from scipy import stats
 import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
-RE ="/dors/capra_lab/projects/enhancer_ages/emera16/results/age_breaks/"
+RE ="/dors/capra_lab/projects/enhancer_ages/reilly15/results/age_breaks/"
 colors = [ "amber", "faded green", "dusty purple", "windows blue","greyish"]
 palette = sns.xkcd_palette(colors)
 sns.palplot(palette)
@@ -17,11 +17,13 @@ sns.palplot(palette)
 
 #%% Files
 
-path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/non-genic/"
+path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/breaks/non-genic/"
 
-enh = "%sno-exon_emera_2016_neocortical_dev_enhancers_hu_ms_parallel_breaks.bed" % path
+#enh = "%sHsap_brain_enhancers_reilly15_enh_age_arch_full_matrix.tsv" % path
+summaryEnh = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
-shufs = glob.glob("%sno-exon_shuf-emera_2016_neocortical_dev_enhancers_hu_ms-*_parallel_breaks.bed" % path)
+#shuf = "%sHsap_brain_enhancers_reilly15_negs_age_arch_full_matrix.tsv" % path
+summaryShuf = "%sno-exon_Hsap_brain_enhancers_reilly15_gapexcluded_3000_1set_negs_parallel_breaks_enh_age_arch_summary_matrix.bed" % path
 
 #%% other summary files
 
@@ -33,66 +35,113 @@ syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # r
 syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
 
 
+#%%
+
+def get_counts(res, strat):
+
+    if strat == 1:
+        counts = res.groupby(["mrca_2", "core_remodeling"])["enh_id"].count().reset_index()
+
+        # add empty dataframe for complex human enhancers (do not exist by our def)
+        empty = pd.DataFrame({"mrca_2": [0.000],
+        "core_remodeling": [1],
+        "enh_id": [0]
+        })
+
+        counts = pd.concat([counts, empty]) # concat the dataframe
+
+        counts =counts.sort_values(by = ["core_remodeling", 'mrca_2']).reset_index()
+
+    else:
+        counts = res.groupby("arch")["enh_id"].count().reset_index()
+        counts =counts.sort_values(by = "arch", ascending = False).reset_index()
+
+    counts["enh_id"] = counts["enh_id"].astype(int)
+    counts = counts.drop(["index"], axis = 1)
+
+    return counts
+
+def format_df(f):
+    cols = ["enh_id", "shuf_id", "core_remodeling", "arch","seg_index", "taxon2", "mrca_2", ]
+    df = pd.read_csv(f, sep = '\t', header = None,
+     usecols=[3,5,6,7,8,  11, 12])
+    df.columns = cols
+
+    df.mrca_2 = df.mrca_2.round(3)
+
+    return df
+
+def get_freq(df):
+
+    count = "enh_id"
+
+    if "Hsap_brain_enhancers_reilly15_gapexcluded_3000" in df.shuf_id.iloc[0]:
+        cols = ["enh_id", "core_remodeling", "shuf_id"]
+        vars = ["core_remodeling", "shuf_id"]
+
+        dataset = "SHUFFLE"
+
+    else:
+        cols = ["enh_id", "core_remodeling"]
+        vars = "core_remodeling"
+        dataset = "Reilly15"
+
+    arch = df[cols].drop_duplicates()
+    arch_freq = arch.groupby(vars)[count].count().reset_index()
+
+    if "Hsap_brain_enhancers_reilly15_gapexcluded_3000" in df.shuf_id.iloc[0]:
+        total_on = "shuf_id"
+        totals = arch.groupby(total_on)[count].count().reset_index()
+
+        totals.columns = ["shuf_id", "totals"]
+        arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
+    else:
+        arch_freq["totals"] = arch.shape[0]
+
+    arch_freq["freq"] = arch_freq[count].divide(arch_freq.totals)
+    arch_freq["dataset"] = dataset
+
+    return arch_freq
+
+
 #%% LOAD Files
-cols = ["chr_enh", "start_enh", "end_enh", "shuf_id",
- "enh_id", "seg_index", "core_remodeling", "arch", "mrca_2"]
-shuf_dict = {}
-for shuf in shufs:
-    shuf_id = (shuf.split("/")[-1]).split(".")[0]
+# Shuffle
+shuffle = format_df(summaryShuf)
+print(shuffle.shape)
+shuffle.head()
 
-    shuffle = pd.read_csv(shuf, sep = '\t', header =None)
-    shuffle.columns = cols
-    shuffle["shuf_id"] =shuf_id
 
-    shuf_dict[shuf_id] = shuffle
+#%%
+# enhancer
+final_merge = format_df(summaryEnh)
+print(final_merge.shape)
+final_merge.head()
 
-shuffle = pd.concat(shuf_dict.values())
-shuffle = shuffle.loc[shuffle.mrca_2 != "max_age"]
-shuffle["mrca_2"] = shuffle["mrca_2"].astype(float).round(3) # round ages
-
-final_merge = pd.read_csv(enh, sep = '\t', header =None)
-final_merge.columns = cols
-final_merge.shuf_id = "Emera16"
-final_merge = final_merge.loc[final_merge.mrca_2 != "max_age"]
-final_merge["mrca_2"] = final_merge["mrca_2"].astype(float).round(3) # round ages
-
+#%% RELATIVE Simple
 relative_simple = final_merge.seg_index.median()
-
+relative_simple
 final_merge["core_remodeling"]= 0
 shuffle["core_remodeling"]= 0
 final_merge.seg_index=final_merge.seg_index.astype(int)
 shuffle.seg_index=shuffle.seg_index.astype(int)
-final_merge.loc[final_merge.seg_index.astype(int)>=relative_simple, "core_remodeling"] = 1
-shuffle.loc[shuffle.seg_index.astype(int) >=relative_simple, "core_remodeling"] = 1
+final_merge.loc[final_merge.seg_index.astype(int)> relative_simple, "core_remodeling"] = 1
+shuffle.loc[shuffle.seg_index.astype(int) > relative_simple, "core_remodeling"] = 1
 print(relative_simple)
+
 #%%
-
-#%% LOAD Files
-
-
-shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]].drop_duplicates()
-shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "shuf_id"])["enh_id"].count().reset_index()
-shuf_arch_freq.head()
-
-totals = shuf_arch.groupby(["shuf_id"])["enh_id"].count().reset_index()
-totals.columns = ["shuf_id", "totals"]
-shuf_arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
-shuf_arch_freq["freq"] = shuf_arch_freq["enh_id"].divide(shuf_arch_freq.totals)
-shuf_arch_freq["dataset"] = "SHUFFLE"
-
-arch = final_merge[["enh_id", "core_remodeling"]].drop_duplicates()
-arch_freq = arch.groupby("core_remodeling")["enh_id"].count().reset_index()
-totals = len(arch)
-arch_freq["freq"] = arch_freq["enh_id"].divide(totals)
-arch_freq["dataset"] = "emera16"
+final_merge.groupby([ "core_remodeling", "mrca_2",]).describe()
 
 
-#%% PLOT emera16 simple v. SHUFFLE simple (64% v. 58% simple enhancers)
+#%% PLOT FANTOM simple v. SHUFFLE simple (64% v. 58% simple enhancers)
+
+shuf_arch_freq = get_freq(shuffle)
+arch_freq = get_freq(final_merge)
+
 archs = pd.concat([shuf_arch_freq, arch_freq]) # combine datasets for plotting
 
 shuf_colors = [ "amber", "greyish",]
 shuf_pal = sns.xkcd_palette(shuf_colors)
-hue_order = ["emera16", "SHUFFLE"]
+hue_order = ["Reilly15", "SHUFFLE"]
 
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.set_context("poster")
@@ -107,22 +156,22 @@ for p in ax.patches:
 
 ax.set(xticklabels = "", xlabel= "", title= "", ylabel= "Frequency of Dataset")
 ax.get_legend().remove()
-plt.savefig("%ssfig2.14_emera16_enh_shuf_simple_freq_rel_simple.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sreilly_enh_shuf_simple_freq_abs_simple.pdf" %RE, bbox_inches = "tight")
 
-#%% PLOT emera16 simple v. COMPLEX (64% simple v. 36% complex enhancers)
+#%% PLOT FANTOM simple v. COMPLEX (64% simple v. 36% complex enhancers)
 
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.set_context("poster")
 sns.barplot(x = "core_remodeling", y="freq", data = arch_freq, palette = palette)
 ax.set(xticklabels= ["Simple", "Complex\nEnhancer"], xlabel = "", \
-ylabel= "Frequency of Dataset", title= "emera16 Enhancer Architectures")
+ylabel= "Frequency of Dataset", title= "FANTOM Enhancer Architectures")
 for p in ax.patches:
     x=p.get_bbox().get_points()[:,0]
     y=p.get_bbox().get_points()[1,1]
     ax.annotate('{:.0f}%'.format(100.*y), (x.mean(), y),
             ha='left', va='bottom', color = "k", alpha = 0.4, fontsize = 20) # set the alignment of the text
 
-plt.savefig("%ssfig2.14_emera16_enh_simple_v_complex_freq_rel_simple.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sreilly_enh_simple_v_complex_freq_abs_simple.pdf" %RE, bbox_inches = "tight")
 
 #%% get shuffled breaks distribution
 shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
@@ -165,11 +214,11 @@ enh_totals = len(breaks)
 
 breaks_freq["freq"] = breaks_freq["enh_id"].divide(enh_totals)
 
-breaks_freq["dataset"] = "emera16"
-breaks_freq["shuf_id"] = "emera16"
+breaks_freq["dataset"] = "Reilly15"
+breaks_freq["shuf_id"] = "Reilly15"
 breaks_freq["cdf"]= np.cumsum(breaks_freq.freq)/1
 #breaks_freq = breaks_freq.drop(["enh_id"], axis = 1)
-breaks_freq.head()
+breaks_freq
 #%%
 list(breaks_freq)
 #%% make shuffle cdf look like breaks_freq
@@ -187,12 +236,13 @@ sns.lineplot(x, y, data = plot_cdf, ax = ax, hue = "dataset", palette = shuf_pal
 ax.set(xticks = (np.arange(0, plot_cdf.seg_index.max(), step = 5)), \
 xlabel = "number of segments", ylabel = "cumulative distribution",
 xlim = (0,31))
-ax.axvline(relative_simple)
-plt.savefig("%ssfig2.14_emera16_CDF_breaks_rel_simple.pdf" %RE, bbox_inches = 'tight')
+ax.axvline(1)
+plt.savefig("%sReilly15_CDF_breaks_abs_simple.pdf" %RE, bbox_inches = 'tight')
+
 
 #%% Are there fewer breaks than expected? Do an FET
 archs = pd.merge(shufbreak_freq_cdf, breaks_freq, how = "left", on = "seg_index" )
-archs.seg_index = archs.seg_index.astype(int)
+
 
 total_shuf_breaks = shuf_break_freq.groupby(["seg_index"])["enh_id"].sum().reset_index()
 
@@ -228,16 +278,29 @@ ORdf["yerr"] = ORdf.ci_upper-ORdf.ci_lower
 ORdf['log'] = np.log2(ORdf.OR)
 ORdf.head()
 #%%
+ORdf.loc[ORdf.seg_index<5, "a"].sum()
+#%%
 fig, ax = plt.subplots(figsize =(16,8))
 sns.set("poster")
-max_segs =25
-ORdf.seg_index = ORdf.seg_index.astype(int)
-firstfive = ORdf.loc[ORdf.seg_index.astype(int) <max_segs]
+max_segs = 20
+firstfive = ORdf.loc[ORdf.seg_index <max_segs]
 
-sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <max_segs],
+splot = sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <max_segs],
             linewidth=2.5, facecolor=(1, 1, 1, 0),
              edgecolor=".2",  yerr=(firstfive["ci_upper"] - firstfive["ci_lower"]))
+for n, p in enumerate(splot.patches):
 
+    value = ORdf.iloc[n]["a"].astype(int)
+
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,-0.23),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "k",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
 ax.set(ylabel= "Fold Change v. Bkgd\n(log2-scaled)",\
  xlabel = "Number of Age Segments")
  #, ylim = (-1.2,0.5))
@@ -250,14 +313,8 @@ ax.yaxis.set_major_formatter(ticks)
 ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 
+plt.savefig("%sfigS13-reilly_age_seg_fold_change_matplotlib_abs_simple.pdf" %RE, bbox_inches = "tight")
 
-plt.savefig("%sfig2.14-emera16_age_seg_fold_change_matplotlib_rel_simple.pdf" %RE, bbox_inches = "tight")
-
-#%%
-plot_cdf.head()
-#%%
-final_merge.head()
-shuffle.head()
 #%%
 def get_arch_freq(df):
 
@@ -282,13 +339,13 @@ enhAgeFreq.head()
 
 #%%
 
-Xticklabels = ["Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+Xticklabels = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
 fig, (ax, ax2) = plt.subplots(ncols = 2, figsize = (16,6))
 sns.barplot(x = "mrca_2", y = 'arch_freq', data = enhAgeFreq,
 hue = "core_remodeling", palette = palette, ax = ax)
 
 ax.set(xticklabels =Xticklabels, ylabel = '% of architecture',
-title = "Emera 16 architecture frequency", xlabel = "")
+title = "Reilly 15 architecture frequency", xlabel = "")
 
 ax.legend().remove()
 
@@ -298,13 +355,13 @@ sns.barplot(x = "mrca_2", y = 'mrca_count', data = enhAgeFreq,
 hue = "core_remodeling", palette = palette, ax = ax2)
 
 ax2.set(xticklabels =Xticklabels, ylabel = 'count',
-title = "Emera 16 architecture count", xlabel = "")
+title = "Reilly 15 architecture count", xlabel = "")
 
 ax2.legend().remove()
 
 ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
 plt.tight_layout()
-plt.savefig("%sfig2.14-emera16_mrca_x_arch_rel_simple.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2.14-reilly15_mrca_x_arch_abs_simple.pdf" %RE, bbox_inches = "tight")
 
 #%%
 shufcols = ["core_remodeling", "mrca_2", "shuf_mrca_count", "shuf_arch_total", "shuf_arch_freq"]
@@ -320,11 +377,11 @@ sns.barplot(x = "mrca_2", y = 'log2oe', data = ratio,
 hue = "core_remodeling", palette = palette, ax = ax)
 
 ax.set(xticklabels =Xticklabels, ylabel = 'Fold change\n(log2-scaled)',
-title = "Emera 16 architecture fold-change", xlabel = "")
+title = "Reilly 15 architecture fold-change", xlabel = "")
 
 ax.legend().remove()
 
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 
 plt.tight_layout()
-plt.savefig("%sfig2.14-emera16_mrca_fold_change_rel_simple.pdf" %RE, bbox_inches = "tight")
+plt.savefig("%sfig2.14-reilly15_mrca_fold_change_abs_simple.pdf" %RE, bbox_inches = "tight")

@@ -32,7 +32,7 @@ sns.palplot(arch_palette)
 
 RUN_BED = 0
 RUN_SHUF=0
-RUN_COUNTS = 0
+RUN_COUNTS = 1
 RUN_OR = 0
 
 
@@ -311,7 +311,7 @@ def make_count_df(cell_model, sig, count_list, sid):
           })
 
     newdf["cell_model"], newdf["sig_metric"], newdf["sid"] = cell_model, sig, sid
-    newdf["count_list"] = [count_list]
+    newdf["count_list"] = count_list
 
     return newdf
 
@@ -512,12 +512,12 @@ sig_dict= {'K562': "sig_k562_fdr05", 'HEPG2':"sig_hepg2_fdr05"}
 ci = {}
 all_OR_results = {} # collect all results for both K562 and HepG2 cell lines
 all_counts_results = {}
-
+all_counts_results.keys()
 
 #%% count overlaps
 
 
-RUN_COUNTS = 0
+RUN_COUNTS = 1
 
 
 if RUN_COUNTS ==1:
@@ -543,7 +543,8 @@ if RUN_COUNTS ==1:
 
                 ### Get numbers ###
                 count_list = get_arch_snp_counts(df, sig)
-                all_counts_results[key] = make_count_df(CELL_MODEL, sig, count_list, key)
+                new_key = key + "-"+ CELL_MODEL
+                all_counts_results[new_key] = make_count_df(CELL_MODEL, sig, count_list, key)
 
 
 
@@ -553,8 +554,14 @@ if RUN_COUNTS ==1:
 else:
 
     counts = pd.read_csv("%sall_trimmed_counts.tsv"% (outdata_path), sep = '\t')
+#%%
+counts.loc[counts.cell_model != "HEPG2"]
+counts.loc[counts.cell_model == "HEPG2"]
 
-
+#%%
+all_counts_results.values()
+make_count_df(CELL_MODEL, sig, count_list, key)
+counts
 #%% calculate OR
 
 

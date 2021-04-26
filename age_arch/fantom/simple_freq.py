@@ -16,13 +16,13 @@ sns.palplot(palette)
 
 
 #%% Files
-path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
+path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
 
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
+enh = "%sno-exon_all_fantom_enh/breaks/no-exon_all_fantom_enh_ages_enh_age_arch_summary_matrix.bed" % path
 
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
+
+shuf = "%sno-exon_shuffle_fantom_age_arch_summary_matrix.bed" % path
+
 
 #%% other summary files
 
@@ -38,22 +38,16 @@ syn_gen_bkgd
 desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sample_id_descriptions.txt"
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
-#%% LOAD Files
-enh = "%sFANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryEnh = "%sFANTOM_enh_age_arch_summary_matrix.tsv" % path
-
-shuf = "%sSHUFFLED_FANTOM_enh_age_arch_full_matrix.tsv" % path
-summaryShuf = "%sSHUFFLE_FANTOM_enh_age_arch_summary_matrix.tsv" % path
 
 shuffle = pd.read_csv(shuf, sep = '\t')
 final_merge = pd.read_csv(enh, sep = '\t')
 
-shuf_arch = shuffle[["enh_id", "core_remodeling", "shuf_id"]].drop_duplicates()
-shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "shuf_id"])["enh_id"].count().reset_index()
+shuf_arch = shuffle[["enh_id", "core_remodeling", "sample_id"]].drop_duplicates()
+shuf_arch_freq = shuf_arch.groupby(["core_remodeling", "sample_id"])["enh_id"].count().reset_index()
 shuf_arch_freq.head()
 
-totals = shuf_arch.groupby(["shuf_id"])["enh_id"].count().reset_index()
-totals.columns = ["shuf_id", "totals"]
+totals = shuf_arch.groupby(["sample_id"])["enh_id"].count().reset_index()
+totals.columns = ["sample_id", "totals"]
 shuf_arch_freq = pd.merge(shuf_arch_freq, totals, how = "left")
 shuf_arch_freq["freq"] = shuf_arch_freq["enh_id"].divide(shuf_arch_freq.totals)
 shuf_arch_freq["dataset"] = "SHUFFLE"
@@ -102,17 +96,17 @@ for p in ax.patches:
 plt.savefig("%sfantom_enh_simple_v_complex_freq.pdf" %RE, bbox_inches = "tight")
 
 #%% get shuffled breaks distribution
-shuf_break = shuffle.groupby(["enh_id", "shuf_id"])["seg_index"].max().reset_index()
+shuf_break = shuffle.groupby(["enh_id", "sample_id"])["seg_index"].max().reset_index()
 
-shuf_break_freq = shuf_break.groupby(["seg_index", "shuf_id"])["enh_id"].count().reset_index()
+shuf_break_freq = shuf_break.groupby(["seg_index", "sample_id"])["enh_id"].count().reset_index()
 
-shuf_totals = shuf_break_freq.groupby("shuf_id")["enh_id"].sum().reset_index()
-shuf_totals.columns = ["shuf_id", "shuf_id_totals"]
+shuf_totals = shuf_break_freq.groupby("sample_id")["enh_id"].sum().reset_index()
+shuf_totals.columns = ["sample_id", "sample_id_totals"]
 
-shuf_break_freq = pd.merge(shuf_break_freq, shuf_totals, how = "left", on = "shuf_id")
+shuf_break_freq = pd.merge(shuf_break_freq, shuf_totals, how = "left", on = "sample_id")
 
 
-shuf_break_freq["freq"] = shuf_break_freq["enh_id"].divide(shuf_break_freq.shuf_id_totals)
+shuf_break_freq["freq"] = shuf_break_freq["enh_id"].divide(shuf_break_freq.sample_id_totals)
 shuf_break_freq["dataset"] = "Shuffle"
 
 #%% cumsum FUNCTION
@@ -125,14 +119,14 @@ def get_cumsum(df):
 
 #%% get shuffled cumulative dist
 cumsum_dict = {}
-for sid in shuf_break_freq.shuf_id.unique():
-    testdf = shuf_break_freq.loc[shuf_break_freq.shuf_id == sid]
+for sid in shuf_break_freq.sample_id.unique():
+    testdf = shuf_break_freq.loc[shuf_break_freq.sample_id == sid]
     newdf = get_cumsum(testdf)
     cumsum_dict[sid] = newdf
 
 shufbreak_freq_cdf = pd.concat(cumsum_dict.values())
 
-shufbreak_freq_cdf.columns=["seg_index", "shuf_id", "shuf_count",\
+shufbreak_freq_cdf.columns=["seg_index", "sample_id", "shuf_count",\
  "shuf_totals", "shuf_freq", "shuf_dataset", "shuf_cdf"]
 shufbreak_freq_cdf.head()
 
@@ -144,7 +138,7 @@ enh_totals = len(breaks)
 breaks_freq["freq"] = breaks_freq["enh_id"].divide(enh_totals)
 
 breaks_freq["dataset"] = "FANTOM"
-breaks_freq["shuf_id"] = "FANTOM"
+breaks_freq["sample_id"] = "FANTOM"
 breaks_freq["cdf"]= np.cumsum(breaks_freq.freq)/1
 
 breaks_freq.head()
@@ -160,9 +154,9 @@ total_shuf_breaks.loc[total_shuf_breaks.seg_index ==1, "enh_id"][0]
 OR_dict = {}
 
 for seg_index in breaks_freq.seg_index.unique():
-    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"][0] # num simple enhancers
+    a = breaks_freq.loc[breaks_freq.seg_index ==seg_index, "enh_id"].item() # num simple enhancers
     b = enh_totals - a # num complex enhancers
-    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"][0] # num simple shuffle
+    c = total_shuf_breaks.loc[total_shuf_breaks.seg_index ==seg_index, "enh_id"].item() # num simple shuffle
     d = total_shuf_breaks.enh_id.sum() - c # num complex shuffle
 
     obs = [[a,b], [c,d]]
@@ -184,10 +178,22 @@ sns.set("poster")
 
 firstfive = ORdf.loc[ORdf.seg_index <6]
 
-sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <6],
+splot = sns.barplot(x = "seg_index", y = "log", data = firstfive.loc[firstfive.seg_index <6],
             linewidth=2.5, facecolor=(1, 1, 1, 0),
              edgecolor=".2",  yerr=(firstfive["ci_upper"] - firstfive["ci_lower"]))
+for n, p in enumerate(splot.patches):
 
+    value = ORdf.iloc[n]["a"].astype(int)
+
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.05),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "k",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
 ax.set(ylabel= "Fold Change v. Bkgd\n(log2-scaled)",\
  xlabel = "Number of Age Segments", ylim = (-1.2,0.5))
 
@@ -201,16 +207,4 @@ ax.yaxis.set_major_locator(MultipleLocator(0.5))
 
 plt.savefig("%sfig2b-fantom_age_seg_fold_change_matplotlib.pdf" %RE, bbox_inches = "tight")
 #%%
-hue_order = ["FANTOM", "Shuffle"]
-fig, ax = plt.subplots(figsize = (8,8))
-sns.set("poster")
-sns.barplot(x = "seg_index", y = "cdf", data = archs, hue = "dataset", hue_order = hue_order, palette = es_pal)
-ax.set(xlabel="Number of Age Segments per Enhancer",\
-ylabel = "Cumulative Frequency of Dataset",\
-title = "FANTOM Enhancer Age Segment Count\n Cumulative distribution",
-xlim=(-1, 5.5))
-
-ax.set_title("")
-ax.get_legend().remove()
-
-plt.savefig("%sfig2b-fantom_age_seg_cum_dist_matplotlib.pdf" %RE, bbox_inches = "tight")
+h

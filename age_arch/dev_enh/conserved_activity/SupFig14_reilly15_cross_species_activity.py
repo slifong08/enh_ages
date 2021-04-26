@@ -2,6 +2,7 @@ import glob
 import matplotlib.pyplot as plt
 import os, sys
 import pandas as pd
+import numpy as np
 import seaborn as sns
 from scipy import stats
 
@@ -14,19 +15,13 @@ sns.set_style("white")
 #%%
 
 
-RE = "/dors/capra_lab/projects/enhancer_ages/emera16/results/pleiotropy/"
-path = "/dors/capra_lab/projects/enhancer_ages/emera16/data/multiintersect/"
+RE = "/dors/capra_lab/projects/enhancer_ages/reilly15/results/pleiotropy/"
+path = "/dors/capra_lab/projects/enhancer_ages/reilly15/data/multiintersect/"
 f = "%strim-0.5_multiintersect_hu_count.bed" % path
 
 
-# age and taxon file
-syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
-syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
-syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
-
-syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2", "mya", "mya2"]] # whittle down the df
-
 #%%
+
 def custom_round(x, base=10):
     return int(base * round(float(x)/base))
 
@@ -70,46 +65,69 @@ def match_len(simple_df, complex_df, base_len):
 
     return final_matched_id.matching_ids.unique()
 
-#chr10	100085975	100088150	chr10:100085975-100088150	chr10:100085975-100088150	3	1	[0, 1, 0]	0.38	1
+def format_df(f):
+
+    df = pd.read_csv(f, sep= '\t', header = None)
+
+    df.columns = ["chr_enh","start_enh", "end_enh",	"enh_id", "fourth_col", "id",\
+    "core_remodeling","arch","seg_index","mrca","enh_len", "taxon", "mrca_2",\
+    "taxon2",	"mya",	"mya2",	"seg_den",	"datatype", "count_overlap"]
+
+    df["enh_len"] = df.end_enh - df.start_enh
+
+    df["mrca"] = df["mrca"].astype(float).round(3)
+
+    df = df.loc[df.chr_enh != "chrX"]
+    df = df.loc[df.enh_len < 10000]
+
+    #df = pd.merge(df, syn_gen_bkgd, how = "left", on = "mrca")
+
+    median = df.seg_index.median()
+    #median = 3
+    df.loc[df.seg_index >=median, "core_remodeling"] = 1
+    df.loc[df.seg_index >=median, "arch"] = "complexenh"
+
+    df.loc[df.seg_index <median, "core_remodeling"] = 0
+    df.loc[df.seg_index <median, "arch"] = "simple"
+
+    return df
+
+
+def get_counts(res, strat):
+
+    if strat == 1:
+        counts = res.groupby(["mrca_2", "core_remodeling"])["enh_id"].count().reset_index()
+
+        # add empty dataframe for complex human enhancers (do not exist by our def)
+        empty = pd.DataFrame({"mrca_2": [0.000],
+        "core_remodeling": [1],
+        "enh_id": [0]
+        })
+
+        counts = pd.concat([counts, empty]) # concat the dataframe
+
+        counts =counts.sort_values(by = ["core_remodeling", 'mrca_2']).reset_index()
+
+    else:
+        counts = res.groupby("arch")["enh_id"].count().reset_index()
+        counts =counts.sort_values(by = "arch", ascending = False).reset_index()
+
+    counts["enh_id"] = counts["enh_id"].astype(int)
+    counts = counts.drop(["index"], axis = 1)
+
+    return counts
 #%%
 
-
-df = pd.read_csv(f, sep= '\t', header = None, usecols = [0,1,2,3,5,6,8,9])
-df.columns = ["chr_enh","start_enh", "end_enh",	"enh_id",
-"seg_index","core_remodeling", "mrca","count_overlap"]
-
-df = df.loc[df["seg_index"] != "max_seg"]
-df.seg_index = df.seg_index.astype(int)
-
-
-#%%
-
-df["enh_len"] = df.end_enh - df.start_enh
-df["mrca"] = df["mrca"].astype(float).round(3)
-df = df.loc[df.chr_enh != "chrX"]
-df = df.loc[df.enh_len < 10000]
-df = pd.merge(df, syn_gen_bkgd, how = "left", on = "mrca")
-
-relative_simple = df.seg_index.astype(int).median()
-print(relative_simple)
-
-#median = 6
-df.loc[df.seg_index >=relative_simple, "core_remodeling"] = 1
-df.loc[df.seg_index >=relative_simple, "arch"] = "complexenh"
-
-df.loc[df.seg_index < relative_simple, "core_remodeling"] = 0
-df.loc[df.seg_index < relative_simple, "arch"] = "simple"
-
+df = format_df(f)
 #%% remove human, primate specific sequences. Sequence must be as olds as euarchontaglires (common ancestor with mouse) in order to be evaluated here.
 # removes 470 sequences
 
 print(len(df))
-
+print(median)
 #%%
 df.groupby(["core_remodeling", "arch"])["enh_id"].count()
 
 #%%
-
 
 simple_df = df.loc[df.core_remodeling ==0]
 
@@ -135,56 +153,76 @@ sns.distplot(matched.loc[matched.core_remodeling != 1, "enh_len"], kde = False, 
 plt.legend()
 
 
+
 #%% plot simple v. complex
 order = ["simple", "complexenh"]
 sns.boxplot(x= "arch", y = "count_overlap", data = matched, order = order)
 
+
 #%%
-
-
-xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther",
-"Mam", "Amni", "Tetr", "Vert"]
-
-# add a blank dataframe so these values get plotted
-blankdf = pd.DataFrame({"arch":["simple", "complexenh", "complexenh"],
-"count_overlap":[0,0,0], "core_remodeling":[0,1,1], "mrca_2":[0, 0, 0.131],
-"taxon2" :[ "Homo sapiens (0)", "Homo sapiens (0)", "Primate (72)"]})
-
 from matplotlib import gridspec
 from matplotlib.ticker import MultipleLocator
 
-plot = matched[["arch", "count_overlap", "core_remodeling", "mrca_2", "taxon2"]]
-
-plot = pd.concat([plot, blankdf])
 
 fig = plt.figure(figsize = (12, 8))
 gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
 ax0 = plt.subplot(gs[0])
 
-sns.barplot(x = "arch", y = "count_overlap", data = plot,
+splot = sns.barplot(x = "arch", y = "count_overlap", data = matched,
             palette = palette, order = order,
             ax = ax0)
-nsimple = len(plot.loc[plot.arch == "simple"])
-ncomplex = len(plot.loc[plot.arch != "simple"])
-labels = ["n = %s"%nsimple, "n = %s"%ncomplex, ]
-ax0.set_xticklabels(labels, rotation = 90)
-ax0.set(xlabel="", ylabel ="Number of Active Species", ylim=(0,3.1))
+STRAT = 0
+agecounts = get_counts(matched, STRAT)
+
+for n, p in enumerate(splot.patches):
+
+    value = agecounts.iloc[n]["enh_id"].astype(int)
+
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.05),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
+ax0.set_xticklabels(["Simple", "Complex"], rotation = 90)
+ax0.set(xlabel="", ylabel ="Number of Active Species", ylim=(0,2))
 ax0.yaxis.set_major_locator(MultipleLocator(0.5))
 
 sns.set("poster")
 
 ax2 = plt.subplot(gs[1])
-sns.barplot(x = "taxon2", y = "count_overlap", hue = "core_remodeling",
-              data = plot.sort_values(by = "mrca_2"),
+mplot = sns.barplot(x = "taxon2", y = "count_overlap", hue = "core_remodeling",
+              data = matched.sort_values(by = "mrca_2"),
                 palette = palette,
             ax = ax2)
 
-ax2.set_xticklabels(xlabs, rotation = 90)
+
+STRAT = 1
+agecounts = get_counts(matched, STRAT)
+
+for n, p in enumerate(mplot.patches):
+
+    value = agecounts.iloc[n]["enh_id"].astype(int)
+
+    mplot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.05),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
+
+ax2.set_xticklabels(ax2.get_xticklabels(), rotation = 90)
 sns.set("poster")
 ax2.yaxis.set_major_locator(MultipleLocator(0.5))
-ax2.set(ylabel="", xlabel = "", ylim=(0,3.1))
+ax2.set(ylabel="",  ylim=(0,2))
 ax2.legend().remove()
-plt.savefig("%sFigS3.3-JOINT_barplot_emera16_cross_species_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
+plt.savefig("%sFigS14-JOINT_barplot_reilly15_cross_species_overlap_x_mrca_2.pdf" % RE, bbox_inches = "tight" )
 
 #%%
 mwu, p = stats.mannwhitneyu(matched.loc[matched.arch == "simple", "count_overlap"],\
@@ -196,10 +234,4 @@ print(mwu, p)
 matched.groupby("arch")["count_overlap"].mean()
 
 #%%
-matched.groupby(["mrca_2", "core_remodeling"])["enh_id"].count()
-#%%
-matched.head()
-blankdf = pd.DataFrame({"arch":["simple", "complexenh", "complexenh"],
-"count_overlap":[0,0,0], "core_remodeling":[0,1,1], "mrca_2":[0, 0, 0.131],
-"taxon2" :[ "Homo sapiens (0)", "Homo sapiens (0)", "Primate (72)"]})
-blankdf
+RE

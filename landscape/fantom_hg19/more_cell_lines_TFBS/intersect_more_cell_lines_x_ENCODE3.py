@@ -77,7 +77,7 @@ def bed_intersect(fantom, encode, intersection):
 
         print(cmd)
     else:
-        print("previously done enh x encode intersection")
+        print("you have previously done the enh x encode intersection")
 
 
 def format_df(intersection_file):
@@ -415,6 +415,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
 
     print("\nSyn TFBS densities")
+
     # plot syn block TF density
     order = ["simple", "complex_core", "complex_derived"]
     data = tf_density_syn
@@ -481,107 +482,29 @@ der_v_core_dict[cell_line] = der_v_core
 der_v_core.head()
 
 #%%
+outf = f"{RE}derived_v_core_OR_all_fantom_x_encode3_tfbs.tsv"
+der_v_core.to_csv(outf, sep = '\t', index = False)
+
+outf = f"{RE}derived_v_bkgd_OR_all_fantom_x_encode3_tfbs.tsv"
+der_v_bkgd.to_csv(outf, sep = '\t', index = False)
+
+#%% run enrichment per cell_line
 
 ALPHA = 0.1
 MIN_INSTANCES = 50
 
-#%%
-
-cell_line = "HepG2"
-val = sample_dict[cell_line]
-
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
+cell_lines = ["HepG2", "HepG2_CL", "K562", "GM12878", "GM12878_CL",  "A549", "liver"]
+for cell_line in cell_lines:
+    val = sample_dict[cell_line]
 
 
-der_v_core.head()
+    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
-
-#%% run the CL file
-cell_line = "HepG2_CL"
-val = sample_dict[cell_line]
-
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
-
-cell_line = "K562"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-#%%
-
-cell_line = "GM12878"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-#%%
-cell_line = "GM12878_CL"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
-
-cell_line = "A549"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-
-#%%
-
-cell_line = "liver"
-val = sample_dict[cell_line]
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
+    results_dict[cell_line] = df
+    tf_den_enh[cell_line] = tf_density_enh
+    tf_den_syn[cell_line] = tf_density_syn
+    der_v_bkgd_dict[cell_line] = der_v_bkgd
+    der_v_core_dict[cell_line] = der_v_core
 
 
 #%%

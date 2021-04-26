@@ -56,7 +56,9 @@ syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]]
 
 # In[39]:
 
+#%%
 
+#%%
 
 arch_id = (fantom_fs.split("/")[-1]).split(".")[0]
 print(arch_id)

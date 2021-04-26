@@ -16,11 +16,29 @@ import statsmodels
 import statsmodels.api as sm
 
 
-#%% parameters for running script
-
+#%%
 PLOT = 0
+SAMPLE_ID = "all_fantom_enh"
 GENOME_BUILD = "hg19"
+FIG_ID = "S2"
 
+ENHPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
+ENHFILES = glob.glob(f"{ENHPATH}no-exon_all_fantom_enh/breaks/no-exon_all_fantom_enh_ages_enh_age_arch_summary_matrix.bed")
+#ENHFILES = glob.glob(f"{ENHPATH}non-genic/combined_enh_shuf_abs_simple/no-exon_E*.bed")
+
+
+# real shuffles
+
+SHUFFILES = glob.glob(f"{ENHPATH}no-exon_shuffle_fantom_age_arch_summary_matrix.bed")
+
+
+# make a dir to save results
+
+RE = os.path.join(ENHFILES[0].split("data/")[0], "results/", SAMPLE_ID +"/")
+if os.path.exists(RE) == False:
+    os.mkdir(RE)
+
+RE
 #%% palettes
 
 
@@ -703,3 +721,5 @@ for ENHF in FS:
         os.mkdir(RE)
 
     catdf = run_analyses(ENHF, SHUFFILES, SAMPLE_ID, PLOT)
+
+RE

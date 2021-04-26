@@ -17,13 +17,13 @@ es_pal = sns.xkcd_palette(es_colors)
 sns.palplot(es_pal)
 
 #%% Files
-PATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/"
-ENHPATH ="/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/breaks"
+#%% Files
+path = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/"
 
-summaryEnh = os.path.join(ENHPATH, "all_fantom_enh_enh_age_arch_summary_matrix.bed")
+summaryEnh ="%sno-exon_all_fantom_enh/breaks/no-exon_all_fantom_enh_ages_enh_age_arch_summary_matrix.bed" % path
 
 
-summaryShuf = os.path.join(PATH, "SHUFFLE_FANTOM_enh_age_arch_summary_matrix_noex.tsv")
+summaryShuf = "%sno-exon_shuffle_fantom_age_arch_summary_matrix.bed" % path
 
 #%% other summary files
 
@@ -40,24 +40,20 @@ desc_file = "/dors/capra_lab/data/fantom/fantom5/facet_expressed_enhancers/sampl
 desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 
 #%% LOAD Files
-shuf_cols =["chr", "start", "end", "enh_id","core_remodeling", "arch",\
-"seg_index", "mrca", "enh_len", "taxon", "mrca_2", "taxon2",\
-"mya", "mya2", "density", "id"]
+
 #%%
-shuffle = pd.read_csv(summaryShuf, sep = '\t', header =None, names = shuf_cols )
+shuffle = pd.read_csv(summaryShuf, sep = '\t' )
 
 shuffle.head()
 
-cols = ["chr", "start", "end", "enh_id", "id", "seg_index", "core_remodeling",
- "arch", "mrca", "taxon", "mrca_2", 'taxon2', "mya", "mya2"]
-enh = pd.read_csv(summaryEnh, sep = '\t', header = None, names = cols )
+enh = pd.read_csv(summaryEnh, sep = '\t' )
 
 #%%
 
 shuffle = shuffle[["enh_id", "core_remodeling", "mrca_2", "taxon2"]].drop_duplicates()
 enh = enh[["enh_id", "core_remodeling", "mrca_2"]].drop_duplicates()
 
-
+shuffle
 
 #%%
 
@@ -70,10 +66,10 @@ def fet_age(mrca, enh, shuffle, arch):
 
 
     # get counts
-    in_arch = in_age_enh.loc[in_age_enh.core_remodeling==arch].count()
-    not_in_arch = in_age_enh.loc[in_age_enh.core_remodeling!=arch].count()
-    shuf_in_arch = in_age_shuf.loc[in_age_shuf.core_remodeling==arch].count()
-    shuf_not_in_arch = in_age_shuf.loc[in_age_shuf.core_remodeling!=arch].count()
+    in_arch = in_age_enh.loc[in_age_enh.core_remodeling==arch].shape[0]
+    not_in_arch = in_age_enh.loc[in_age_enh.core_remodeling!=arch].shape[0]
+    shuf_in_arch = in_age_shuf.loc[in_age_shuf.core_remodeling==arch].shape[0]
+    shuf_not_in_arch = in_age_shuf.loc[in_age_shuf.core_remodeling!=arch].shape[0]
 
     # assign 2x2
     a = in_arch
@@ -83,6 +79,7 @@ def fet_age(mrca, enh, shuffle, arch):
 
 
     obs = [[a,b],[c,d]]
+    print(obs)
     OR, P = stats.fisher_exact(obs)
     table = sm.stats.Table2x2(obs) # get confidence interval
     odds_ci = table.oddsratio_confint()
@@ -139,13 +136,25 @@ y ="log2"
 
 data = df.loc[df.mrca_2>0].sort_values(by = "mrca_2")
 
-sns.barplot( x=x, y=y, data = data,
+splot = sns.barplot( x=x, y=y, data = data,
 linewidth=2.5, facecolor=(1, 1, 1, 0), edgecolor=".2",
 yerr =data["yerr"])
 
+for n, p in enumerate(splot.patches):
 
+    value = ORdf.iloc[n]["a"].astype(int)
+
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.2),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "k",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
 ax.set(ylabel= "Fold Change v. Bkgd\n(log2-scaled)",\
- title = "Complex enrichment per age", xlabel = "")#ylim = (-1.2,0.5))
+ title = "Complex enrichment per age", xlabel = "", ylim = (-2,1.2))
 
 plt.axhline(0, color = "grey", linewidth = 2.5)
 
@@ -157,4 +166,4 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 sns.set("poster")
 sns.set_style("white")
 
-plt.savefig("%scomplex_odds_per_mrca.pdf" % RE, bbox_inches = 'tight')
+plt.savefig("%sFigS6B_complex_odds_per_mrca.pdf" % RE, bbox_inches = 'tight')

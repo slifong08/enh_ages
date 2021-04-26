@@ -97,6 +97,7 @@ def stripTabs(infile, tempfile):
 
 # sort bedfile
 def sort_bed(infile):
+
     sid = (infile.split("/")[-1]).split(".")[0]
     path = "/".join(infile.split("/")[:-1])
     temp = "%s%s_sorted.bed" % (path, sid)
@@ -164,10 +165,10 @@ def age_enh(test_enh, sample_id, test_path, species):
             if chr_num in autosomes: # only include autosomes
                 sort_bed(f) # sort the file
                 bedintersect_syn(f, species, chr_num, sample_id, outpath) # syntenic blcok intersection
-                os_remove(f) # remove the chromosome file temp
+                os.remove(f) # remove the chromosome file temp
 
             else:
-                os_remove(f) # delete the sex chromosomes
+                os.remove(f) # delete the sex chromosomes
 
         # concatenate all the chromosomes together again
         concat_file = "%s/%s_ages.bed" % (outpath, sample_id)
@@ -176,7 +177,8 @@ def age_enh(test_enh, sample_id, test_path, species):
         print("concatenating aged enhancer chromosome files")
         subprocess.call(concat_cmd, shell = True)
 
-        os_remove("%s/chr*_%s_ages.bed" %(outpath, sample_id))
+        rm_cmd = f"rm {outpath}/chr*_{sample_id}_ages.bed"
+        subprocess.call(rm_cmd, shell = True)
 
         return concat_file
 
@@ -187,6 +189,61 @@ def age_enh(test_enh, sample_id, test_path, species):
         print("nothing to delete - single chromosome analysis")
 
         return outfile
+
+
+def assemble_break_data(mrca_file, seg_count_file, syn_gen_bkgd, outpath, sample_id):
+    mrca_df = pd.read_csv(mrca_file, sep='\t')
+    mrca_df.sort_values(by = "enh_id")
+
+    seg_df = pd.read_csv(seg_count_file, sep='\t', header = None)
+    seg_df.columns = ["seg_index", "enh_id"]
+    seg_df.sort_values(by = "enh_id")
+
+    breaksdf = pd.merge(mrca_df, seg_df, how = "left", on = "enh_id")
+
+    # round the mrca value
+    breaksdf.mrca = breaksdf.mrca.round(3)
+    breaksdf["len"] = breaksdf.end_enh - breaksdf.start_enh
+    breaksdf = breaksdf.loc[breaksdf.len >5]
+
+    # add binary for simple/complex architecture based on median break value
+    breaksdf["core_remodeling"] = 0
+
+    relative_simple =  breaksdf["seg_index"].median() # get median number of age segments.
+
+    if relative_simple == 1: # if the median is one, then complex enhancers >= 2 age segments
+        relative_simple+=1
+
+    breaksdf.loc[breaksdf[ "seg_index"] >= relative_simple, "core_remodeling"] = 1
+
+    # add annotation based on simple/complex architecture
+    breaksdf["arch"] = "simple"
+    breaksdf.loc[breaksdf["core_remodeling"] ==1, "arch"] = "complexenh"
+
+    # reorder columns
+    breaksdf = breaksdf[["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
+                "seg_index", "core_remodeling", "arch", "mrca"]]
+
+    # merge with other age, taxon annotations
+    breaksdf = pd.merge(breaksdf,
+    syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]],
+    how = "left", on = "mrca").drop_duplicates()
+
+
+    # save all this information.
+
+    headerf = "%ssummary_matrix_header.txt" % (outpath)
+
+    out_summarized_bed = "%s%s_enh_age_arch_summary_matrix.bed" % (outpath, sample_id)
+
+    breaksdf.to_csv(out_summarized_bed, sep = '\t', index = False)
+
+    if os.path.exists(headerf) ==False:
+
+        cols = list(breaksdf.columns) # make the columns into a list
+        np.savetxt(headerf, cols, delimiter="\t", fmt = '%s') # save the column headers
+
+    return out_summarized_bed
 
 
 def break_scripts(age_file, sample_id, test_path, species):
@@ -203,7 +260,15 @@ def break_scripts(age_file, sample_id, test_path, species):
 
     # remove lines that do not overlap syntenic blocks, overlap X chromosome
     cleanup_file = "%sclean_ages_%s.bed" % (outpath, sample_id)
+
+    # remove any lines where
+    # !($5 ~ /[.]/ )  syntenic block doesn't overlap the coordinates
+    # !($1 ~ /chrX/ ) no sex chromosomes
+    # ($14 > 5 )  length of syntenic overlap is greater than 5bp long.
+
+    # print only enhancer coordinates ($1, $2, $3), sample_id ($4), mrca ($12), syntenic lengths ($14)
     cleanup = '''awk '!($5 ~ /[.]/ ) && !($1 ~ /chrX/ ) && ($14 > 5 ) { print $1, "\t", $2,  "\t",$3, "\t", $4, "\t", $12, "\t", $14 }' %s > %s''' % (age_file, cleanup_file)
+
     print("cleanup\n")
     subprocess.call(cleanup, shell = True)
 
@@ -216,25 +281,26 @@ def break_scripts(age_file, sample_id, test_path, species):
 
     # add enhancer id column
     temp = "%stemp_%s.bed" % (outpath, sample_id)
-    add_enh_id = '''awk '{$(NF+1)=$1":"$2"-"$3 ; print}' %s > %s && mv %s %s''' % (cleanup_file, temp, temp, cleanup_file)
+    add_enh_id = '''awk '{$(NF+1)=$1":"$2"-"$3 ; print}' OFS="\t" %s > %s && mv %s %s''' % (cleanup_file, temp, temp, cleanup_file)
     print("add enh_id")
     subprocess.call(add_enh_id, shell = True)
 
 
-    # add tabs to cleanup file
-    tab_cmd = '''awk '{$1=$1}1' OFS="\t" %s > %s && mv %s %s''' % (cleanup_file, temp, temp, cleanup_file)
-    print("tabs")
-    subprocess.call(tab_cmd, shell = True)
-
-
     # get max mrca per enhancer from cleanup file
     mrca_file= "%smax_mrca_%s.bed" % (outpath, sample_id)
-    mrca_cmd = '''awk '$5>max[$7]{max[$7]=$5; row[$7]=$0} END{for (i in row) print row[i]}' %s > %s '''% (cleanup_file, mrca_file)
+    #mrca_cmd = '''awk '$5>max[$7]{max[$7]=$5; row[$7]=$0} END{for (i in row) print row[i]}' %s > %s '''% (cleanup_file, mrca_file)
+    # first format the file
+    mrca_cmd = f"cut -f 1,2,3,4,5,7 {cleanup_file} | sort | uniq > {mrca_file}"
+    subprocess.call(mrca_cmd, shell = True)
+
+    # then use python script to get max val.
+    mrca_cmd = f"python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/get_max_mrca.py {mrca_file}"
     print("get max mrca")
     subprocess.call(mrca_cmd, shell = True)
 
 
     # get number of segments per enhancer from outpath file
+    # produces # of age segments per enhancer id.
     seg_count_file = "%sage_seg_count_%s.bed" %(outpath, sample_id)
     seg_count_cmd = '''cut -f 5,7 %s | uniq | cut -f2 | uniq -c > %s''' % (cleanup_file, seg_count_file)
     print("count age segments")
@@ -259,70 +325,18 @@ def break_scripts(age_file, sample_id, test_path, species):
     # open up and merge a bunch of dataframes
 
     print("opening files")
-
-    mrca_df = pd.read_csv(mrca_file, sep='\t', header = None)
-    mrca_df.columns = ["#chr_enh", "start_enh", "end_enh", "sample_id", "mrca", "syn_len", "enh_id"]
-    mrca_df.sort_values(by = "enh_id")
-
-    seg_df = pd.read_csv(seg_count_file, sep='\t', header = None)
-    seg_df.columns = ["seg_index", "enh_id"]
-    seg_df.sort_values(by = "enh_id")
-
-    breaksdf = pd.merge(mrca_df, seg_df, how = "left", on = "enh_id")
-
-    # round the mrca value
-    breaksdf.mrca = breaksdf.mrca.round(3)
-
-    # add binary for simple/complex architecture based on median break value
-    breaksdf["core_remodeling"] = 0
-
-    relative_simple =  breaksdf["seg_index"].median() # get median number of age segments.
-
-    if relative_simple == 1: # if the median is one, then complex enhancers >= 2 age segments
-        relative_simple+=1
-
-    breaksdf.loc[breaksdf[ "seg_index"] >= relative_simple, "core_remodeling"] = 1
-
-    # add annotation based on simple/complex architecture
-    breaksdf["arch"] = "simple"
-    breaksdf.loc[breaksdf["core_remodeling"] ==1, "arch"] = "complexenh"
-
-    # reorder columns
-    breaksdf = breaksdf[["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
-                "seg_index", "core_remodeling", "arch", "mrca"]]
-
-    # merge with other age, taxon annotations
-    breaksdf = pd.merge(breaksdf,
-    syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]],
-    how = "left", on = "mrca")
-
-
-    # save all this information.
-
-    headerf = "%ssummary_matrix_header.txt" % (outpath)
-
-    out_summarized_bed = "%s%s_enh_age_arch_summary_matrix.bed" % (outpath, sample_id)
-
-    breaksdf.to_csv(out_summarized_bed, sep = '\t', index = False)
-
-    if os.path.exists(headerf) ==False:
-
-        cols = list(breaksdf.columns) # make the columns into a list
-        np.savetxt(headerf, cols, delimiter="\t", fmt = '%s') # save the column headers
-
-    count = len(open(out_summarized_bed).readlines(  )) # makesure the file wrote before deleting ages.
+    breakdf = assemble_break_data(mrca_file, seg_count_file, syn_gen_bkgd, outpath, sample_id)
+    count = len(open(breakdf).readlines(  )) # makesure the file wrote before deleting ages.
 
     if count >0:
-        os_remove(cleanup_file)
-        os_remove(seg_count_file)
-        os_remove(mrca_file)
-
+        os.remove(cleanup_file)
+        os.remove(seg_count_file)
+        os.remove(mrca_file)
 
     # index syntenic blocks last.
     syn_index_cmd = "python /dors/capra_lab/users/fongsl/enh_age/enh_age_git/bin/syntenic_assembly.py %s" % age_file
     print("syn arch")
     subprocess.call(syn_index_cmd, shell = True)
-
 
 # generate shuffles
 def calculateExpected(test_enh, sample_id, shuffle_path, species, iters):
@@ -353,6 +367,7 @@ def calculateExpected(test_enh, sample_id, shuffle_path, species, iters):
 
 # keep only the first 4 columns of the bed file.
 def preformatBedfile(test_enh, sample_id, test_path):
+
 # before analysis, format bed file. Allow only 4 cols (chr, start, end, sample_id)
 
     if "shuf" in sample_id:
@@ -370,9 +385,7 @@ def preformatBedfile(test_enh, sample_id, test_path):
     awk_cmd = '''awk '{$4="%s"}1' FS="\t" OFS="\t"'' %s > %s && mv %s %s''' %(sample_id, test_enh_cut, temp, temp,  test_enh_cut)
     #subprocess.call(awk_cmd, shell=True)
 
-
     return test_enh_cut
-
 
 
 # put the pipeline together
@@ -406,9 +419,10 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
 
         if ANALYZE_BREAKS ==1: # assemble age architecture
             print("BREAKS", age_file)
+
             break_file = break_scripts(age_file, SAMPLE_ID, TEST_PATH, SPECIES)
 
-        os_remove(test_enh_formatted)
+        os.remove(test_enh_formatted)
 
     elif ANALYZE_BREAKS ==1: # you've already aged the enhancers, just assemble architecture
 
@@ -416,8 +430,10 @@ def runscripts(TEST_ENH, SAMPLE_ID, TEST_PATH, SPECIES, ANALYZE_AGE, ANALYZE_BRE
         AGE_F = TEST_ENH
 
         print("NO AGING, JUST", AGE_F)
+        test_path = "/".join(TEST_PATH.split("/")[:-1]) +"/"
 
-        break_file = break_scripts(AGE_F, SAMPLE_ID, TEST_PATH, SPECIES)
+
+        break_file = break_scripts(AGE_F, SAMPLE_ID, test_path, SPECIES)
 
 
 ###

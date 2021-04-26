@@ -98,7 +98,7 @@ desc_df= pd.read_csv(desc_file, sep = '\t', header = None)
 # In[36]:
 
 
-enh = "%sFANTOM_NOEXON_enh_age_arch_full_matrix.tsv" % path
+enh = "%sno-exon_all_fantom_enh.bed" % path
 summaryEnh = "%sFANTOM_NOEXON_enh_age_arch_summary_matrix.tsv" % path
 
 shuf = "%sSHUFFLE_NOEXON_FANTOM_enh_age_arch_full_matrix.tsv" % path

@@ -43,133 +43,267 @@ fantom_fs = "/dors/capra_lab/projects/enhancer_ages/linsight/data/all_unique_fan
 
 # In[3]:
 
+BUILD = "hg19"
+TRIM_LEN = "310"
+FIG_ID = "3C"
+FRAC = 0.5
 
-syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
-syn_gen_bkgd= pandas.read_csv(syn_gen_bkgd_file, sep = '\t')
-syn_gen_bkgd["mrca"]=syn_gen_bkgd["mrca"].round(3)
-syn_gen_bkgd["mrca_2"]=syn_gen_bkgd["mrca_2"].round(3)
-syn_gen_bkgd.head()
-syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]]
+def load_syn_gen_bkgd(build):
 
+    F = f"/dors/capra_lab/projects/enhancer_ages/{build}_syn_taxon.bed"
+    syngenbkgd = pd.read_csv(F, sep='\t')
+    syngenbkgd[["mrca", "mrca_2"]] = syngenbkgd[["mrca", "mrca_2"]].round(3)
 
-# In[4]:
-
-
-
-arch_id = (fantom_fs.split("/")[-1]).split("_")[1]
-print(arch_id)
-df = pandas.read_csv(fantom_fs, sep = '\t', header = None, low_memory=False)
-
-df.columns = ['chr_syn','start_syn','end_syn', 'enh_id',
-              'chr_enh', 'start_enh','end_enh',
-              'seg_index', 'core_remodeling', 'core',
-              'mrca', 'code', 'syn_id',
-              "chr_lin",  "start_lin", "end_lin","linsight_score", "overlap"]
+    return syngenbkgd
 
 
-# In[5]:
+def assign_architecture(df):
+
+    df["code"] = ""
+    df.code.loc[(df.core_remodeling == 0)& (df.core == 1)] = "simple"
+    df.code.loc[(df.core_remodeling == 1)& (df.core == 1)] = "complex_core"
+    df.code.loc[(df.core_remodeling == 1)& (df.core == 0)] = "derived"
+
+    df["arch"] = ""
+    df.arch.loc[(df.core_remodeling == 0)] = "simple"
+    df.arch.loc[(df.core_remodeling == 1)] = "complex"
+
+    return df
 
 
-df.head()
+def format_df(fantom_fs, syn_gen_bkgd):
+
+    arch_id = (fantom_fs.split("/")[-1]).split("_")[1]
+    print(arch_id)
+    df = pandas.read_csv(fantom_fs, sep = '\t', header = None, low_memory=False)
+
+    # rename columns
+    df.columns = ['chr_syn','start_syn','end_syn', 'enh_id',
+                  'chr_enh', 'start_enh','end_enh',
+                  'seg_index', 'core_remodeling', 'core',
+                  'mrca', 'code', 'syn_id',
+                  "chr_lin",  "start_lin", "end_lin","linsight_score", "overlap"]
+
+    # quantify lengths
+    df['enh_len'] = df.end_enh - df.start_enh
+    df['syn_len'] = df.end_syn - df.start_syn
 
 
-# In[6]:
+    core_age = df.groupby("enh_id")['mrca'].max().reset_index()
+
+    # assign architecture, sub architectures
+    df = assign_architecture(df)
+
+    # Format LINSIGHT information
+    # exclude the loci that do not overlap a linsight score
+    df = df.loc[df.linsight_score != "."]
+
+    df.linsight_score = df.linsight_score.astype(float) # turn linsight scores into floats
+
+    df["linsight_id"] = df.chr_lin + ":" + df.start_lin.map(str) +"-"+ df.end_lin.map(str)
+
+    # make a dataframe only based on linsight scores and enhancer architectures
+
+    base_df = df[["chr_lin", "start_lin", "end_lin", "linsight_score", "code", "arch", "enh_id", "core_remodeling"]].drop_duplicates()
+
+    base_df["lin_len"] = base_df.end_lin - base_df.start_lin
+
+    # apply core age
+    base_df = pd.merge(base_df, core_age, how = "left", on = "enh_id")
+    base_df.mrca =base_df.mrca.round(3)
+    base_df = pd.merge(base_df, syn_gen_bkgd, how = "left", on = "mrca")
+
+    # remove id where architecture wasnt assigned
+    base_df = base_df.loc[base_df.code != ""]
+    return base_df
 
 
-df['enh_len'] = df.end_enh - df.start_enh
-df['syn_len'] = df.end_syn - df.start_syn
-df.head()
+
+def plot_hist(derived, core, simple):
 
 
-# In[7]:
+    fig, ax = plt.subplots(figsize = (8, 8))
+
+    sns.distplot(derived, hist_kws=dict(cumulative=True),
+                     kde_kws=dict(cumulative=True), label = "derived", kde =False, norm_hist = True, color = "blue")
+    sns.distplot(core, hist_kws=dict(cumulative=True),
+                     kde_kws=dict(cumulative=True), label = "complex core", kde =False, norm_hist = True, color = "purple")
+    sns.distplot(simple, hist_kws=dict(cumulative=True),
+                     kde_kws=dict(cumulative=True), label = "simple", kde =False, norm_hist = True, color = "gold")
+
+    k, kp = stats.kruskal(simple, derived, core)
+
+    ax.set_title("FANTOM LINSIGHT scores\nCumulative Distribution")
+    ax.set_xlabel("LINSIGHT score\nkruskal = %s, p = %s" % (k, kp))
+    ax.set_ylabel("% of enhancer bases")
+    ax.legend(bbox_to_anchor=(1.5, 1.0))
+
+    plt.savefig("%sfantom_linsight_architecture.pdf" %(RE), bbox_inches = "tight")
+
+    return k, kp
+
+def get_expanded_arch_dfs(base_df):
+
+    # separate the dataframes by architevture and expand to bp level
+    simple_df = base_df.loc[base_df.code.str.contains("simple")]
+    simple = np.repeat(simple_df.linsight_score, simple_df.lin_len) # expand linsight value for each simple basepair
+
+    derived_df = base_df.loc[base_df.code.str.contains("derived")]
+    derived = np.repeat(derived_df.linsight_score, derived_df.lin_len)
+
+    core_df = base_df.loc[base_df.code.str.contains("core")]
+    core = np.repeat(core_df.linsight_score, core_df.lin_len)
+
+    complexenh = pandas.concat([derived, core])
+
+    return simple, derived, core, complexenh
 
 
-# arch code
-df["code"] = ""
-df.code.loc[(df.core_remodeling == 0)& (df.core == 1)] = "simple"
-df.code.loc[(df.core_remodeling == 1)& (df.core == 1)] = "complex_core"
-df.code.loc[(df.core_remodeling == 1)& (df.core == 0)] = "derived"
-df["arch"] = ""
-df.arch.loc[(df.core_remodeling == 0)] = "simple"
-df.arch.loc[(df.core_remodeling == 1)] = "complexenh"
+def get_stats(concat):
 
-df = df.loc[df.linsight_score != "."] # exclude the loci that do not overlap a linsight score
+    medians = concat.groupby("code")["linsight_score"].median().reset_index()
+    medians["measurement"] = "median_linsight"
+    means = concat.groupby("code")["linsight_score"].mean().reset_index()
+    means["measurement"] = "mean_linsight"
 
-df.linsight_score = df.linsight_score.astype(float) # turn linsight scores into floats
+    measures = pd.concat([medians, means])
+    measures.to_csv(f"{RE}fantom_linsight_score_summary.tsv")
 
-df["linsight_id"] = df.chr_lin + ":" + df.start_lin.map(str) +"-"+ df.end_lin.map(str)
+    return measures
 
-# make a dataframe only based on linsight scores and enhancer architectures
 
-base_df = df[["chr_lin", "start_lin", "end_lin", "linsight_score", "code", "arch"]].drop_duplicates()
+def get_counts(df, strat):
 
-base_df["lin_len"] = base_df.end_lin - base_df.start_lin
+    if strat == 1:
+        counts = df.groupby(["mrca_2", "core_remodeling"])["enh_id"].count().reset_index()
+
+        # add empty dataframe for complex human enhancers (do not exist by our def)
+        empty = pd.DataFrame({"mrca_2": [0.000],
+        "core_remodeling": [1],
+        "enh_id": [0]
+        })
+
+        counts = pd.concat([counts, empty]) # concat the dataframe
+
+        counts =counts.sort_values(by = ["core_remodeling", 'mrca_2']).reset_index()
+
+    else:
+        counts = df.groupby("arch")["enh_id"].count().reset_index()
+        counts =counts.sort_values(by = "arch", ascending = False).reset_index()
+
+    counts["enh_id"] = counts["enh_id"].astype(int)
+    counts = counts.drop(["index"], axis = 1)
+
+    return counts
+
+
+def plot_figure3(df, order, fig_id, re, trim_len, frac, dataset):
+
+    xlab = ['Homo', 'Prim', 'Euar', 'Bore', 'Euth', 'Ther', 'Mam',
+    'Amni', 'Tetr', 'Vert']
+
+    if "98" in dataset:
+        title = "98 fantom Datasets"
+        # for plotting, get the median overlaps per arch, per dataset
+
+        # for plotting age stratified, only plot 10% of the data
+        smalldf = df.sample(frac = 0.05)
+        sum_med = smalldf
+    else:
+        title = dataset
+        sum_med = df
+        smalldf = df
+
+    # set up plot
+    sns.set("poster")
+    fig = plt.figure(figsize = (12, 8))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
+    ax = plt.subplot(gs[0])
+
+    # plot the first panel
+    x, y = "arch", "linsight_score"
+    data = sum_med
+
+    splot = sns.barplot( x = x, y = y, data = data,
+                palette = palette, order = order,
+                ax = ax)
+
+    ax.yaxis.set_major_locator(MultipleLocator(4))
+
+    # get counts for annotation
+    STRAT = 0
+    counts = get_counts(df, STRAT)
+    for n, p in enumerate(splot.patches):
+        value = counts.iloc[n]["enh_id"]
+        splot.annotate(value,
+                       (p.get_x() + p.get_width() / 2.,0.25),
+                       ha = 'center', va = 'baseline',
+                       size=15,
+                       rotation = 90,
+                       color = "white",
+                       xytext = (0, 1),
+                       textcoords = 'offset points'
+                       )
+
+    # plot the second panel
+    ax2 = plt.subplot(gs[1])
+
+    x, y = "mrca_2", "linsight_score"
+    data = smalldf.sort_values(by = "mrca_2")
+    hue = "arch"
+
+    STRAT = 1
+    agecounts = get_counts(df, STRAT)
+
+    mplot = sns.barplot(x = x, y = y, data = data,
+                hue = hue,
+                palette = palette,
+                ax = ax2)
+
+    for n, p in enumerate(mplot.patches):
+
+        value = agecounts.iloc[n]["enh_id"].astype(int)
+
+        mplot.annotate(value,
+                       (p.get_x() + p.get_width() / 2.,0.25),
+                       ha = 'center', va = 'baseline',
+                       size=15,
+                       rotation = 90,
+                       color = "white",
+                       xytext = (0, 1),
+                       textcoords = 'offset points'
+                       )
+    ax2.set_xticklabels(xlab, rotation = 90)
+    ax2.set(xlabel = "", ylabel = "", title = title)
+
+    ax2.legend().remove()
+
+    ax2.yaxis.set_major_locator(MultipleLocator(4))
+
+    ax2lim = ax2.get_ylim()
+
+    ax.set(xlabel = "", ylabel = "linsight score", ylim = ax2lim)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
+    sns.set("poster")
+
+    outf = f"{re}fig{fig_id}_pleiotropy-fantom_trim_{trim_len}_noexon_{dataset}_{frac}_mrcas.pdf"
+
+    plt.savefig(outf, bbox_inches = "tight")
+
+
+#%% expand linsight score estimates across bases
+
+syn_gen_bkgd = load_syn_gen_bkgd(BUILD)
+
+base_df = format_df(fantom_fs, syn_gen_bkgd)
+
 
 base_df.head()
+simple, derived, core, complexnh = get_expanded_arch_dfs(base_df)
 
-# expand linsight score estimates across bases
+k, kp = plot_hist(derived, core, simple)
 
-simple_df = base_df.loc[base_df.code.str.contains("simple")]
-simple = np.repeat(simple_df.linsight_score, simple_df.lin_len) # expand linsight value for each simple basepair
-
-derived_df = base_df.loc[base_df.code.str.contains("derived")]
-derived = np.repeat(derived_df.linsight_score, derived_df.lin_len)
-
-core_df = base_df.loc[base_df.code.str.contains("core")]
-core = np.repeat(core_df.linsight_score, core_df.lin_len)
-
-complexenh = pandas.concat([derived, core])
-len(complexenh)
-
-
-# In[8]:
-
-
-len(df.enh_id.unique())
-
-
-# In[9]:
-
-
-df.shape
-
-
-# In[10]:
-
-
-df.groupby(["enh_id"])
-
-
-# In[11]:
-
-
-fig, ax = plt.subplots(figsize = (8, 8))
-
-sns.distplot(derived, hist_kws=dict(cumulative=True),
-                 kde_kws=dict(cumulative=True), label = "derived", kde =False, norm_hist = True, color = "blue")
-sns.distplot(core, hist_kws=dict(cumulative=True),
-                 kde_kws=dict(cumulative=True), label = "complex core", kde =False, norm_hist = True, color = "purple")
-sns.distplot(simple, hist_kws=dict(cumulative=True),
-                 kde_kws=dict(cumulative=True), label = "simple", kde =False, norm_hist = True, color = "gold")
-
-k, kp = stats.kruskal(simple, derived, core)
-
-ax.set_title("FANTOM LINSIGHT scores\nCumulative Distribution")
-ax.set_xlabel("LINSIGHT score\nkruskal = %s, p = %s" % (k, kp))
-ax.set_ylabel("% of enhancer bases")
-ax.legend(bbox_to_anchor=(1.5, 1.0))
-
-plt.savefig("%sfantom_linsight_architecture.pdf" %(RE), bbox_inches = "tight")
-
-
-# In[12]:
-
-
-simple
-
-
-# In[13]:
-
+#%%
 
 simplef = simple.to_frame()
 simplef["code"] = "simple"
@@ -184,27 +318,19 @@ coref["code"] = "complex_core"
 coref["arch"] = "complex"
 
 concat = pandas.concat([simplef, derivedf, coref])
-
+concat = concat.sample(frac = 0.05)
 
 # In[14]:
 
-
-concat.groupby("code")["linsight_score"].median()
-
-
-# In[15]:
-
-
-concat.groupby("code")["linsight_score"].mean()
-
-
 # In[16]:
-
+measures = get_stats(concat)
 
 order = ["simple", "complex_core", "derived"]
 fig, ax = plt.subplots(figsize = (8, 8))
-sns.boxplot(x = "code", y = "linsight_score", data = concat,
-            showfliers = False, order = order, notch = True,
+sns.barplot(x = "code", y = "linsight_score", data = concat,
+            #showfliers = False,
+            #notch = True,
+            order = order,
            palette = arch_palette)
 ax.set_xlabel("\nkruskal = %s, p = %s" % (k, kp))
 #ax.set_title("LINSIGHT score by FANTOM architecture age")
@@ -214,118 +340,33 @@ sns.set("poster")
 plt.savefig("%sfantom_linsight_architecture_boxplot.pdf" %(RE), bbox_inches = "tight")
 
 
-# In[17]:
-
-
-colores = ["amber", "faded green"]
-pal = sns.xkcd_palette(colores)
-sample = concat.sample(frac =0.03)
-order = ["simple", "complex",]
-plt.subplot(1,2,2)
-sns.boxplot(x = "arch", y = "linsight_score", data = concat,
-            showfliers = False, order = order, notch = True,
-           palette = pal)
-
-ax.set_xlabel("")
-ax.set_xticklabels("")
-ax.set_ylabel("LINSIGHT score")
-ax.set_ylim(0,0.65)
-sns.set("poster")
-plt.subplot(2,2,2)
-sample_points = base_df.sample(frac =0.03)
-sns.pointplot(x = "arch", y = "linsight_score", data = sample_points,
-              hue = "arch",
-              #palette = pal,
-              hue_order = order, join = False, dodge = 0.25)
-sns.set("poster")
-ax.set_xticklabels(ax.get_xticklabels(), rotation = 270, horizontalalignment = "left")
-ax.set_xlabel("architecture age")
-
-ax.legend().remove()
-ax.set_xlabel("")
-ax.set_xticklabels("")
-ax.set_ylabel("LINSIGHT score")
-
-
-# In[ ]:
-
-
-sample.groupby("arch").count()
-
-
-# In[ ]:
-
-
-concat.groupby("arch")["linsight_score"].median()
-
-
-# In[ ]:
-
-
-concat.groupby("arch")["linsight_score"].mean()
-
-
-# In[ ]:
-
-
-
-# make a dataframe only based on linsight scores and enhancer architectures
-
-base_df = df[["linsight_id", "enh_id" ,"chr_lin", "start_lin", "end_lin", "linsight_score", "mrca", "code", "arch"]].drop_duplicates()
-base_df.mrca = base_df.mrca.round(3)
-base_df["lin_len"] = base_df.end_lin - base_df.start_lin
-
-base_df = base_df.loc[base_df.code != ""] # exclude non-coded regions
-
-base_df = pandas.merge(base_df, syn_gen_bkgd) # add in taxon2
-
-base_df.sort_values(by="mrca_2").head()
-base_df.mrca_2.unique()
-
-
-# In[ ]:
-
-
-core_age = base_df.groupby("enh_id")["mrca_2"].max().reset_index()
-core_age.columns = ["enh_id", "core_mrca"]
-base_df = pandas.merge(base_df, core_age, how = 'left', on = 'enh_id')
-base_df.head()
-
-
-# In[ ]:
-
 
 order = ["simple", "complex_core", "derived"]
 fig, ax = plt.subplots(figsize = (8, 8))
 sns.barplot(x = "taxon2", y = "linsight_score", data = base_df.sort_values(by="mrca_2")
               , hue = "code", palette = arch_palette, hue_order = order)
-ax.set_xticklabels(ax.get_xticklabels(), rotation = 270, horizontalalignment = "left")
-ax.set_xlabel("Sequence age")
+ax.set_xticklabels(ax.get_xticklabels(), rotation = 90, horizontalalignment = "left")
+ax.set_xlabel("Core age")
 ax.set_title("LINSIGHT score by FANTOM architecture age")
 ax.legend(bbox_to_anchor=(1.5, 1.0))
 plt.savefig("%sfantom_linsight_architecture_mrca.pdf" %(RE), bbox_inches = "tight")
 
 
-# In[ ]:
 
-
-order = ["simple", "complex_core", "derived"]
-fig, ax = plt.subplots(figsize = (8, 8))
-sns.barplot(x = "core_mrca", y = "linsight_score", data = base_df.sort_values(by="mrca_2")
-              , hue = "code", palette = arch_palette, hue_order = order)
-ax.set_xticklabels(ax.get_xticklabels(), rotation = 270, horizontalalignment = "left")
-ax.set_xlabel("core age")
-ax.set_title("LINSIGHT score by FANTOM architecture age")
-ax.legend(bbox_to_anchor=(1.5, 1.0))
-plt.savefig("%sfantom_linsight_architecture_coremrca.pdf" %(RE), bbox_inches = "tight")
 
 
 # In[25]:
+ORDER = ["simple", "complex"]
+FIG_ID = "3C"
+DATASET = "all_fantom_enh"
+
+plot_figure3(base_df, ORDER, FIG_ID, RE, TRIM_LEN, FRAC, DATASET)
 
 
+#%%
 from matplotlib import gridspec
 
-order = ["simple", "complexenh"]
+order = ["simple", "complex"]
 order1 = ["simple", "complex"]
 
 fig = plt.figure(figsize = (12, 8))
@@ -353,7 +394,7 @@ sns.barplot(x = "taxon2", y = "linsight_score", data = sample2.sort_values(by="m
               #dodge = 0.25,
              ax = ax2)
 
-ax2.set_xticklabels(ax2.get_xticklabels(),rotation = 270, horizontalalignment = "left")
+ax2.set_xticklabels(ax2.get_xticklabels(),rotation = 90, horizontalalignment = "left")
 ax2.set_xlabel("architecture age")
 
 ax2.legend().remove()
@@ -376,7 +417,7 @@ old.head()
 # In[121]:
 
 
-order = ["simple", "complexenh"]
+order = ["simple", "complex"]
 fig, ax = plt.subplots(figsize= (8,8))
 sns.boxplot( x = "arch", y = "linsight_score", data = sample2.loc[sample2.mrca_2> 0.175],
             notch = True, order = order, palette = pal)

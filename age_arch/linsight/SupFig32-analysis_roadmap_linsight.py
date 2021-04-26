@@ -40,12 +40,6 @@ linsight_path = "/dors/capra_lab/projects/enhancer_ages/linsight/data/"
 roadmap_fs = glob.glob("%sE*_linsight.bed" % linsight_path)
 
 
-# In[3]:
-
-
-roadmap_fs
-
-
 # In[4]:
 
 
@@ -93,12 +87,33 @@ def format_df(df, arch_id, desc):
     base_df["lin_len"] = base_df.end_lin - base_df.start_lin
 
     return base_df
+def get_counts(res, strat):
 
+    if strat == 1:
+        counts = res.groupby(["mrca_2", "core_remodeling"])["enh_id"].count().reset_index()
+
+        # add empty dataframe for complex human enhancers (do not exist by our def)
+        empty = pd.DataFrame({"mrca_2": [0.000],
+        "core_remodeling": [1],
+        "enh_id": [0]
+        })
+
+        counts = pd.concat([counts, empty]) # concat the dataframe
+
+        counts =counts.sort_values(by = ["core_remodeling", 'mrca_2']).reset_index()
+
+    else:
+        counts = res.groupby("arch")["enh_id"].count().reset_index()
+        counts =counts.sort_values(by = "arch", ascending = False).reset_index()
+
+    counts["enh_id"] = counts["enh_id"].astype(int)
+    counts = counts.drop(["index"], axis = 1)
+
+    return counts
 
 # In[6]:
 
-
-SHUF = 1
+SHUF = 0
 linsight_dict = {}
 arch_dict = {}
 roadmap_f = roadmap_fs[0]
@@ -111,7 +126,7 @@ for roadmap_f in roadmap_fs:
 
     val = 0
 
-    sampled_f = "/home/fongsl/enhancer_ages/linsight/data/sampled_100k_%s-%s.bed"%(sid, val)
+    sampled_f = f"{linsight_path}/sampled_100k_%s-%s.bed"%(sid, val)
     new_id = arch_id + "-" +str(val)
     print(new_id)
 
@@ -124,11 +139,6 @@ for roadmap_f in roadmap_fs:
     elif SHUF == 0:
         df = pd.read_csv(sampled_f, sep = '\t', header = None, low_memory=False)
 
-
-# In[8]:
-
-
-roadmap_fs
 
 
 # In[9]:
@@ -164,7 +174,7 @@ for roadmap_f in roadmap_fs:
                     linsight_dict[new_id] = base_df.groupby(["arch", "mrca", "desc", "sid"])["linsight_score"].describe().reset_index()
                     val +=1
         else:
-            fs = glob.glob("/home/fongsl/enhancer_ages/linsight/data/sampled_100k_E*_linsight-*.bed")
+            fs = glob.glob(f"{linsight_path}sampled_100k_E*_linsight-*.bed")
             for f in fs:
                 sid = (f.split("/")[-1]).split(".")[0]
                 print(sid)
@@ -179,7 +189,7 @@ for roadmap_f in roadmap_fs:
 
 # In[10]:
 
-
+arch_dict.values()
 linsight_dict.keys()
 
 
@@ -197,7 +207,7 @@ linsight.head()
 
 linsight.sid.unique()
 
-
+linsight.head()
 # In[13]:
 
 
@@ -220,20 +230,40 @@ ax.legend(bbox_to_anchor = (1,1))
 ax.set_xlabel("")
 plt.savefig("%sROADMAP_0.1sampled_median_linsight_per_mrca_no_exon_relative_simple.pdf"%RE, bbox_inches = "tight")
 
+#%%
+plot["core_remodeling"] = 0
+plot.loc[plot["arch"] == "complexenh", "core_remodeling"] = 1
+plot.sort_values(by = ["core_remodeling", "mrca_2"])
 
-# In[15]:
-
+counts = plot.groupby(["arch", "mrca_2","core_remodeling"])["count"].mean().reset_index()
+empty = pd.DataFrame({"arch":["complexenh"], "mrca_2":[0.000], "core_remodeling": [1], "count":[0]})
+counts = pd.concat([counts, empty])
+counts = counts.sort_values(by = ["core_remodeling", "mrca_2"]).reset_index()
 
 fig, ax = plt.subplots(figsize=(8,8))
 order = ["simple", "complexenh"]
 plot = pd.merge(linsight, syn_gen_bkgd, how = "left")
-sns.barplot(x= "taxon2", y = "mean", data =plot.sort_values(by = "mrca_2"),
+splot = sns.barplot(x= "taxon2", y = "mean", data =plot.sort_values(by = "mrca_2"),
               hue = "arch", hue_order = order, palette =arch_palette )
+#STRAT = 0
+
+for n, p in enumerate(splot.patches):
+    value = counts.iloc[n]["count"].astype(int)
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.01),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
+
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 ax.set_ylabel("Mean LINSIGHT score")
 ax.legend(bbox_to_anchor = (1,1))
 ax.set_xlabel("")
-plt.savefig("%sROADMAP_0.1sampled_mean_linsight_per_mrca_no_exon_relative_simple.pdf"%RE, bbox_inches = "tight")
+plt.savefig("%sFIGS32ROADMAP_0.1sampled_mean_linsight_per_mrca_no_exon_relative_simple.pdf"%RE, bbox_inches = "tight")
 
 
 # In[16]:
@@ -251,7 +281,13 @@ arch = arch.loc[arch.sid2 != "E050"]
 arch = pd.merge(arch, desc_df, how = "left", right_on = "sid", left_on = "sid2")
 arch.head()
 
+#%%
+simple = arch.loc[arch.arch == "simple", "mean"]
+complex = arch.loc[arch.arch == "complexenh", "mean"]
 
+stats.mannwhitneyu(simple, complex)
+simple.mean()
+complex.mean()
 # In[18]:
 
 
@@ -268,18 +304,36 @@ ax.legend(bbox_to_anchor = (1,1))
 
 
 # In[19]:
+arch["core_remodeling"] = 0
+arch.loc[arch["arch"] == "complexenh", "core_remodeling"] = 1
+arch.sort_values(by = ["core_remodeling"])
+counts = arch.groupby(["core_remodeling","arch", "desc_x"])["count"].mean().reset_index()
+counts.sort_values(by = "core_remodeling").reset_index()
+
 
 
 fig, ax = plt.subplots(figsize=(8,8))
 order = ["simple", "complexenh"]
 
-sns.barplot(x= "desc_x", y = "mean", data =arch.sort_values(by = "desc_x"), hue = "arch",
+splot = sns.barplot(x= "desc_x", y = "mean", data =arch.sort_values(by = "desc_x"), hue = "arch",
                hue_order = order, palette =arch_palette,) #showfliers = False )
+
+for n, p in enumerate(splot.patches):
+    value = counts.iloc[n]["count"].astype(int)
+    splot.annotate(value,
+                   (p.get_x() + p.get_width() / 2.,0.01),
+                   ha = 'center', va = 'baseline',
+                   size=15,
+                   rotation = 90,
+                   color = "white",
+                   xytext = (0, 1),
+                   textcoords = 'offset points'
+                   )
 ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 ax.set_ylabel("Mean LINSIGHT score")
 ax.set_xlabel("")
 ax.legend(bbox_to_anchor = (1,1))
-plt.savefig("%sROADMAP_0.1sampled_mean_linsight_overall_no_exon_relative.pdf"%RE, bbox_inches = "tight")
+plt.savefig("%sFigS32_ROADMAP_0.1sampled_mean_linsight_overall_no_exon_relative.pdf"%RE, bbox_inches = "tight")
 
 
 # In[22]:

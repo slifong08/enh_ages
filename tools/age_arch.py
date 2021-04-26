@@ -14,12 +14,14 @@ import seaborn as sns
 from scipy import stats
 import statsmodels
 import statsmodels.api as sm
+"""
+ENHF = sys.argv[1] # break file with full path
+SAMPLE_ID = sys.argv[2] # curated sample id
+PLOT = sys.argv[3]
 
+"""
+#%%
 
-#%% parameters for running script
-
-PLOT = 0
-GENOME_BUILD = "hg19"
 
 #%% palettes
 
@@ -173,14 +175,13 @@ def MRCA_frequency(catdf, cols, var, sample_id):
         age_dict[n] = age
 
         # summarize frequencies across architectures, before/after eutherian.
-        euth_age = catdf.loc[catdf.taxon2 == "Eutheria (105)", "mrca_2"].iloc[0]
-        eutherian = age.loc[age["mrca_2"] == euth_age][[ "id", "freq"]]
+        eutherian = age.loc[age["mrca_2"] == 0.19][[ "id", "freq"]]
         eutherian["category"] = "eutherian"
 
-        younger_thaneuth = age.loc[age["mrca_2"] <euth_age].groupby(["id"])["freq"].sum().reset_index()
+        younger_thaneuth = age.loc[age["mrca_2"] <0.19].groupby(["id"])["freq"].sum().reset_index()
         younger_thaneuth["category"] = "younger than eutherian"
 
-        older_thaneuth = age.loc[age["mrca_2"] >euth_age].groupby(["id"])["freq"].sum().reset_index()
+        older_thaneuth = age.loc[age["mrca_2"] >0.19].groupby(["id"])["freq"].sum().reset_index()
         older_thaneuth["category"] = "older than eutherian"
 
         summarized_freq = pd.concat([eutherian, younger_thaneuth, older_thaneuth])
@@ -209,16 +210,147 @@ def MRCA_frequency(catdf, cols, var, sample_id):
 
 
     col_id = "_".join(cols)
-    outf = f'{RE}{sample_id}_{col_id}_freq.txt'
+    outf = f'{RE}{sample_id}{col_id}_freq.txt'
     ages.to_csv(outf, sep = '\t', index = False)
 
-    outf = f'{RE}{sample_id}_{col_id}_fold_change.txt'
+    outf = f'{RE}{sample_id}{col_id}_fold_change.txt'
     fc.to_csv(outf, sep = '\t', index = False)
 
-    outf = f'{RE}{sample_id}_summary_{col_id}_freq.txt'
+    outf = f'{RE}{sample_id}summary_{col_id}_freq.txt'
     summarized_freq.to_csv(outf, sep = '\t', index = False)
 
+
+
     return ages, fc
+
+def age_frequency(catdf, sample_id):
+
+    age_dict = {} # collect age frequency results per dataset
+    fc_dict = {} # collect fold chanfe results
+    summary_age_dict = {} # collect summarized age frequencies per dataset
+
+    for dataset in catdf.dataset_name.unique():
+        # count n enhancers in architecture per age
+        test = catdf.loc[catdf.dataset_name == dataset]
+
+        age = test.groupby(["id", "mrca_2"])["enh_id"].count().reset_index()
+        # rename columns
+        age.columns = ["id", "mrca_2", "counts"]
+
+        # sum total n enhancers in architecture
+        totals = age.groupby(["id"])["counts"].sum().reset_index()
+        # rename columns
+        totals.columns = ["id", "total_id"]
+
+        # merge dataframes
+        age = pd.merge(age, totals, how = "left")
+
+        # calculate the % of architecture in each age
+        age["age_freq"] = age.counts.divide(age.total_id)
+
+        age["dataset_name"] = dataset_name
+        age_dict[dataset_name] = age
+
+        # summarize frequencies across architectures, before/after eutherian.
+        eutherian = age.loc[age["mrca_2"] == 0.19][[ "id", "age_freq"]]
+        eutherian["category"] = "eutherian"
+
+        younger_thaneuth = age.loc[age["mrca_2"] <0.19].groupby(["id"])["age_freq"].sum().reset_index()
+        younger_thaneuth["category"] = "younger than eutherian"
+
+        older_thaneuth = age.loc[age["mrca_2"] >0.19].groupby(["id"])["age_freq"].sum().reset_index()
+        older_thaneuth["category"] = "older than eutherian"
+
+        summarized_freq = pd.concat([eutherian, younger_thaneuth, older_thaneuth])
+        summarized_freq["dataset_name"] = dataset_name
+
+        summary_age_dict[dataset_name] = summarized_freq
+
+    # concat age and summarized frequency dataframes
+    age = pd.concat(age_dict.values())
+    summarized_freq = pd.concat(summary_age_dict.values())
+
+    # calculate fold-change of enh v. shuf expectation per shuffle
+    for dataset in catdf.dataset_name.unique():
+
+        test = age.loc[age["id"] == "enh" | age[dataset_name] == dataset] # select only the enhancer and specific shuffle instance
+        fc = test.groupby(["mrca_2", "id"])["age_freq"].max().unstack("id").reset_index()
+
+        fc["fold_change"] = fc["enh"].divide(fc["shuf"])
+
+        fc_dict[dataset] = fc
+
+    fc = pd.concat(age_dict.values())
+
+
+    outf = f'{RE}{sample_id}age_freq.txt'
+    age.to_csv(outf, sep = '\t', index = False)
+
+    outf = f'{RE}{sample_id}age_fold_change.txt'
+    fc.to_csv(outf, sep = '\t', index = False)
+
+    outf = f'{RE}{sample_id}summary_age_freq.txt'
+    summarized_freq.to_csv(outf, sep = '\t', index = False)
+
+    print(summarized_freq)
+
+    return age, fc
+
+def arch_frequency(catdf, sample_id):
+
+    age_arch_dict = {} # collect age frequency results per dataset
+    fc_dict = {} # collect fold chanfe results
+    summary_age_arch_dict = {} # collect summarized age frequencies per dataset
+
+    for dataset_name in catdf.dataset_name.unique():
+
+        test = catdf.loc[catdf.dataset_name == dataset_name]
+
+        # count n enhancers in architecture per age
+        age_arch = test.groupby(["id", "arch", "mrca_2"])["enh_id"].count().reset_index()
+        # rename columns
+        age_arch.columns = ["id", "arch", "mrca_2", "counts"]
+        # sum total n enhancers in architecture
+        totals = age_arch.groupby(["id", "arch"])["counts"].sum().reset_index()
+        # rename columns
+        totals.columns = ["id", "arch", "total_arch"]
+
+        # merge dataframes
+        age_arch = pd.merge(age_arch, totals, how = "left")
+
+        # calculate the % of architecture in each age
+        age_arch["arch_freq"] = age_arch.counts.divide(age_arch.total_arch)
+
+    outf = f'{RE}{sample_id}age_arch_freq.txt'
+    age_arch.to_csv(outf, sep = '\t', index = False)
+
+    # calculate fold-change of enh v. shuf expectation
+    fc = age_arch.groupby(["arch", "mrca_2", "id"])["arch_freq"].max().unstack("id").reset_index()
+
+    fc["fold_change"] = fc["enh"].divide(fc["shuf"])
+
+    outf = f'{RE}{sample_id}age_arch_fold_change.txt'
+    fc.to_csv(outf, sep = '\t', index = False)
+
+    # summarize frequencies across architectures, before/after eutherian.
+
+    eutherian = age_arch.loc[age_arch["mrca_2"] == 0.19][["arch", "id", "arch_freq"]]
+    eutherian["category"] = "eutherian"
+
+    younger_thaneuth = age_arch.loc[age_arch["mrca_2"] <0.19].groupby(["arch", "id"])["arch_freq"].sum().reset_index()
+    younger_thaneuth["category"] = "younger than eutherian"
+
+    older_thaneuth = age_arch.loc[age_arch["mrca_2"] >0.19].groupby(["arch", "id"])["arch_freq"].sum().reset_index()
+    older_thaneuth["category"] = "older than eutherian"
+
+    summarized_freq = pd.concat([eutherian, younger_thaneuth, older_thaneuth])
+
+    outf = f'{RE}{sample_id}summary_arch_freq.txt'
+    summarized_freq.to_csv(outf, sep = '\t', index = False)
+
+    print(summarized_freq)
+
+    return age_arch, fc
 
 def get_percent_simple(catdf, sample_id):
 
@@ -246,7 +378,7 @@ def get_percent_simple(catdf, sample_id):
 
 
     measures = pd.concat(val_dict.values())
-    outf = f"{RE}{sample_id}_ARCH_metrics.txt"
+    outf = f"{RE}{sample_id}_ARCH_data.txt"
     measures.to_csv(outf, sep = '\t')
 
     # quantify by age and architecture
@@ -256,7 +388,7 @@ def get_percent_simple(catdf, sample_id):
         lens = catdf.groupby(["id", "arch", "mrca_2"])[val].describe().reset_index()
         lens["val"] = val
         val_dict[val] = lens
-    outf = f"{RE}{sample_id}_AGE_ARCH_metrics.txt"
+    outf = f"{RE}{sample_id}_AGE_ARCH_data.txt"
     measures = pd.concat(val_dict.values())
     measures.to_csv(outf, sep = '\t')
 
@@ -626,39 +758,15 @@ def run_analyses(enhf, shuffle_list, sample_id, plot):
 
     return catdf
 
-#%% run analysis
-
-# make dictionary of shuffle files
-shuf_id_dict = {}
-relative_dict = {}
-for SHUFF in SHUFFILES:
-    sample_id = get_sample_id(SHUFF)
-    shuf_id_dict[sample_id] = SHUFF
-
-SHUFFILES
 #%%
-
-#%%
-PLOT = 0
-SAMPLE_ID = "all_fantom_enh"
-ENHF = ENHFILES[0]
-data = run_analyses(ENHF, SHUFFILES, SAMPLE_ID, PLOT)
-#%%
-ENHF
-
-#%%
-FS = glob.glob("/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/non-genic/trimmed/trim_310_E*/breaks/trim_310_E0*_enh_age_arch_summary_matrix.bed")
+FS = glob.glob("/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E016/non-genic/trimmed/trim_310_E*/breaks/trim_310_E0*_enh_age_arch_summary_matrix.bed")
 PLOT = 0
 GENOME_BUILD = "hg19"
 FIG_ID = "S29"
 
 for ENHF in FS:
 
-    if os.path.exists(RE) == False:
-        os.mkdir(RE)
-    SAMPLE_ID = (ENHF.split("trimmed/")[1]).split("/breaks")[0]
-    print(SAMPLE_ID)
-    #RE = os.path.join(ENHF[0].split("data/")[0], "results/", SAMPLE_ID +"/")
+    SAMPLE_ID = (ENHF.split("trimmed")[1]).split("breaks")[0]
 
     #SAMPLE_ID = "trim_310_E016"
 
@@ -676,30 +784,8 @@ for ENHF in FS:
 
     catdf = run_analyses(ENHF, SHUFFILES, SAMPLE_ID, PLOT)
 #%%
-FS = glob.glob("/dors/capra_lab/projects/enhancer_ages/roadmap_encode/data/hg19/download/h3k27ac_plus_h3k4me3_minus_peaks/Hsap_H3K27ac_plus_H3K4me3_minus_E*/non-genic/no-exon_E*/breaks/no-exon_E*_enh_age_arch_summary_matrix.bed")
+lens = catdf.groupby(["id", "arch"])["enh_len", "seg_index", "mrca_2"].describe().reset_index()
 
-FIG_ID = "S29"
-
-for ENHF in FS:
-
-    if os.path.exists(RE) == False:
-        os.mkdir(RE)
-    SAMPLE_ID = (ENHF.split("non-genic/")[1]).split("/breaks")[0]
-    print(SAMPLE_ID)
-    #RE = os.path.join(ENHF[0].split("data/")[0], "results/", SAMPLE_ID +"/")
-
-    #SAMPLE_ID = "trim_310_E016"
-
-    ENHPATH = "/".join(ENHF.split("/")[:-2])
-
-    # real shuffles
-    SHUFPATH = os.path.join(ENHPATH, "shuffle/breaks/")
-    SHUFFILES = glob.glob(f"{SHUFPATH}shuf*.bed")
-    print( 'shuffles n= ', len(SHUFFILES))
-
-    # make a dir to save results
-    RE = os.path.join(ENHF.split("data/")[0], "results/stats/")
-    if os.path.exists(RE) == False:
-        os.mkdir(RE)
-
-    catdf = run_analyses(ENHF, SHUFFILES, SAMPLE_ID, PLOT)
+lens = catdf.groupby(["id", "arch"])["enh_len"].describe().reset_index()
+lens["val"] = "enh_len"
+catdf.head()
