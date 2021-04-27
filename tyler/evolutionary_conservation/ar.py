@@ -8,11 +8,26 @@ outfs =[]
 
 random_seed = 42
 
-PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/species_specific_10k/"
-PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/"
+PATHS = [
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/species_specific_10k/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hars/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hu_specific/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/rhe_specific/",
+]
 
-#%%
+PATHS[3:]
 
+#%% FUNCTIONS
+
+# in case you need to split file on chromosome number before getting started
+
+def split_by_chr(f):
+    cmd = '''awk '{print>$1".bed}' %s ''' %f
+    subprocess.call(cmd, shell = True)
+
+
+# run phylop
 def run_phylop(msa, chrnum, path, random_seed):
 
     PHAST_PATH = "/dors/capra_lab/bin/"
@@ -35,13 +50,15 @@ def run_phylop(msa, chrnum, path, random_seed):
     outf = f"{outpath}{chrnum}_con_acc.bed"
 
     # run phyloP
-    cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --mode CONACC -d {random_seed} -g {mod} {maf}> {outf}"
+    cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch hg38 --mode CONACC -d {random_seed} -g {mod} {maf}> {outf}"
     print(f"starting {msaway}")
     subprocess.call(cmd, shell = True)
     print(f"done with {msaway}")
 
     return outf
 
+
+# reduce the amount of information in file for PhyloP run.
 def cut_file(path, chrnum):
     ocr = f"{path}{chrnum}.bed"
     temp = f"{path}temp_{chrnum}.bed"
@@ -51,24 +68,25 @@ def cut_file(path, chrnum):
 #%%
 
 for msa in msa_ways:
-    cut_file(PATH, CHRNUM)
-    outf = run_phylop(msa, CHRNUM, PATH, random_seed)
-    outfs.append(outf)
+    for PATH in PATHS[3:]:
+
+        cut_file(PATH, CHRNUM)
+        outf = run_phylop(msa, CHRNUM, PATH, random_seed)
+        outfs.append(outf)
 #%%
-# prune tree
-#f"{phast_path}./tree_doctor -P ${species_list} ${tree} > pruned_tree.nh"
+"""
+example command:
 
-
-# parse species of interest and mask this out from MAF. I think we want to separate hu chain_nets and rhe chain_nets?
-#${params.phast_path}./maf_parse --features ${chrom_bed_path}/${chrom}.bed --mask-features ${params.species_of_interest} ${species_maf} > ${fname}_${params.species_of_interest}_masked.maf
  /dors/capra_lab/bin/./phyloP --features /dors/capra_lab/users/fongsl/tyler/data/CON_ACC/chr21.bed --msa-format MAF --method LRT --mode CONACC -d 42 -g /dors/capra_lab/data/ucsc/hg38/multiz20way/hg38.phastCons20way.mod /dors/capra_lab/data/ucsc/hg38/multiz20way/maf/chr21.maf > /dors/capra_lab/users/fongsl/tyler/data/CON_ACC/multiz20way/chr21_cons_acc.bed
 
 # run phyloP_results
 f"{phast_path}./phyloP --features {phastcons} --msa-format MAF --method LRT --mode ACC --subtree {species_of_interest} -d {random_seed} -g {auto_neutral_model} {species_maf}"
 
+From Kathleen's pipeline:
 #${params.phast_path}./phyloP --features ${phastcons} --msa-format MAF --method LRT --mode ACC --subtree ${params.species_of_interest} -d ${params.random_seed} -g ${params.nonauto_neutral_model}${chrom}.neutral.mod ${species_maf}
 
-""" PHYLOP --help
+From PhyloP documentation
+ PHYLOP --help
     --features, -f <file>
         Read features from <file> (GFF or BED format) and output a
         table of p-values and related statistics with one row per
@@ -101,7 +119,8 @@ f"{phast_path}./phyloP --features {phastcons} --msa-format MAF --method LRT --mo
         numbers are used in some cases to generate starting values for
         optimization.  If not specified will use a seed based on the
 	current time.
-"""
 
-"""
+
+
 auto_neutral_model = results of phastcons run
+"""

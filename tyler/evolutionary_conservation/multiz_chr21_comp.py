@@ -9,7 +9,7 @@ import seaborn as sns
 
 PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/"
 RE = "/dors/capra_lab/users/fongsl/tyler/results/CON_ACC/"
-dataset_list = ["species_specific_10k", "all"]
+dataset_list = ["species_specific_10k", "all", "hars", 'hu_specific', "rhe_specific"]
 multiz_list = [20, 30, 100]
 
 fs = {}
@@ -33,30 +33,33 @@ for msa in multiz_list:
 
 def separate_shared_specific(df):
 
-    all_ = df.loc[df.dataset == "all", "enh_id"].drop_duplicates() # get all enh_id
-    ss_ = df.loc[df.dataset != "all", "enh_id"].drop_duplicates() # ge species_specific enh_id
+    id_dict = {}
+    n_dict = {}
 
-    shared_ = list(set(all_)-(set(ss_))) # get shared (non-species_specific) enh_ids
+    for dataset in df.dataset.unique(): # get ids in each dataset
+        ids = df.loc[df.dataset == dataset, "enh_id"].drop_duplicates()
+        id_dict[dataset] = list(ids) # get all enh_id
+        n_dict[dataset] = len(ids) # count the number of ids in the list
 
-    n_shared, n_specific, n_all = len(shared), len(ss_), len(all_)
-    n_list = [n_shared, n_specific, n_all]
-    print(n_shared, n_specific, n_all)
+    sub_from_shared = []
+    all_ = []
+    for key, value in id_dict.items():
 
-    # get dataframes
-    shared_df = df.loc[df.enh_id.isin(shared_)]
-    specific_df = df.loc[df.enh_id.isin(ss_)]
+        if key != "all":
+            sub_from_shared = sub_from_shared + value # add all the ids into one list
 
-    # get logp results per multiz
-    log_p_dict = {}
-    ways = list(df.multiz.unique())
+        else:
+            all_ = id_dict[key]
 
-    for way in ways:
 
-        shared_p = shared_df.loc[shared_df.multiz == way, "log_p"]
-        specific_p = specific_df.loc[specific_df.multiz == way, "log_p"]
-        log_p_dict[way] = [shared_p, specific_p]
+    shared_ = list(set(all_) - set(sub_from_shared)) # get shared (non-species_specific) enh_ids
 
-    return shared_df, specific_df, log_p_dict, n_list
+    n_dict["shared"] = len(shared_)
+    id_dict["shared"] = shared_
+    df.loc[df.enh_id.isin(shared_), "dataset"] = "shared" # rename the dataset as shared
+
+
+    return n_dict, df
 
 
 def plot_joint(x, y, data, RE):
@@ -82,39 +85,40 @@ def plot_joint(x, y, data, RE):
     plt.savefig(outf, bbox_inches= "tight")
 
 
-def plot_dist_p(log_p_dict, way):
-
-    shared_p, specific_p = log_p_dict[way]
-    result_stat, p = stats.mannwhitneyu(shared_p, specific_p)
-    shared_med, spec_med= round(shared_p.median(), 3), round(specific_p.median(), 3)
-    xlabel = f"phyloP logp\n(-) = less, (+) = more conservation\nmwu p = {p}\nmedian logp shared ={shared_med}, specific = {spec_med}"
+def plot_dist_p(df, ndict):
 
 
-    fig, ax = plt.subplots()
-    sns.distplot(shared_p, hist = False, label = f"shared n = {n_list[0]}")
-    sns.distplot(specific_p, hist = False, label = f"specific n = {n_list[1]}")
-    ax.set(title = f"chr21 - {way}",
-    xlabel = xlabel,
-    ylabel = "KDE Density")
-    ax.legend(bbox_to_anchor =(1,1))
+    test = df.loc[(df.dataset != "all")& (df.dataset != "species_specific_10k") & (df.log_p<10)]
 
-    outf = f"{RE}ch21_shared_v_spec_{way}_kde.pdf"
+    x = "log_p"
+    hue = "dataset"
+    data = test
+    col = "multiz"
+
+    sns.displot(data = data, x = x, hue = hue, col = col, kind = "hist")
+    #plt.title(f"chr21_{way}")
+    #plt.legend(bbox_to_anchor =(1,1))
+
+    outf = f"{RE}ch21_hist.pdf"
     plt.savefig(outf, bbox_inches = "tight")
 
-
-    fig, ax = plt.subplots()
-    sns.distplot(shared_p, kde = False, label = f"shared n = {n_list[0]}")
-    sns.distplot(specific_p, kde = False, label = f"specific n = {n_list[1]}")
-    ax.set(title = f"chr21 - {way}",
-    xlabel = xlabel,
-    ylabel = "N")
-    ax.legend(bbox_to_anchor =(1,1))
-
-    outf = f"{RE}ch21_shared_v_spec_{way}_hist.pdf"
+    sns.displot(data = data, x = x, col = col, hue = hue, kind = "ecdf")
+    #plt.legend(bbox_to_anchor =(1,1))
+    outf = f"{RE}ch21_cdf.pdf"
     plt.savefig(outf, bbox_inches = "tight")
 
+    medians = test.groupby(["multiz", "dataset"])["log_p"].median().reset_index()
 
-#%%
+    for way in test.multiz.unique():
+        test2 = test.loc[test.multiz == way]
+        shared = test2.loc[test2.dataset == "shared", "log_p"]
+        hu_specific = test2.loc[test2.dataset == "hu_specific", "log_p"]
+        result_stat, p = stats.mannwhitneyu(shared, hu_specific)
+        print(way, p)
+    print(medians)
+    return medians
+
+ #%%
 
 
 df = pd.concat(fs.values())
@@ -123,19 +127,23 @@ df = pd.concat(fs.values())
 ways = list(df.multiz.unique())
 
 
-table = pd.pivot(df, index = "id", columns = "multiz", values = "log_p")
+#table = pd.pivot(df, index = "id", columns = "multiz", values = "log_p")
 
+#%%
+df.head()
+df.dataset.unique()
 # split up df
-shared_df, specific_df, log_p_dict, n_list = separate_shared_specific(df)
-
+#%%
+n_dict, newdf = separate_shared_specific(df)
 
 #%%
 
 
 
 #%% compare 20 v. 30 way
-
-
+small_df = df[["enh_id", "multiz", "log_p"]].drop_duplicates() # drop redundant enh_id in different datasets.
+table = small_df.pivot(index = "enh_id", columns = "multiz", values = "log_p")
+table.head()
 x = "20_way"
 y = "30_way"
 data = table
@@ -160,11 +168,5 @@ plot_joint(x, y, data, RE)
 
 #%% MWU p shared v. specific
 
-
-
-for way in ways:
-
-    plot_dist_p(log_p_dict, way)
-    print(way)
-
-#%%
+plot_dist_p(newdf, n_dict)
+n_dict
