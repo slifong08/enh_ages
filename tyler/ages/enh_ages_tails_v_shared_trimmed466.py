@@ -1,4 +1,4 @@
-or_ageimport argparse
+import argparse
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import matplotlib.ticker as ticker
@@ -32,23 +32,23 @@ RE = ENHF.split("data/")[0]
 GENOME_BUILD = "hg38"
 
 ENHPATH = "/dors/capra_lab/users/fongsl/tyler/data/"
-ENHFILE = "GG-LL_species-specific_OCRs_rank/breaks/GG-LL_species-specific_OCRs_rank_enh_age_arch_summary_matrix_W_SPECIES.bed"
+ENHFILE = "GG-LL_species-specific_OCRs_rank/trimmed_466_GG-LL_species-specific_OCRs_rank/breaks/trimmed_466_GG-LL_species-specific_OCRs_rank_enh_age_arch_summary_matrix.bed"
 
 ENHF = os.path.join(ENHPATH, ENHFILE)
-
+ENHF
 # real shuffles
-SHUFPATH = os.path.join(ENHPATH, "GG-LL_species-specific_OCRs_rank/shuffle/breaks")
-SHUFFILE = "shuf-GG-LL_species-specific_OCRs_rank-0_enh_age_arch_summary_matrix.bed"
+#SHUFPATH = os.path.join(ENHPATH, "GG-LL_species-specific_OCRs_rank/shuffle/breaks")
+#SHUFFILE = "shuf-GG-LL_species-specific_OCRs_rank-0_enh_age_arch_summary_matrix.bed"
 
 # all other OCRs
-SHUFPATH = os.path.join(ENHPATH, "GG-LL_subtract_species_specific_OCR/breaks")
-SHUFFILE = "GG-LL_subtract_species_specific_OCR_ages_enh_age_arch_summary_matrix.bed"
+SHUFPATH = os.path.join(ENHPATH, "GG-LL_subtract_species_specific_OCR/trimmed_466_GG-LL_subtract_species_specific_OCR/breaks")
+SHUFFILE = "trimmed_466_GG-LL_subtract_species_specific_OCR_enh_age_arch_summary_matrix.bed"
 
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
 # make a dir to save results
 
-RE = os.path.join(ENHF.split("data/")[0], "results/")
+RE = os.path.join(ENHF.split("data/")[0], "results/trimmed_446/")
 if os.path.exists(RE) == False:
     os.mkdir(RE)
 
@@ -77,38 +77,10 @@ sns.palplot(EPAL)
 
 def open_df(F):
 
-    if "shuf" in F:
-        cols = [0,1,2,3,4,5,6,7,8]
-        col_names = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
-        "seg_index", "core_remodeling", "arch", "mrca"]
-
-        df = pd.read_csv(F,
-        sep = '\t',
-        header = None,
-        usecols = cols,
-        names = col_names,
-        ).drop_duplicates()
-
-
-    elif "subtract" in F:
-        cols  = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
-        "seg_index", "core_remodeling", "arch", "mrca"]
-
-        df = pd.read_csv(F,
+    df = pd.read_csv(F,
         sep = '\t',
         ).drop_duplicates()
 
-        df = df[cols]
-
-    else:
-        cols = ["#chr_enh", "start_enh", "end_enh", "enh_id", "sample_id",
-        "seg_index", "core_remodeling", "arch", "mrca", "species_specific"]
-
-        df = pd.read_csv(F,
-        sep = '\t',
-        ).drop_duplicates()
-
-        df = df[cols]
 
     df[["start_enh", "end_enh"]]=df[["start_enh", "end_enh"]].astype(int)
 
@@ -646,7 +618,14 @@ get_percent_simple(catdf)
 count_arch = catdf.groupby(["id", "arch"])["enh_id"].count().reset_index()
 count_arch
 #%%
+a = 3274
+b = 6396
+c = 46886
+d = 88112
+obs = [[a,b],[c,d]]
+stats.fisher_exact(obs) # (0.9619712572031793, 0.08249719658677956) complex enhancers are depleted.
 
+#%%
 
 # age architecture frequencies and fold changes
 cols = ["id", "arch", "mrca_2"]
@@ -689,11 +668,11 @@ ARCH = "complexenh"
 or_mrca_arch = or_age_arch(catdf, ARCH)
 plot_fet_age(or_mrca_arch, ARCH)
 #%%
-catdf["species_specific"].unique()
-shared = catdf.loc[catdf["species_specific"].isna()]
+catdf["dataset_name"].unique()
+shared = catdf.loc[catdf["dataset_name"] == "subtract"]
 shared.groupby("arch")["enh_id"].count()
-hu_gain = catdf.loc[catdf["species_specific"] == "GM12878_specific"]
-
+hu_gain = catdf.loc[catdf["sample_id"].str.contains("GM12878_specific")]
+hu_gain.head()
 
 #%%
 analysis={}
@@ -701,7 +680,7 @@ analysis={}
 ANALYSIS = "HU-specific gains v. subtracted_background"
 gains = hu_gain.groupby("arch")["enh_id"].count().reset_index()
 shares = shared.groupby("arch")["enh_id"].count().reset_index()
-
+gains
 a, b = gains.iloc[0,1], gains.iloc[1,1]
 c , d = shares.iloc[0,1], shares.iloc[1,1]
 obs = [[a, b], [c, d]]
@@ -718,7 +697,7 @@ gaindf = pd.DataFrame({"a":[a], "b":[b], "c":[c], "d":[d],
 analysis[ANALYSIS] = gaindf
 #%%
 ANALYSIS = "HU-specific losses v. subtracted_background"
-hu_loss = catdf.loc[catdf["species_specific"] == "LCL8664_specific"]
+hu_loss = catdf.loc[catdf["sample_id"].str.contains("LCL8664_specific")]
 losses = hu_loss.groupby("arch")["enh_id"].count().reset_index()
 losses
 a, b = losses.iloc[0,1], losses.iloc[1,1]

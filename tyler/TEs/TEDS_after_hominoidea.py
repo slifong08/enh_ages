@@ -42,7 +42,7 @@ SID = (ENHF.split("/")[-1]).split(".bed")[0]
 ENHPATH = "/dors/capra_lab/users/fongsl/tyler/data/GG-LL_species-specific_OCRs_rank/breaks/"
 ENHF = f"{ENHPATH}GG-LL_species-specific_OCRs_rank_enh_age_arch_summary_matrix_W_NAMES.bed"
 SID = (ENHF.split("/")[-1]).split(".")[0]
-
+ENHF
 BUILD = "hg38"
 
 #%% function to make directories for outputs
@@ -63,6 +63,7 @@ make_data_path(OUTPATH)
 RE = os.path.join(OUTPATH, "results")
 make_data_path(RE)
 
+RE
 
 # paths to TE files
 
@@ -104,8 +105,11 @@ def get_syn_gen_bkgd(build):
     syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3)
 
     # handle the TEs that have an old age
-    old = pd.DataFrame({"mrca": [0.39], "taxon": ["older_than_mammalia"], "mrca_2": [0.39],
-                            "taxon2": ["older_than_mammalia"]})
+    old = pd.DataFrame({"mrca": [0.39, 0.144],
+     "taxon": ["older_than_mammalia", "Primate"],
+     "mrca_2": [0.39, 0.144],
+    "taxon2": ["older_than_mammalia", "Primate"]
+    })
 
     syn_gen_bkgd = pd.concat([syn_gen_bkgd, old])
 
@@ -123,21 +127,21 @@ def format_te_file(te_fam, syn_gen_bkgd):
     famdf.columns = ["te_fam", "fam", "taxon", "count"]
 
     # make taxon annotations consistent w/ my syn_gen_bkgd file
-    famdf.taxon.loc[famdf.taxon == "Primates"] = "Euarchonta"
+    famdf.taxon.loc[famdf.taxon == "Primates"] = "Euarchonta" # rename to the oldest primate for age purposes
     famdf.taxon.loc[famdf.taxon == "theria"] = "Theria"
-    famdf.taxon.loc[famdf.taxon == "Euarchonta"] = "Euarchontoglires"
+    #famdf.taxon.loc[famdf.taxon == "Euarchonta"] = "Euarchontoglires"
     #famdf.taxon.loc[famdf.taxon == "Hominoidea"] = "Hominidae"
     famdf.taxon.loc[famdf.taxon == "Rodentia"] = "Euarchontoglires"
     famdf.taxon.loc[famdf.taxon == "Muridae"] = "Euarchontoglires"
     famdf.taxon.loc[famdf.taxon == "Homo_sapiens"] = "Homo"
     famdf.taxon.loc[famdf.taxon == "old"] = "older_than_mammalia"
-
+    famdf.taxon.loc[famdf.taxon == "Homo_sapiens"] = "Homo"
     # merge w/ age annotations
     famdf = pd.merge(famdf, syn_gen_bkgd, how = "left", on = "taxon") # get ages
 
     # rename columns again.
     famdf.columns = ["te", "fam", "taxon_te", "count_te",  "mrca_te",  "mrca_2_te",  "taxon2_te"]
-
+    famdf = famdf.dropna()
     return famdf
 
 
@@ -190,8 +194,8 @@ def format_df(intersected_f, sid):
     df.core_remodeling = df.core_remodeling.astype(float) # change the datatype.
 
     # make core remodeling reflect hu-specific, 1, or rhe-specific, 0.
-    df.loc[df.cell_line == "GM12878_specific", "core_remodeling"] = 1
-    df.loc[df.cell_line == "LCL8664_specific", "core_remodeling"] = 0
+    #df.loc[df.cell_line == "GM12878_specific", "core_remodeling"] = 1
+    #df.loc[df.cell_line == "LCL8664_specific", "core_remodeling"] = 0
     # add summarized MRCA values.
     #df = pd.merge(df, syn_gen_bkgd, how = "left", on = "mrca")
 
@@ -341,8 +345,9 @@ def get_mrca_OR(enh_te, baseTE):
 
 def format_OR_results(ORdf, syn_gen_bkgd):
 
-    # add taxon2 info
-    ORdf = pd.merge(ORdf, syn_gen_bkgd[["mrca_2", "taxon2"]], how = "left", on = "mrca_2").drop_duplicates()
+    if "mrca_2" in list(ORdf):
+        # add taxon2 info
+        ORdf = pd.merge(ORdf, syn_gen_bkgd[["mrca_2", "taxon2"]], how = "left", on = "mrca_2").drop_duplicates()
 
     # MANIPULATION: replace -log10p for cases where p = 0 (super significant)
     ORdf.loc[abs(ORdf["fdr_pval"]) == 0, "-log10p"] = 1 #
@@ -356,71 +361,49 @@ def format_OR_results(ORdf, syn_gen_bkgd):
 
 def get_pval_table_for_plotting(ORdf_formatted, build):
 
-    # pivot pvalues - rows = fams, ages = cols, values = -log10p
-    pval = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="-log10p")
+    if 'mrca_2' in list(ORdf_formatted):
+        # pivot pvalues - rows = fams, ages = cols, values = -log10p
+        pval = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="-log10p")
 
-    # fill in all the insignificant log10 pvals (ie the log10p vales that are 0 or None)
-    pval = pval.fillna(0)
+        # fill in all the insignificant log10 pvals (ie the log10p vales that are 0 or None)
+        pval = pval.fillna(0)
 
-    # drop the first column, cannot compare human simple v. complex bc no human complex enhancers
-    if build == "hg19":
-        pval = pval.drop([0.0], axis = 1)
+        # like pval pivot, but for log2_odds as table values
+        # pivot logodds - rows = fams, ages = cols, values = log2_odds
+        logodds = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="log2_odds")
 
-    # like pval pivot, but for log2_odds as table values
-    # pivot logodds - rows = fams, ages = cols, values = log2_odds
-    logodds = ORdf_formatted.sort_values(by = "mrca_2").pivot(index = "fam", columns = "mrca_2", values="log2_odds")
-    if build == "hg19":
-        logodds = logodds.drop([0.0], axis = 1)
+        # drop the first column, cannot compare human simple v. complex bc no human complex enhancers
+        if build == "hg19":
+            logodds = logodds.drop([0.0], axis = 1)
+            pval = pval.drop([0.0], axis = 1)
+    else:
+        # pivot pvalues - rows = fams, ages = cols, values = -log10p
+        ORdf_formatted["dummy"] = "col"
+        pval = ORdf_formatted[["fam", "-log10p"]]
+        pval = pval.fillna(0)
+        logodds =  ORdf_formatted[["fam", "log2_odds"]]
 
     # drop all the TE families with no differences in log odds of simple/complex
     #in at least 5 age categories.
     logodds = logodds.replace(0, np.nan) # replace all zero odds with None
-    logodds = logodds.dropna(thresh = 5) # drop all rows where TE families have more than 5 logodds = zero values.
+
+    #logodds = logodds.dropna(thresh = 5) # drop all rows where TE families have more than 5 logodds = zero values.
+
     logodds = logodds.fillna(0) # refill smaller table the missing values w/ zeros
 
 
     pval = pval.loc[pval.index.isin(logodds.index)] # match TE fams in pval table to logodds table
-    pval_asterisks = pval.apply(lambda x: ["*" if y >=1 else "" for y in x]) # asterisks dataframe
 
+    #pval_asterisks = pval["-log10p"].apply(lambda x: ["*" if y >=1 else "" for y in x]) # asterisks dataframe
+    pval_asterisks = pval["-log10p"]
     return pval, logodds, pval_asterisks
 
 
 def plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile, build):
 
-    # prepare to plot tables
-    cm = log2odds.fillna(0)
-    cmp = pval.fillna(0)
-
-    if build == "hg19":
-        xtick = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tert", "Vert"]
-    else:
-        xtick = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tert", "Sarg", "Vert"]
-    sns.set(rc={'axes.facecolor':'grey', 'figure.facecolor':'white'})
-    sns.set(font_scale=1.5)
-
-    # first, make the dendrogram to get the clustering of TE families.
-    cg = sns.clustermap(cm,
-                mask = cm == 0, # mask all the 0 values.
-                col_cluster = False, center = 0,
-                annot = True,
-                annot_kws={"size": 16},
-                fmt = "0.1f",
-                cmap="YlGn", robust = True,
-                xticklabels = xtick,
-                linewidths=0.5,figsize = (14,14))
-
-    #plt.savefig(f"{RE}te_fam_cluster_enrichment.pdf", bbox_inches = 'tight')
-
-    # reindex tables by dendrogram
-    new_index = cg.dendrogram_row.reordered_ind
-
-    log2odds = log2odds.reset_index().reindex(new_index).set_index("fam") # reindex pvals by dendrogram
-    pval = pval.reindex(log2odds.index) # reindex pvals by dendrogram
-    pval_asterisks = pval_asterisks.reindex(log2odds.index) # reindex pvals by dendrogram
-
     pval = pval.fillna(0)
 
-    labels =  pval_asterisks
+    labels =  pval
 
     ### prepare to plot the heatmap ###
     # Create a custom diverging colormap
@@ -457,7 +440,7 @@ def plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile, build)
         cbar_ax = cbar_ax,
         robust = True,
         cbar_kws={"orientation": "horizontal",
-        "label": "Log2-fold enrichment\nY:Rhe-specific G:Hu-specific"},
+        "label": "Log2-fold enrichment\nY:hu-specific G:rhe-specific"},
         cmap = cm,
         xticklabels = xtick,
         linewidths=0.5)
@@ -467,57 +450,49 @@ def plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile, build)
 
     plt.savefig(outfile, bbox_inches = 'tight')
 
-
-
-def get_mrca_OR(enh_te, baseTE):
+def get_fam_OR(enh_te, baseTE):
 
     all_TE_mrca_dict = {} # collect all te/mrca results here.
 
     fams = baseTE.fam.unique() # get list of TE families
     mrcas = baseTE.mrca_2.unique() # list of mrcas
 
-    for mrca in mrcas: # for each age (mrca)
 
-        mrca_dict = {}
+    for fam in fams[1:]: # test TE familiy enrichment in architectures
 
-        for fam in fams[1:]: # test TE familiy enrichment in architectures
+        test = baseTE.copy()
 
-            test = baseTE.loc[baseTE.mrca_2 == mrca]
+        simple_Yfam_Ymrca = len(test.loc[(test.core_remodeling ==0) & (test.fam == fam)])
+        simple_Nfam_Ymrca = len(test.loc[(test.core_remodeling ==0) & (test.fam != fam)])
 
-            simple_Yfam_Ymrca = len(test.loc[(test.core_remodeling ==0) & (test.fam == fam)])
-            simple_Nfam_Ymrca = len(test.loc[(test.core_remodeling ==0) & (test.fam != fam)])
+        complex_Yfam_Ymrca = len(test.loc[(test.core_remodeling ==1) & (test.fam == fam)])
+        complex_Nfam_Ymrca = len(test.loc[(test.core_remodeling ==1) & (test.fam != fam)])
 
-            complex_Yfam_Ymrca = len(test.loc[(test.core_remodeling ==1) & (test.fam == fam)])
-            complex_Nfam_Ymrca = len(test.loc[(test.core_remodeling ==1) & (test.fam != fam)])
+        # set up 2x2 table
+        a,b = complex_Yfam_Ymrca, simple_Yfam_Ymrca
+        c,d = complex_Nfam_Ymrca, simple_Nfam_Ymrca
 
-            # set up 2x2 table
-            a,b = complex_Yfam_Ymrca, simple_Yfam_Ymrca
-            c,d = complex_Nfam_Ymrca, simple_Nfam_Ymrca
+        obs = [[a,b], [c,d]]
 
-            obs = [[a,b], [c,d]]
+        if a >= 5 or b >= 5: # only test when >=5 TE family instances in arch.
 
-            if a >= 5 or b >= 5: # only test when >=5 TE family instances in arch.
+            odds, pvalue = stats.fisher_exact(obs)
 
-                odds, pvalue = stats.fisher_exact(obs)
+            df = pd.DataFrame({"fam": [fam],
+            "odds": [odds],
+            "pvalue":[pvalue],
+            "test_simple": [simple_Yfam_Ymrca],
+            "test_complex": [complex_Yfam_Ymrca],
+            "test_simple_notFam":[simple_Nfam_Ymrca],
+            "test_complex_notFam":[complex_Nfam_Ymrca],
 
-                df = pd.DataFrame({"fam": [fam],
-                "odds": [odds],
-                "pvalue":[pvalue],
-                "test_simple": [simple_Yfam_Ymrca],
-                "test_complex": [complex_Yfam_Ymrca],
-                "test_simple_notFam":[simple_Nfam_Ymrca],
-                "test_complex_notFam":[complex_Nfam_Ymrca],
-                "mrca_2":[mrca]})
+            })
 
-                mrca_dict[fam]=df # collect results per fam per age
+            all_TE_mrca_dict[fam] = df
 
-        fdr_df = fdr_formatting(mrca_dict) # FDR correction at 10% FDR
+    fdr_df = fdr_formatting(all_TE_mrca_dict) # FDR correction at 10% FDR
 
-        all_TE_mrca_dict[mrca] = fdr_df # collect results of all fams (fdr_df) per age
-
-    all_TE_mrca_OR = pd.concat(all_TE_mrca_dict.values()) # concat all results across all ages
-
-    return all_TE_mrca_OR
+    return fdr_df
 #%% run functions
 
 
@@ -526,7 +501,7 @@ syn_gen_bkgd = get_syn_gen_bkgd(BUILD) # get summarized age information
 famdf = format_te_file(TE_FAM, syn_gen_bkgd) # get TE family dataframe w/ages
 
 outf = bed_intersection(ENHF, REPEATMASKER, OUTPATH, SID) # intersect enhancers w/ TE
-
+outf
 
 #%% Format enhdf
 
@@ -536,47 +511,116 @@ enhdf = format_te_overlaps(enhdf) # format the TE overlaps in intersection file
 
 enh_te = merge_enh_te_info(enhdf, famdf) # merge enh_te intersection w/ te fam info
 
+#%% get primate-specific and Hominidae-specific Alus (orangutan and younger)
+
+p_alus = famdf.loc[famdf.fam.str.contains("Alu") & (famdf.taxon2_te.str.contains("Prim")), "te"]
+h_alus = famdf.loc[famdf.fam.str.contains("Alu") & (famdf.taxon_te.str.contains("Hom")), "te"]
+h_te = famdf.loc[famdf.taxon_te.str.contains("Hom"), "te"] #get all hominoidea and young TEs
+pr_te = famdf.loc[famdf.taxon2_te.str.contains("Prim"), "te"] #get all hominoidea and young TEs
+pr_te = set(pr_te) - set(h_te) #
+
+
+#%% SVA
+sva_te = famdf.loc[famdf.fam.str.contains("LINE/L1"), "te"]
+enh_te.loc[enh_te.fam.str.contains("LINE/L1")].groupby("core_remodeling")["enh_id"].count()
+sva_= enh_te.loc[enh_te.te.isin(sva_te), ["enh_id", "core_remodeling", "cell_line", "te", "taxon_te"]]
+sva_.groupby(["cell_line",'core_remodeling', ])["enh_id"].count()
+#%% are hu TEs more enriched in complex hu-specific enhancers?  No.
+hu_te= enh_te.loc[enh_te.te.isin(h_te), ["enh_id", "core_remodeling", "cell_line", "te", "taxon_te"]]
+hu_te.groupby(["cell_line",'core_remodeling', ])["enh_id"].count()
+obs = [[12,5], [8,7]]
+stats.fisher_exact(obs) #(2.1, 0.46701487965694527)
+#%%
+
+enh_te.loc[(enh_te.te.isin(p_alus))].groupby(["core_remodeling","cell_line"])["enh_id"].count()
+len(enh_te["enh_id"].unique())
+#%%
+hu_specific_alus = enh_te.loc[enh_te.te.isin(h_alus), ["enh_id", "core_remodeling", "cell_line", "te", "taxon_te"]]
+
+hu_specific_alus.groupby(["te","taxon_te",'core_remodeling', ])["enh_id"].count()
 
 ### only test enhancers that overlap TEs ###
+#%% are hu-specific alus enriched in complex enhancers w/ hu-specific increases in activity v. relative decreases in activity? No.
+hu_specific_alus.groupby(["cell_line",'core_remodeling', ])["enh_id"].count()
+obs = [[10,2], [3,3]]
+stats.fisher_exact(obs)
 
+#%% are primate alus enriched in stronger human-specific complex elements v. weaker hu-specific elements.
+all_alus = enh_te.loc[enh_te.te.isin(p_alus), ["enh_id", "core_remodeling", "cell_line", "te", "taxon_te"]].drop_duplicates()
 
+all_alus.groupby(["te","taxon_te",'core_remodeling', ])["enh_id"].count()
+all_alus.groupby([ 'cell_line','core_remodeling' ])["enh_id"].count()
+obs = [[912,138], [541,73]]
+stats.fisher_exact(obs)
+
+#%%
 # reduce dataframe to calculate OR enrichment using FET
 baseTE, baseFam = prep_df_for_OR(enh_te)
-#%%
 baseTE.head()
-counts = baseTE.groupby(["core_remodeling","enh_id"])["te_bin"].max().reset_index()
-counts.groupby("core_remodeling")["enh_id"].count()
 #%%
-# calculate enrichment of TE in complex, simple arch per mrca using FET + FDR<10%
-ORdf = get_mrca_OR(enh_te, baseTE)
 
-# format OR results
-ORdf_formatted = format_OR_results(ORdf, syn_gen_bkgd)
-ORdf_formatted.head()
-# get pval, log2odds, pval asterisks tables for plotting results.
-pval, log2odds, pval_asterisks  = get_pval_table_for_plotting(ORdf_formatted, BUILD)
-
-# file name for results
-outfile = f"{RE}/tyler-te_fam_cluster_enrichment_pval.pdf"
-
-# plot the results
-plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile, BUILD)
-
+fam_df = get_fam_OR(enh_te, baseTE)
+famORdf_formatted = format_OR_results(fam_df, syn_gen_bkgd)
+famORdf_formatted.sort_values(by = "-log10p", ascending = False)
+pval, log2odds, pval_asterisks  = get_pval_table_for_plotting(famORdf_formatted, BUILD)
+outfile = f"{RE}/tyler-te_fam_cell_line_enrichment_pval.pdf"
 
 #%%
-### test all enhancers, regardless whether they overlap TEs ###
 
-# calculate enrichment of TE in complex, simple arch per mrca using FET + FDR<10%
-ORdf = get_mrca_OR(enh_te, baseTE)
+labels =  pval
+labels
+#%%
+### prepare to plot the heatmap ###
+# Create a custom diverging colormap
+amber = '#feb308'
+faded_green = '#7bb274'
+offwhite = '#ffffe4'
 
-# format OR results
-ORdf_formatted = format_OR_results(ORdf, syn_gen_bkgd)
+a = mcolors.to_rgba(amber)
+f = mcolors.to_rgba(faded_green)
+o = mcolors.to_rgba(offwhite)
 
-# get pval, log2odds, pval asterisks tables for plotting results.
-pval, log2odds, pval_asterisks  = get_pval_table_for_plotting(ORdf_formatted, BUILD)
+colors = [a, o, f]  # R -> G -> B
+cmap_name = 'my_list'
+cm = LinearSegmentedColormap.from_list(cmap_name, colors, N=128)
 
-# file name for results
-outfile = f"{RE}/tyler-all_enh_te_fam_cluster_enrichment_pval.pdf"
+# set other plotting parameters
+grid_kws = {"height_ratios": (.9, .1), "hspace":1.1}
 
-# plot the results
-plot_heatmaps(ORdf_formatted,log2odds, pval, pval_asterisks, outfile, BUILD)
+# plot pvalue asterisks
+f, (ax, cbar_ax) = plt.subplots(2, gridspec_kw=grid_kws, figsize=(7,14))
+
+
+onlysig = pval.loc[pval["-log10p"].astype(float) >1].set_index("fam")
+onlysig
+labels =  onlysig
+onlysigodds = log2odds.loc[log2odds.fam.isin(test.index)].set_index("fam")
+onlysigodds
+ax = sns.heatmap(onlysig,
+    ax = ax,
+    annot = labels,
+    #annot_kws={"size": 30, "color": "black", "fontweight":'bold'},
+    fmt = '',
+    cbar= False)
+
+# plot log2 odds colors
+
+ax = sns.heatmap(onlysigodds,
+    center =0,
+    ax=ax,
+    cbar_ax = cbar_ax,
+    robust = True,
+    cbar_kws={"orientation": "horizontal",
+    "label": "Log2-fold enrichment\nY:hu-specific G:rhe-specific"},
+    cmap = cm,
+    #xticklabels = xtick,
+    linewidths=0.5)
+
+
+ax.set(xlabel = "", ylabel = "")
+
+plt.savefig(outfile, bbox_inches = 'tight')
+
+# first, make the dendrogram to get the clustering of TE families.
+plt.show()
+#

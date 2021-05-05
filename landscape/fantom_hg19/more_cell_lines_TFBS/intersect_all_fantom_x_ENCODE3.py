@@ -14,6 +14,10 @@ FANTOMBASE = "/dors/capra_lab/projects/enhancer_ages/fantom/data/ENCODE3/"
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19/"
 
 RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom_x_encode3_tfbs/"
+RE_DATA = RE +"data/"
+
+if os.path.exists(RE_DATA) == False:
+    os.mkdir(RE_DATA)
 
 colors = [ "amber", "dusty purple", "windows blue"]
 PAL = sns.xkcd_palette(colors)
@@ -300,6 +304,8 @@ def quantify_2x2(obs, comparison_name, min_instances):
                             })
 
         return newdf
+    else:
+        return None
 
 
 def fdr_correction(collection_dict, alpha):
@@ -337,7 +343,7 @@ def plot_bar_tf_enrichment(df, cell_line, outf, alpha):
 
 
 
-def run_2x2(arch1, arch2, df, min_instances, alpha):
+def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
 
     collection_dict = {}
 
@@ -349,26 +355,30 @@ def run_2x2(arch1, arch2, df, min_instances, alpha):
 
             results = quantify_2x2(obs, comparison_name, min_instances)
 
-            collection_dict[comparison_name] = results
+            if results is not None:
+                collection_dict[comparison_name] = results
 
-    #FDR correction
+    print(len(collection_dict.keys()))
+    if len(collection_dict.keys())>0:
+        #FDR correction
+        results_df = fdr_correction(collection_dict, alpha)
 
-    results_df = fdr_correction(collection_dict, alpha)
+        df = results_df.loc[results_df.reject_null == True] # get significant TFs
 
-    df = results_df.loc[results_df.reject_null == True]
-
-    if len(df)>0:
         outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
+
         outdata = f"{RE}{cell_line}_{arch1}_v_{arch2}_FDR_{alpha}.csv"
+
         df[["comparison_name", "tf", "log2"]].drop_duplicates().to_csv(outdata,
         sep = ",", header = False, index = False)
 
-        plot_bar_tf_enrichment(df, cell_line, outf, alpha)
+        #plot_bar_tf_enrichment(df, cell_line, outf, alpha)
+        return results_df
 
     else:
-        print("\nno sig results for comparison", arch1, "v.", arch2)
+        print("\nno sig results for comparison", arch1, "v.", arch2, taxon2)
+        return None
 
-    return results_df
 
 
 def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
@@ -453,22 +463,31 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     # DER V. BKGD
 
     # calculate TF enrichment in architecture/syn blocks
+
     arch1, arch2 = "complex_derived", "complex_core"
-    der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA)
+    der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
     arch1, arch2 = "complex_derived", "bkgd"
-    der_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA)
+    der_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
-    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df
+    arch1, arch2 = "simple", "complex_core"
+    simple_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    arch1, arch2 = "simple", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    arch1, arch2 = "simple", "complex_derived"
+    simple_v_der = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    arch1, arch2 = "complex_core", "bkgd"
+    core_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
+
 
 
 #%%
 sample_dict = get_cell_lines()
-
-results_dict = {}
-der_v_core_dict, der_v_bkgd_dict = {}, {} # collect all the dataframes for tf enrichment
-tf_den_enh = {}
-tf_den_syn = {}
 
 #%%
 
@@ -480,188 +499,128 @@ cell_line = "all_fantom_enh"
 val = sample_dict[cell_line]
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
-
-der_v_core.head()
 #%%
-outf = f"{RE}{cell_line}_complex_only_TFBS.csv"
-all_bkgd = der_v_core[["FDR_P", "arch", "tf", "log2"]].drop_duplicates()
-all_bkgd.to_csv(outf, sep = '\t', header = None, index = None)
-#%%
+data_dict = { "der_v_core":der_v_core,
+"der_v_bkgd":der_v_bkgd,
+"tf_density_enh":tf_density_enh,
+"tf_density_syn":tf_density_syn,
+"simple_v_core":simple_v_core,
+"simple_v_bkgd":simple_v_bkgd,
+"simple_v_der": simple_v_der,
+"core_v_bkgd":core_v_bkgd,
+"df":df
+}
 
-
-#%% run enrichment per cell_line
-
-ALPHA = 0.1
-MIN_INSTANCES = 50
-
-cell_lines = ["HepG2", "HepG2_CL", "K562", "GM12878", "GM12878_CL",  "A549", "liver"]
-for cell_line in cell_lines:
-    val = sample_dict[cell_line]
-
-
-    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
-
-    results_dict[cell_line] = df
-    tf_den_enh[cell_line] = tf_density_enh
-    tf_den_syn[cell_line] = tf_density_syn
-    der_v_bkgd_dict[cell_line] = der_v_bkgd
-    der_v_core_dict[cell_line] = der_v_core
+for comp, dataframe in data_dict.items():
+    print(comp)
+    if dataframe is None:
+        print("wtf", comp)
+    else:
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        dataframe.to_csv(outf, sep = '\t', index = False)
 
 
 #%%
+SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_taxon.bed"
+syn = pd.read_csv(SYN_GROUP, sep = '\t')
 
-df = tf_den_syn["all_fantom_enh"]
-fulldf = results_dict["all_fantom_enh"]
-syn_ages = fulldf[["syn_id", "mrca", "enh_id"]].drop_duplicates()
-syn_ages.columns= ["id", "mrca", "enh_id"]
-df = pd.merge(df, syn_ages)
+# round all values
+syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+df.mrca = df.mrca.round(3)
 
-core_age = fulldf.groupby(["enh_id"])["mrca"].max().reset_index()
-core_age.columns= ["enh_id", 'core_mrca']
-df = pd.merge(df, core_age)
 
+df = pd.merge(df, syn, how = "left", on = "mrca")
+
+
+df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
+df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
+df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
 df.head()
 #%%
-
-# age and taxon file
-syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
-syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
-syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
-
-syn_gen_bkgd = syn_gen_bkgd[["mrca", "taxon", "mrca_2", "taxon2"]] # whittle down the df
-df["core_mrca"] = df["core_mrca"].round(3) # round the ages
-
-df = pd.merge(df, syn_gen_bkgd, how = "left", left_on = 'core_mrca', right_on = "mrca")
-#%%
-df.groupby(["core_mrca", "arch"])["tf_density"].median()
-#%%
-x = "mrca_2"
-y = "tf_density"
-hue = "arch"
-data = df
-xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
-
-fig, ax = plt.subplots(figsize = (10,10))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = PAL, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
-
-ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
-ax.set_xticklabels(xlabs, rotation = 90)
-ax.legend(bbox_to_anchor = (1,1))
-
-plt.savefig("%sall_fantom_tfbs_mrca.pdf"%RE, bbox_inches="tight")
-
+mrca_dict = {}
+# calculate TF enrichment in architecture/syn blocks
 
 #%%
-x = "mrca_2"
-y = "tf_density"
-hue = "arch"
-data = df.loc[df[y]>0]
 
-fig, ax = plt.subplots(figsize = (10,10))
-sns.barplot(x = x, y = y, data = data, hue = hue, palette = PAL, estimator = np.median)#order = ["simple", "complex_core", "complex_derived"])
-xlabs = ["homo", "prim", "euar", "bore", "euth", "ther", "mam", "amni", "tetr", "vert"]
-ax.set(ylabel = "tfbs density\nmedian", title = "all_fantom_enh", xlabel = "core_age")
-ax.set_xticklabels(xlabs, rotation = 90)
-ax.legend(bbox_to_anchor = (1,1))
+rerun = ['Mammalia (177)', 'Boreoeutheria (96)',
+       'Primate (74)', 'Theria (159)', 'Vertebrata (615)',
+       'Amniota (312)', 'Tetrapoda (352)', 'Euarchontoglires (90)',
+       'Homo sapiens (0)']
+#for TAXON2 in df.taxon2.unique():
+for TAXON2 in rerun:
+    print(TAXON2)
+    age = df.loc[df.taxon2 == TAXON2]
 
-plt.savefig("%sall_fantom_syn_non_zero_tfbs_mrca.pdf"%RE, bbox_inches="tight")
-#%%
-
-df["core"] = "core"
-df.loc[df.arch == "complex_derived", "core"] = "der"
-df.loc[df.len <6, "len"] = 0
+    arch1, arch2 = "complex_derived", "complex_core"
+    der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
 
-complex_only = df.loc[df.arch.str.contains("complex") & (df.len > 0)]
+    arch1, arch2 = "simple", "complex_core"
+    simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
+    arch1, arch2 = "simple", "bkgd"
+    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-regions = complex_only.groupby(["enh_id", "core"])[["tfoverlap_bin", "len"]].sum().reset_index() # summarize complex enhancers by regions
-regions["tf_density"] = regions.tfoverlap_bin.divide(regions.len) # calculate the total regional syn density
+    arch1, arch2 = "complex_derived", "bkgd"
+    der_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-regions.head()
-#%%
+    arch1, arch2 = "complex_core", "bkgd"
+    core_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-coreder_den = regions.pivot(index = "enh_id", columns = "core", values = "tf_density").reset_index()
-coreder_len = regions.pivot(index = "enh_id", columns = "core", values = "len").reset_index()
+    arch1, arch2 = "complex_derived", "simple"
+    der_v_simple = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-coreder_len["sum_len"] = coreder_len.der + coreder_len.core # get the full length of the enhancer
-coreder_len["ratio_der"] = coreder_len.der.divide(coreder_len["sum_len"]) # get the ratio of derived length per enhancer
-coreder_len["pct"] = coreder_len["sum_len"].rank(pct = True) # rank lengths
+    results = [der_v_core, simple_v_core, simple_v_bkgd, der_v_bkgd, core_v_bkgd, der_v_simple]
 
-coreder_len.head()
-
-coreder_len.describe()
-#%%
-'''
-
-core	core	der	sum_len	ratio_der	pct
-count	10758.000000	10725.000000	10528.000000	10528.000000	10528.000000
-mean	199.353783	177.452867	373.782390	0.461647	0.500047
-std	145.930430	158.158972	187.829319	0.281999	0.288688
-min	6.000000	6.000000	15.000000	0.007609	0.000095
-25%	89.000000	62.000000	257.000000	0.209934	0.250237
-50%	175.000000	141.000000	350.000000	0.442009	0.500285
-75%	278.000000	249.000000	436.000000	0.703121	0.749430
-max	1669.000000	2791.000000	2860.000000	0.993852	1.000000
-'''
-#%% assess enhancer length  v. derived ratio inner quartiles
-iqrlen = coreder_len.loc[(coreder_len.pct<= 0.75) & (coreder_len.pct>=0.25)]
-ids = iqrlen.enh_id
-iqrlen.shape
-x = "sum_len"
-y = "ratio_der"
-
-outf = f"{RE}all_fantom_enh_lenIRQ_x_ratio_der.pdf"
-data = iqrlen
-sns.jointplot(x=x, y = y, data = data, kind = "hex")
-iqrlen.shape
-iqrlen.describe()
-
-plt.savefig(outf, bbox_inches = "tight")
-#%%
-iqrden = coreder_den.loc[coreder_den.enh_id.isin(iqrlen.enh_id)]
-iqrden.head()
-
-#%%
-iqrden['total'] = iqrden.core +  iqrden.der
-iqrden = iqrden.loc[(iqrden['core'] >0) & (iqrden['der'] >0)]
-iqrden.shape
-
-iqrden["ratio_der_core_den"] = iqrden.der/iqrden.core
-iqrden.describe()
+    mrca_dict[TAXON2] = results
 
 
 #%%
-import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
+def get_cross_mrca_enrichment(comp, i, mrca_dict):
+    comp_dict = {} # collect TF enrichment across ages
+    for key, value in mrca_dict.items():
+        compdf = value[i]
 
-X_train, X_test, y_train, y_test = train_test_split(
-         iqrden.iloc[:, 1], iqrden.iloc[:, 2], random_state=0)
-X_train = np.array(X_train).reshape(-1,1)
-y_train = np.array(y_train).reshape(-1,1)
+        if compdf is None:
+            print("nothing for", key) # examples of this is when there are no significant results for an age, or no pairs of complex core and derived (like in vertbrates)
+        else:
+            compdf["taxon2"] = key # add the taxon annotation to dataframe
 
+            comp_dict[key] = compdf # core_v_der enrichment df
+    # compile the comparison results across ages.
+    test = pd.concat(comp_dict.values()) # concat the results
+    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left") # merge in MRCA_2 info
 
-reg = LinearRegression().fit(X_train, y_train)
-reg.score(X_train, y_train)
+    return test
+
+def plot_heatmap(comp, test):
+    test = test.drop_duplicates()
+    # pivot the results into a table
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
+    index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
+    table = table.dropna(thresh = 0) # drop any Na's
+
+    # plot
+    sns.set("notebook")
+    cm = sns.clustermap(table.fillna(0), mask = (table==0),
+     cmap = "RdBu_r", center = 0, col_cluster = False,
+    figsize = (5,20))
+
+    cm.fig.suptitle(comp)
+    outf = f"{RE}{val}_{comp}_clustermap.pdf"
+    plt.savefig(outf, bbox_inches = "tight", dpi = 300)
+
 #%%
-len(X_train)
-#%%
-x = X_train[:, 0] # derived
-y = y_train[:, 0] # core
+comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
+"der_v_bkgd", "core_v_bkgd", "der_v_simple"]
 
-sns.jointplot(x=x, y = y,)
-
-outf = f"{RE}all_fantom_enh_lenIRQ_core_v_der_tfbs_den.pdf"
-
-plt.savefig(outf, bbox_inches = "tight")
+# enumerate and plot results
 #%%
-sns.histplot(iqrden.loc[iqrden.ratio_der_core_den<1.76, "ratio_der_core_den"])
+mrca_dict.keys()
 #%%
+for i, comp in enumerate(comparison_order):
+    print(comp)
+    test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+    plot_heatmap(comp, test)

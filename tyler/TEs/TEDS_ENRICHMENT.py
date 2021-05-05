@@ -124,13 +124,13 @@ def format_te_file(te_fam, syn_gen_bkgd):
     famdf.columns = ["te_fam", "fam", "taxon", "count"]
 
     # make taxon annotations consistent w/ my syn_gen_bkgd file
-    famdf.taxon.loc[famdf.taxon == "Primates"] = "Primate"
+    famdf.taxon.loc[famdf.taxon == "Primates"] = "Euarchonta"
     famdf.taxon.loc[famdf.taxon == "theria"] = "Theria"
     famdf.taxon.loc[famdf.taxon == "Euarchonta"] = "Euarchontoglires"
-    famdf.taxon.loc[famdf.taxon == "Hominoidea"] = "Hominidae"
+    #famdf.taxon.loc[famdf.taxon == "Hominoidea"] = "Hominidae"
     famdf.taxon.loc[famdf.taxon == "Rodentia"] = "Euarchontoglires"
     famdf.taxon.loc[famdf.taxon == "Muridae"] = "Euarchontoglires"
-    famdf.taxon.loc[famdf.taxon == "Homo_sapiens"] = "Homo sapiens"
+    famdf.taxon.loc[famdf.taxon == "Homo_sapiens"] = "Homo"
     famdf.taxon.loc[famdf.taxon == "old"] = "older_than_mammalia"
 
     # merge w/ age annotations
