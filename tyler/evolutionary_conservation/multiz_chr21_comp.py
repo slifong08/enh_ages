@@ -9,7 +9,7 @@ import seaborn as sns
 
 PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/"
 RE = "/dors/capra_lab/users/fongsl/tyler/results/CON_ACC/"
-dataset_list = ["species_specific_10k", "hars", "all", 'hu_specific', "rhe_specific",
+dataset_list = ["phastCons", "hars", "all", 'hu_specific', "rhe_specific",
  "all/subtract_te", 'hu_specific/subtract_te', "rhe_specific/subtract_te"]
 multiz_list = [20, 30, 100]
 
@@ -20,17 +20,18 @@ for msa in multiz_list:
         chr_num = "chr21"
 
         f = f"{PATH}{dataset}/multiz{msa}way/{chr_num}_con_acc.bed"
-        names = ["#chr", "file", "file_type", "start", "end", "log_p", "multiz", "??", "id"]
-        df = pd.read_csv(f, sep = '\t', header = None, names = names)
+        if os.path.exists(f) == True:
+            names = ["#chr", "file", "file_type", "start", "end", "log_p", "multiz", "??", "id"]
+            df = pd.read_csv(f, sep = '\t', header = None, names = names)
 
-        df["multiz"] = f"{msa}_way"
-        df["dataset"] = dataset
+            df["multiz"] = f"{msa}_way"
+            df["dataset"] = dataset
 
-        key = f"{msa}way-{dataset}"
-        df["dataset_id"] = key
-        df["enh_id"] = df["#chr"] + ":" + df["start"].map(str) + "-" + df["end"].map(str)
+            key = f"{msa}way-{dataset}"
+            df["dataset_id"] = key
+            df["enh_id"] = df["#chr"] + ":" + df["start"].map(str) + "-" + df["end"].map(str)
 
-        fs[key] = df
+            fs[key] = df
 
 def separate_shared_specific(df):
 
@@ -66,7 +67,7 @@ def separate_shared_specific(df):
 def plot_joint(x, y, data, RE):
 
     sns.set("talk")
-    g = sns.jointplot(data = data, x= x,  y = y, kind = "hist", marginal_ticks =True)
+    g = sns.jointplot(data = data, x= x,  y = y, kind = "hist", marginal_ticks = True)
 
     # run pearson's R
     X, Y = table[x], table[y]

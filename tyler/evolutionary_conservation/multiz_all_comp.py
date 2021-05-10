@@ -76,12 +76,12 @@ def plot_dist_p(df, ndict):
     #plt.title(f"chr21_{way}")
     #plt.legend(bbox_to_anchor =(1,1))
 
-    outf = f"{RE}ch21_hist.pdf"
+    outf = f"{RE}all_hist.pdf"
     plt.savefig(outf, bbox_inches = "tight")
 
     sns.displot(data = data, x = x, col = col, hue = hue, kind = "ecdf")
     #plt.legend(bbox_to_anchor =(1,1))
-    outf = f"{RE}ch21_cdf.pdf"
+    outf = f"{RE}all_cdf.pdf"
     plt.savefig(outf, bbox_inches = "tight")
 
     medians = test.groupby(["multiz", "dataset"])["log_p"].median().reset_index()
@@ -121,13 +121,17 @@ RE = "/dors/capra_lab/users/fongsl/tyler/results/CON_ACC/"
 
 dataset_list = [ "hars",
 "all",
-'hu_specific', "rhe_specific",
-
- 'hu_specific/subtract_te', "rhe_specific/subtract_te"
- #"species_specific_10k",#"all/subtract_te",
+'hu_specific',
+"rhe_specific",
+'hu_specific/subtract_te',
+"rhe_specific/subtract_te",
+"phastCons",
+ #"species_specific_10k",
+ "all/subtract_te",
  ]
 
-multiz_list = [20, 30,
+multiz_list = [20,
+#30,
 #100
 ]
 chr_list = make_chr_list()
@@ -139,10 +143,13 @@ for msa in multiz_list:
 
 
             f = f"{PATH}{dataset}/multiz{msa}way/{chr_num}_con_acc.bed"
+            f = os.path.join(PATH, dataset, f"multiz{msa}way/{chr_num}_con_acc.bed")
             names = ["#chr", "file", "file_type", "start", "end", "log_p", "multiz", "??", "id"]
 
             if os.path.exists(f) == True:
                 df = pd.read_csv(f, sep = '\t', header = None, names = names)
+                if dataset == "phastCons":
+                    df = df.sample(frac = 0.005)
 
                 df["multiz"] = f"{msa}_way"
                 df["dataset"] = dataset
@@ -169,6 +176,7 @@ ways = list(df.multiz.unique())
 
 #%%
 df.head()
+df.shape
 df.dataset.unique()
 # split up df
 #%%
@@ -182,6 +190,7 @@ n_dict, newdf = separate_shared_specific(df)
 small_df = df[["enh_id", "multiz", "log_p"]].drop_duplicates() # drop redundant enh_id in different datasets.
 table = small_df.pivot(index = "enh_id", columns = "multiz", values = "log_p")
 table.head()
+#%%
 x = "20_way"
 y = "30_way"
 data = table
@@ -205,6 +214,8 @@ y = "100_way"
 plot_joint(x, y, data, RE)
 
 #%% MWU p shared v. specific
+for d in dataset_list:
+    print(d, newdf.loc[newdf.dataset == d].shape)
 
+#%%
 plot_dist_p(newdf, n_dict)
-n_dict
