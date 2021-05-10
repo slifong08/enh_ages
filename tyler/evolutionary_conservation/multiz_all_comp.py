@@ -7,30 +7,6 @@ from sklearn.linear_model import LinearRegression
 import seaborn as sns
 
 
-PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/"
-RE = "/dors/capra_lab/users/fongsl/tyler/results/CON_ACC/"
-dataset_list = ["species_specific_10k", "hars", "all", 'hu_specific', "rhe_specific",
- "all/subtract_te", 'hu_specific/subtract_te', "rhe_specific/subtract_te"]
-multiz_list = [20, 30, 100]
-
-fs = {}
-for msa in multiz_list:
-    for dataset in dataset_list:
-
-        chr_num = "chr21"
-
-        f = f"{PATH}{dataset}/multiz{msa}way/{chr_num}_con_acc.bed"
-        names = ["#chr", "file", "file_type", "start", "end", "log_p", "multiz", "??", "id"]
-        df = pd.read_csv(f, sep = '\t', header = None, names = names)
-
-        df["multiz"] = f"{msa}_way"
-        df["dataset"] = dataset
-
-        key = f"{msa}way-{dataset}"
-        df["dataset_id"] = key
-        df["enh_id"] = df["#chr"] + ":" + df["start"].map(str) + "-" + df["end"].map(str)
-
-        fs[key] = df
 
 def separate_shared_specific(df):
 
@@ -124,7 +100,63 @@ def plot_dist_p(df, ndict):
     print(medians)
     return medians
 
- #%%
+
+def make_chr_list():
+    n = list(np.arange(1, 23))
+    #n.append("X")
+
+    chr_list = []
+    for num in n:
+        chrn = "chr" + str(num)
+        chr_list.append(chrn)
+
+    return chr_list
+
+
+#%%
+
+
+PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/"
+RE = "/dors/capra_lab/users/fongsl/tyler/results/CON_ACC/"
+
+dataset_list = [ "hars",
+"all",
+'hu_specific', "rhe_specific",
+
+ 'hu_specific/subtract_te', "rhe_specific/subtract_te"
+ #"species_specific_10k",#"all/subtract_te",
+ ]
+
+multiz_list = [20, 30,
+#100
+]
+chr_list = make_chr_list()
+
+fs = {}
+for msa in multiz_list:
+    for dataset in dataset_list:
+        for chr_num in chr_list:
+
+
+            f = f"{PATH}{dataset}/multiz{msa}way/{chr_num}_con_acc.bed"
+            names = ["#chr", "file", "file_type", "start", "end", "log_p", "multiz", "??", "id"]
+
+            if os.path.exists(f) == True:
+                df = pd.read_csv(f, sep = '\t', header = None, names = names)
+
+                df["multiz"] = f"{msa}_way"
+                df["dataset"] = dataset
+
+                key = f"{msa}way-{dataset}={chr_num}"
+                df["dataset_id"] = key
+                df["enh_id"] = df["#chr"] + ":" + df["start"].map(str) + "-" + df["end"].map(str)
+
+                fs[key] = df
+            else:
+                print("need to do this", f)
+
+
+#%%
 
 
 df = pd.concat(fs.values())

@@ -1,3 +1,4 @@
+import glob
 import os
 import subprocess
 
@@ -9,22 +10,41 @@ outfs =[]
 random_seed = 42
 
 PATHS = [
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/species_specific_10k/",
+#"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/species_specific_10k/",
 "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/",
 "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hars/",
 "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hu_specific/",
 "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/rhe_specific/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/phastCons/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/subtract_te/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hu_specific/subtract_te/",
+"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/rhe_specific/subtract_te/",
 ]
-
-PATHS[3:]
+PATHS
 
 #%% FUNCTIONS
 
 # in case you need to split file on chromosome number before getting started
 
-def split_by_chr(f):
-    cmd = '''awk '{print>$1".bed}' %s ''' %f
-    subprocess.call(cmd, shell = True)
+def make_chr_list():
+    n = list(np.arange(1, 23))
+    #n.append("X")
+
+    chr_list = []
+    for num in n:
+        chrn = "chr" + str(num)
+        chr_list.append(chrn)
+
+    return chr_list
+
+
+def split_by_chr(path):
+
+    fs = glob.glob(f"{path}*.bed")
+    for f in fs:
+        if "chr" not in f:
+            cmd = '''awk '{print>$1".bed}' %s ''' %f
+            subprocess.call(cmd, shell = True)
 
 
 # run phylop
@@ -39,7 +59,12 @@ def run_phylop(msa, chrnum, path, random_seed):
 
     mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
 
-    maf = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/maf/{chrnum}.maf"
+    maf_zipped = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/maf/{chrnum}.maf.gz"
+    maf_unzipped = maf_zipped.split(".gz")[0]
+
+    if os.path.exists(maf_unzipped) == False:
+        cmd = f"gunzip {maf_zipped}"
+        subprocess.call(cmd, shell = True)
 
     # make the outpath, outfile
     outpath = f"{path}multiz{msaway}/"
@@ -49,11 +74,14 @@ def run_phylop(msa, chrnum, path, random_seed):
 
     outf = f"{outpath}{chrnum}_con_acc.bed"
 
-    # run phyloP
-    cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch hg38 --mode CONACC -d {random_seed} -g {mod} {maf}> {outf}"
-    print(f"starting {msaway}")
-    subprocess.call(cmd, shell = True)
-    print(f"done with {msaway}")
+    if os.path.exists(outf) == False:
+        # run phyloP
+        cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch hg38 --mode CONACC -d {random_seed} -g {mod} {maf_unzipped}> {outf}"
+        print(f"starting {msaway}")
+        subprocess.call(cmd, shell = True)
+        print(f"done with {msaway}")
+    else:
+        print("already processed", outf)
 
     return outf
 
@@ -66,13 +94,19 @@ def cut_file(path, chrnum):
     subprocess.call(cmd, shell = True)
 
 #%%
+chr_list = make_chr_list() # generate a list of chr numbers
+
 
 for msa in msa_ways:
-    for PATH in PATHS[3:]:
+    for PATH in PATHS:
+        for CHRNUM in chr_list:
+            if CHRNUM != "chr21":
+                print(PATH, CHRNUM)
+                cut_file(PATH, CHRNUM)
+                outf = run_phylop(msa, CHRNUM, PATH, random_seed)
+                outfs.append(outf)
 
-        cut_file(PATH, CHRNUM)
-        outf = run_phylop(msa, CHRNUM, PATH, random_seed)
-        outfs.append(outf)
+
 #%%
 """
 example command:
