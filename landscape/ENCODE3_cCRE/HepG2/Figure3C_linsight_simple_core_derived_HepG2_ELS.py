@@ -41,11 +41,10 @@ RE = "/dors/capra_lab/projects/enhancer_ages/linsight/results/"
 # In[2]:
 
 
-linsight_path = "/dors/capra_lab/projects/enhancer_ages/linsight/data/"
-fantom_fs = glob.glob("%sFANTOM_*.bed" % linsight_path)
+linsight_path = "/dors/capra_lab/projects/enhancer_ages/encode/data/ELS_combined_HepG2/ages/linsight/"
 
 # enh only
-fantom_fs = "/dors/capra_lab/projects/enhancer_ages/linsight/data/all_unique_fantom_erna_112_tissue_linsight.bed"
+enh_fs = f"{linsight_path}syn_breaks_ELS_combined_HepG2_ages_x_linsight.bed"
 
 
 
@@ -93,11 +92,11 @@ def load_untrimmed_fantom_ids():
     cols = ["chr_en"]
 
 
-def format_df(fantom_fs, syn_gen_bkgd):
+def format_df(enh_fs, syn_gen_bkgd):
 
-    arch_id = (fantom_fs.split("/")[-1]).split("_")[1]
+    arch_id = (enh_fs.split("/")[-1]).split("_")[1]
     print(arch_id)
-    df = pandas.read_csv(fantom_fs, sep = '\t', header = None, low_memory=False)
+    df = pandas.read_csv(enh_fs, sep = '\t', header = None, low_memory=False)
 
     # rename columns
     df.columns = ['chr_syn','start_syn','end_syn', 'enh_id',
@@ -349,7 +348,7 @@ syn_gen_bkgd = load_syn_gen_bkgd(BUILD)
 
 syn_tfbs_overlap = load_fantom_encode_tfbs_overlap() # merge infor about ENCODE3 TFBS overlap
 
-base_df = format_df(fantom_fs, syn_gen_bkgd)
+base_df = format_df(enh_fs, syn_gen_bkgd)
 
 base_df.head()
 

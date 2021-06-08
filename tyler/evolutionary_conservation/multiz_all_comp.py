@@ -73,6 +73,7 @@ def plot_dist_p(df, ndict):
     col = "multiz"
 
     sns.displot(data = data, x = x, hue = hue, col = col, kind = "hist")
+    plt.xlim(-5,5)
     #plt.title(f"chr21_{way}")
     #plt.legend(bbox_to_anchor =(1,1))
 
@@ -80,6 +81,7 @@ def plot_dist_p(df, ndict):
     plt.savefig(outf, bbox_inches = "tight")
 
     sns.displot(data = data, x = x, col = col, hue = hue, kind = "ecdf")
+    plt.xlim(-5,5)
     #plt.legend(bbox_to_anchor =(1,1))
     outf = f"{RE}all_cdf.pdf"
     plt.savefig(outf, bbox_inches = "tight")
@@ -130,8 +132,9 @@ dataset_list = [ "hars",
  "all/subtract_te",
  ]
 
-multiz_list = [20,
-#30,
+multiz_list = [
+#20,
+30,
 #100
 ]
 chr_list = make_chr_list()
@@ -184,7 +187,7 @@ n_dict, newdf = separate_shared_specific(df)
 
 #%%
 
-
+"""
 
 #%% compare 20 v. 30 way
 small_df = df[["enh_id", "multiz", "log_p"]].drop_duplicates() # drop redundant enh_id in different datasets.
@@ -212,7 +215,7 @@ plot_joint(x, y, data, RE)
 x = "30_way"
 y = "100_way"
 plot_joint(x, y, data, RE)
-
+"""
 #%% MWU p shared v. specific
 for d in dataset_list:
     print(d, newdf.loc[newdf.dataset == d].shape)

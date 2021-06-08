@@ -48,11 +48,11 @@ fantom_fs = glob.glob("%sFANTOM_*.bed" % linsight_path)
 fantom_fs = "/dors/capra_lab/projects/enhancer_ages/linsight/data/all_unique_fantom_erna_112_tissue_linsight.bed"
 
 
-
 # In[3]:
 
 BUILD = "hg19"
 TRIM_LEN = "310"
+FIG_ID = "3C"
 FRAC = 0.5
 
 def load_syn_gen_bkgd(build):
@@ -79,18 +79,6 @@ def assign_architecture(df):
     df["core_remodeling_2"] = df.core_remodeling
     df.loc[df["core"] == 0, "core_remodeling_2"] = 2
     return df
-
-
-def load_fantom_encode_tfbs_overlap():
-    SYN_OVERLAP = '/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/encode3/ALL_FANTOM_SYN_TF_OVERLAP.tsv'
-    syn_tfbs_overlap = pd.read_csv(SYN_OVERLAP, sep = '\t')
-
-    return syn_tfbs_overlap
-
-def load_untrimmed_fantom_ids():
-    map_trim = "/dors/capra_lab/projects/enhancer_ages/fantom/data/trimmed-310_all_unique_fantom_erna_112_tissue.bed"
-    trim_map = pd.read_csv(map_trim, sep = '\t', header =None)
-    cols = ["chr_en"]
 
 
 def format_df(fantom_fs, syn_gen_bkgd):
@@ -302,7 +290,7 @@ def plot_figure3(df, fig_id, re, trim_len, frac, dataset, x):
     ax.set_xticklabels(order_labs, rotation = 90)
 
     # get counts for annotation
-    groupby_cols, groupby_val = [x1], "lin_len"
+    groupby_cols, groupby_val = [x1], "counts"
     countdf = get_counts(df, groupby_cols, groupby_val)
     height_adjust = 0.01
     plot_annotate_counts(splot, countdf, groupby_val, height_adjust)
@@ -322,7 +310,7 @@ def plot_figure3(df, fig_id, re, trim_len, frac, dataset, x):
                 ax = ax2)
 
     # add counts and annotate barplot
-    groupby_cols, groupby_val = [x1, "mrca_2"], "lin_len"
+    groupby_cols, groupby_val = [x1, "mrca_2"], "counts"
     countdf = get_counts(df, groupby_cols, groupby_val)
     plot_annotate_counts(mplot, countdf, groupby_val, height_adjust)
 
@@ -347,13 +335,9 @@ def plot_figure3(df, fig_id, re, trim_len, frac, dataset, x):
 
 syn_gen_bkgd = load_syn_gen_bkgd(BUILD)
 
-syn_tfbs_overlap = load_fantom_encode_tfbs_overlap() # merge infor about ENCODE3 TFBS overlap
-
 base_df = format_df(fantom_fs, syn_gen_bkgd)
 
 base_df.head()
-
-base_df = pd.merge(base_df, syn_tfbs_overlap, how = "left")
 #%%
 
 # expand linsight counts to per basepair level
@@ -379,66 +363,63 @@ concat = pandas.concat([simplef, derivedf, coref])
 concat = concat.sample(frac = 0.05)
 
 
-#%%
+
+# In[16]:
 measures = get_stats(concat)
 
+order = ["simple", "complex_core", "derived"]
+fig, ax = plt.subplots(figsize = (8, 8))
+sns.barplot(x = "code", y = "linsight_score", data = concat,
+            #showfliers = False,
+            #notch = True,
+            order = order,
+           palette = arch_palette)
+ax.set_xlabel("\nkruskal = %s, p = %s" % (k, kp))
+#ax.set_title("LINSIGHT score by FANTOM architecture age")
+ax.set_xlabel("")
+ax.set_ylabel("LINSIGHT score")
+sns.set("poster")
+plt.savefig("%sfantom_linsight_architecture_boxplot.pdf" %(RE), bbox_inches = "tight")
 
-#%%
+
+
+order = ["simple", "complex_core", "derived"]
+fig, ax = plt.subplots(figsize = (8, 8))
+sns.barplot(x = "taxon2", y = "linsight_score", data = base_df.sort_values(by="mrca_2")
+              , hue = "code", palette = arch_palette, hue_order = order)
+ax.set_xticklabels(ax.get_xticklabels(), rotation = 90, horizontalalignment = "left")
+ax.set_xlabel("Core age")
+ax.set_title("LINSIGHT score by FANTOM architecture age")
+ax.legend(bbox_to_anchor=(1.5, 1.0))
+plt.savefig("%sfantom_linsight_architecture_mrca.pdf" %(RE), bbox_inches = "tight")
+
+
+
+
+#%% In[25]:
+
+
 FIG_ID = "3C"
 DATASET = "all_fantom_enh"
 x = "arch"
 
 plot_figure3(base_df, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
-
-#%% plot only enhancers that overlap TFBS in ENCODE
-
-FIG_ID = "3C"
-DATASET = "TFBS_overlap_only_all_fantom_enh"
-x = "arch"
-data = base_df.loc[base_df.tfoverlap_bin ==1]
-data.shape
-plot_figure3(data, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
-
-
+#%%
+groupby_cols, groupby_val = [x], "counts"
+countdf = get_counts(df, groupby_cols, groupby_val)
+countdf
 #%%
 
+# In[112]:
 
-FIG_ID = "3C"
-DATASET = "NO_TFBS_all_fantom_enh"
-x = "arch"
-no_data = base_df.loc[base_df.tfoverlap_bin ==0]
-
-plot_figure3(no_data, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
-
-
-#%%
 
 FIG_ID = "3A"
 DATASET = "all_fantom_enh"
 x = "code"
 plot_figure3(base_df, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
 
-#%% evaluate linsight on syntenic architecture w/ evidence for TFBS binding in encode
-
-
-FIG_ID = "3A"
-DATASET = "TFBS_overlap_only_all_fantom_enh"
-x = "code"
-data = base_df.loc[base_df.tfoverlap_bin ==1]
-plot_figure3(data, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
-
-
-#%% evaluate linsight on syntenic architecture w/ no evidence for TFBS binding
-
-
-FIG_ID = "3A"
-DATASET = "NO_TFBS_all_fantom_enh"
-x = "code"
-nodata = base_df.loc[base_df.tfoverlap_bin ==0]
-plot_figure3(nodata, FIG_ID, RE, TRIM_LEN, FRAC, DATASET, x)
-
-
 #%%
+
 
 order = ["simple", "complex"]
 fig, ax = plt.subplots(figsize= (8,8))

@@ -84,6 +84,23 @@ def bed_intersect(fantom, encode, intersection):
         print("you have previously done the enh x encode intersection")
 
 
+def load_syn_gen_bkgd(build):
+
+    F = f"/dors/capra_lab/projects/enhancer_ages/{build}_syn_taxon.bed"
+    syngenbkgd = pd.read_csv(F, sep='\t')
+    syngenbkgd[["mrca", "mrca_2"]] = syngenbkgd[["mrca", "mrca_2"]].round(3)
+
+    return syngenbkgd
+
+
+def get_core_age(df):
+    core = df.groupby("enh_id")["mrca_2"].max().reset_index()
+    core.columns = ["enh_id", 'core_mrca_2']
+    df = pd.merge(df, core, how = "left")
+
+    return df
+
+
 def format_df(intersection_file, cell_line):
 
     cols = ["chr_syn", "start_syn", "end_syn",
@@ -130,6 +147,7 @@ def format_df(intersection_file, cell_line):
     df["tfoverlap_bin"] = 1
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
     df.loc[df.overlap <6 , "tfoverlap_bin"] = 0
+
 
     return df
 
@@ -529,9 +547,17 @@ syn = pd.read_csv(SYN_GROUP, sep = '\t')
 # round all values
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
 df.mrca = df.mrca.round(3)
+#%%
+list(df)
 
+#%%
+df = df.drop([ 'taxon','mrca_2','taxon2',], axis = 1)
+#df = df.rename(columns={'taxon_x': 'taxon', 'mrca_2_x': 'mrca_2',
+#"taxon2_x": "taxon2"})
 
-df = pd.merge(df, syn, how = "left", on = "mrca")
+#
+df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on= "mrca_2" )
+df = get_core_age(df)
 
 
 df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
@@ -548,9 +574,9 @@ rerun = ['Mammalia (177)', 'Boreoeutheria (96)',
        'Primate (74)', 'Theria (159)', 'Vertebrata (615)',
        'Amniota (312)', 'Tetrapoda (352)', 'Euarchontoglires (90)',
        'Homo sapiens (0)']
-#for TAXON2 in df.taxon2.unique():
-for TAXON2 in rerun:
-    print(TAXON2)
+for TAXON2 in df.taxon2.unique():
+#for TAXON2 in rerun:
+    print(core_mrca)
     age = df.loc[df.taxon2 == TAXON2]
 
     arch1, arch2 = "complex_derived", "complex_core"
@@ -591,15 +617,16 @@ def get_cross_mrca_enrichment(comp, i, mrca_dict):
             comp_dict[key] = compdf # core_v_der enrichment df
     # compile the comparison results across ages.
     test = pd.concat(comp_dict.values()) # concat the results
-    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left") # merge in MRCA_2 info
+
+    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left", on = "mrca_2") # merge in MRCA_2 info
 
     return test
 
 def plot_heatmap(comp, test):
     test = test.drop_duplicates()
     # pivot the results into a table
-    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
-    index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),\
+    index = "tf", columns = ["mrca_2", "taxon2_y"], values = 'log2') # pivot only the significant results
     table = table.dropna(thresh = 0) # drop any Na's
 
     # plot
@@ -609,7 +636,7 @@ def plot_heatmap(comp, test):
     figsize = (5,20))
 
     cm.fig.suptitle(comp)
-    outf = f"{RE}{val}_{comp}_clustermap.pdf"
+    outf = f"{RE}{val}_{comp}_clustermap_core_mrca2.pdf"
     plt.savefig(outf, bbox_inches = "tight", dpi = 300)
 
 #%%
@@ -618,9 +645,12 @@ comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
 
 # enumerate and plot results
 #%%
-mrca_dict.keys()
+
+get_cross_mrca_enrichment(comp, i, mrca_dict)
 #%%
+
 for i, comp in enumerate(comparison_order):
-    print(comp)
+
     test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+    print(comp, list(test))
     plot_heatmap(comp, test)

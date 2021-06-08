@@ -103,6 +103,7 @@ def bed_intersect(enh_chr, lin_chr, outfile):
         bed_cmd = "bedtools intersect -a %s -b %s -wao > %s" % (enh_chr, lin_chr, outfile)
 
         subprocess.call(bed_cmd, shell = True)
+        
 
         print("finished", outfile)
 

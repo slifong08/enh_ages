@@ -72,6 +72,14 @@ def bed_intersect(fantom, encode, intersection):
         print("previously done enh x encode intersection")
 
 
+def get_core_age(df):
+    core = df.groupby("enh_id")["mrca_2"].max().reset_index()
+    core.columns = ["enh_id", 'core_mrca_2']
+    df = pd.merge(df, core, how = "left")
+
+    return df
+
+
 def format_df(intersection_file):
 
     cols = ["chr_syn", "start_syn", "end_syn",
@@ -532,33 +540,44 @@ if os.path.exists(df_file) == False:
     "df":df
     }
 
+    for comp, dataframe in data_dict.items():
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        dataframe.to_csv(outf, sep = '\t', index = False)
 else:
     data_dict = {}
-    for comp in df_list:
+    for comp in comp_list:
         outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
         df = pd.read_csv(outf, sep = '\t')
         data_dict[comp] = df
 
-for comp, dataframe in data_dict.items():
-    outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
-    dataframe.to_csv(outf, sep = '\t', index = False)
-#%%
 
 #%%
+
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
 
 # round all values
+
+
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
 df.mrca = df.mrca.round(3)
 
-df = pd.merge(df, syn, how = "left")
+# do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
+df = get_core_age(df)
+df = df.drop(["mrca_2"], axis = 1)
+df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+df.head(10)
+
+
 
 # lump small samples with larger, older ancestors
 df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
 df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
 df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
+
 #%%
+
 mrca_dict = {}
 # calculate TF enrichment in architecture/syn blocks
 
@@ -615,15 +634,18 @@ def plot_heatmap(comp, test):
     table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
     index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
     table = table.dropna(thresh = 0) # drop any Na's
-
+    if len(table)<25:
+        figsize = (5,10)
+    else:
+        figsize= (5,30)
     # plot
     sns.set("notebook")
     cm = sns.clustermap(table.fillna(0), mask = (table==0),
      cmap = "RdBu_r", center = 0, col_cluster = False,
-    figsize = (5,20))
+    figsize = figsize)
 
     cm.fig.suptitle(comp)
-    outf = f"{RE}{val}_{comp}_clustermap.pdf"
+    outf = f"{RE}{val}_{comp}_clustermap_core_mrca2.pdf"
     plt.savefig(outf, bbox_inches = "tight", dpi = 300)
 
 #%%
@@ -639,5 +661,25 @@ for i, comp in enumerate(comparison_order):
     plot_heatmap(comp, test)
 
 #%%
+synden = data_dict["tf_density_syn"]
+synden.head()
+test = data_dict["df"]
+# add core mrca age
+test = pd.merge(test, syn[["mrca", "mrca_2"]])
+test = get_core_age(test)
+# add age info to tf density dataframe
+synden = pd.merge(synden, test[["syn_id", "core_mrca_2"]], left_on = 'id', right_on = "syn_id")
+
+#%% plot
+x ,y = "core_mrca_2", 'tf_density'
+hue = "arch"
+hue_order = ["simple", "complex_core", "complex_derived"]
+xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
+fig, ax = plt.subplots(figsize = (6,6))
+sns.barplot(x, y, data = synden, hue = hue, palette = PAL, hue_order = hue_order)
+ax.legend(bbox_to_anchor = (1,1))
+ax.set_xticklabels(xlabs, rotation = 90)
+
+outf = f"{RE}{cell_line}_tfbs_density_core_mrca_2.pdf"
 outf
-test.head()
+plt.savefig(outf, bbox_inches = "tight")
