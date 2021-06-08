@@ -58,14 +58,6 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
 
     msaway = str(msa) + "way"
 
-    # for multiple branches, need to remove whitespace
-    # before generating outpath
-
-    if " " in branch:
-        branch_path = "_".join(branch.split(" "))
-    else:
-        branch_path = branch
-
     # the neutral tree
     mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
 
@@ -79,7 +71,7 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
         subprocess.call(cmd, shell = True)
 
     # make the outpath, outfile
-    outpath = f"{path}multiz{msaway}_{branch_path}/"
+    outpath = f"{path}multiz{msaway}_{branch}/"
 
     print("\n\nOUTPATH:", branch_path, "\n\n")
 

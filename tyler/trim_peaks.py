@@ -1,7 +1,7 @@
 import glob
 import pandas as pd
 import os, sys
-
+#%%
 #bedfile = sys.argv[1] # must have 6 fields: chr, start, end, tf, reads, cell_line
 bedfiles = glob.glob("/dors/capra_lab/users/fongsl/tyler/data/GG-LL_*/*.bed")
 trim_len = 466 #291 # trim to 291 bp.

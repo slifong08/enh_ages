@@ -9,9 +9,8 @@ import statsmodels.api as sm
 import subprocess
 
 
-
-FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/ages/"
-FANTOMFILE = "syn_breaks_all_fantom_enh_ages.bed"
+FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/ages/"
+FANTOMFILE = "syn_breaks_no-exon_all_fantom_enh_ages.bed"
 FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
 
 #FANTOM_TFBS_ONLY = f"{FANTOMPATH}enh_tfbs_only.txt"
@@ -419,8 +418,9 @@ shuf["id"] = "SHUFFLE"
 
 df = pd.concat([enh, shuf])
 df.shape
-
-
+df.drop_duplicates().shape
+enh.groupby(["core_remodeling", "core", "mrca_2"])["enh_id"].count()
+shuf.groupby(["core_remodeling", "core"])["enh_id"].count()
 
 #%% summarize architecture lengths per enhancer
 
