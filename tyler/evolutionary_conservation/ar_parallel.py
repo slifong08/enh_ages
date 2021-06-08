@@ -46,11 +46,7 @@ def make_chr_list():
 def split_by_chr(f):
 
     if "chr" not in f:
-<<<<<<< HEAD
         cmd = '''awk '{print>$1".bed"}' %s ''' %f
-=======
-        cmd = '''awk '{print>$1".bed}' %s ''' %f
->>>>>>> 4b472f9ecbe5f8ef538db0136dc5b7b3eef5a93f
         subprocess.call(cmd, shell = True)
 
 
@@ -206,12 +202,6 @@ From PhyloP documentation
         optimization.  If not specified will use a seed based on the
 	current time.
 
---branch
-Like subtree, but partitions the tree into the set of named branches
-(each named by its child node), and all the remaining branches.
-
-Then tests for conservation/acceleration in the set of named
-branches relative to the others.
 
 
 auto_neutral_model = results of phastcons run
