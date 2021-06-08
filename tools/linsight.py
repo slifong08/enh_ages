@@ -21,7 +21,7 @@ import subprocess
 
 # PATHS AND FILES
 
-arg_parser = argparse.ArgumentParser(description="Calculate linsight for .bed")
+arg_parser = argparse.ArgumentParser(description="Calculate linsight for bedfile.")
 
 arg_parser.add_argument("bedfile", help='bed file w/ full path')
 
@@ -101,9 +101,9 @@ def make_chr_file_dict(chr_list, path, id): # make a dictionary of chr.
 def bed_intersect(enh_chr, lin_chr, outfile):
 
         bed_cmd = "bedtools intersect -a %s -b %s -wao > %s" % (enh_chr, lin_chr, outfile)
-
+        print(bed_cmd)
         subprocess.call(bed_cmd, shell = True)
-
+        
         print("finished", outfile)
 
 

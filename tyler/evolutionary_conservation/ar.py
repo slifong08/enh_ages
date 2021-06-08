@@ -1,7 +1,7 @@
 import glob
 import os
 import subprocess
-
+import numpy as np
 #%%
 msa_ways = [20, 30, 100]
 CHRNUM = "chr21"
