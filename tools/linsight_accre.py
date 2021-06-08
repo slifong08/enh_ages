@@ -104,6 +104,10 @@ def bed_intersect(enh_chr, lin_chr, outfile):
         print(bed_cmd)
         subprocess.call(bed_cmd, shell = True)
         
+<<<<<<< HEAD
+=======
+
+>>>>>>> 354a19b41e08636610fd771d944c64a732a864d6
         print("finished", outfile)
 
 

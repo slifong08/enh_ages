@@ -133,8 +133,8 @@ dataset_list = [ "hars",
  ]
 
 multiz_list = [
-#20,
-30,
+20,
+#30,
 #100
 ]
 chr_list = make_chr_list()

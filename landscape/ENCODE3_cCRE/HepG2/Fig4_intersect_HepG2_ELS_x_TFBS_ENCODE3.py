@@ -9,12 +9,12 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
-FANTOMBASE = "/dors/capra_lab/projects/enhancer_ages/fantom/data/ENCODE3/"
+ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/data/"
 
-ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/liftOver_hg19/"
+ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom_x_encode3_tfbs/"
-RE_DATA = RE +"data/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/"
+RE_DATA = RE + "data/"
 
 if os.path.exists(RE_DATA) == False:
     os.mkdir(RE_DATA)
@@ -26,24 +26,12 @@ sns.palplot(PAL)
 colors = [ "windows blue"]
 DERPAL = sns.xkcd_palette(colors)
 sns.palplot(DERPAL)
-
-
 #%% Functions
 
 
 def get_cell_lines():
     sample_dict = {
-    "all_fantom_enh": "all_fantom_enh",
-    "A549":"A549_FANTOM5_tpm_hg19",
-    "GM12878_CL":"CL_0000945_lymphocyte_of_B_lineage_expressed_enhancers",
-    "GM12878": "GM12878_FANTOM5_tpm_hg19",
-    "HepG2": "HEPG2_FANTOM5_tpm_hg19",
-    "HepG2_CL": "CL_0000182_hepatocyte_expressed_enhancers",
-    "K562":"CL_0000094_granulocyte_expressed_enhancers",
-    "liver":"UBERON_0002107_liver_expressed_enhancers",
-    #"H1-hESC":"H1-esc_FANTOM5_tpm_hg19",
-    #"MCF7":"CL_0002327_mammary_epithelial_cell_expressed_enhancers",
-    #"PC-3": "PC-3_FANTOM5_tpm_hg19",
+    "HepG2": "ELS_combined_HepG2",
     }
 
     return sample_dict
@@ -58,7 +46,7 @@ def get_paths(cell_line, file_tag, fantombase, encodepath):
     if "CL" in cell_line:
         ENCODEFILE = "cells/" + cell_line.split("_CL")[0] + ".bed.gz"
     elif cell_line == "all_fantom_enh":
-        ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.liftOver.to.hg19.bed"
+        ENCODEFILE = "trimmed_encRegTfbsClusteredWithCells.bed"
     else:
         ENCODEFILE = "cells/" + cell_line + ".bed.gz"
 
@@ -81,16 +69,7 @@ def bed_intersect(fantom, encode, intersection):
 
         print(cmd)
     else:
-        print("you have previously done the enh x encode intersection")
-
-
-def load_syn_gen_bkgd(build):
-
-    F = f"/dors/capra_lab/projects/enhancer_ages/{build}_syn_taxon.bed"
-    syngenbkgd = pd.read_csv(F, sep='\t')
-    syngenbkgd[["mrca", "mrca_2"]] = syngenbkgd[["mrca", "mrca_2"]].round(3)
-
-    return syngenbkgd
+        print("previously done enh x encode intersection")
 
 
 def get_core_age(df):
@@ -101,7 +80,7 @@ def get_core_age(df):
     return df
 
 
-def format_df(intersection_file, cell_line):
+def format_df(intersection_file):
 
     cols = ["chr_syn", "start_syn", "end_syn",
     "enh_id","chr", "start", "end",
@@ -119,11 +98,6 @@ def format_df(intersection_file, cell_line):
     df.columns = cols # add column names
 
     df["tf"] = df["tf_id"].apply(lambda x: x.split("_")[0])
-
-    outf = f"{RE}bkgd_TFs_{cell_line}.txt"
-    tfs_ = df[["tf"]].drop_duplicates()
-    tfs_.to_csv(outf, sep = '\n', index = False, header = False)
-
 
     # add architecture label - core, derived, simple
     df["arch"] = "simple"
@@ -147,7 +121,6 @@ def format_df(intersection_file, cell_line):
     df["tfoverlap_bin"] = 1
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
     df.loc[df.overlap <6 , "tfoverlap_bin"] = 0
-
 
     return df
 
@@ -301,9 +274,19 @@ def prep_2x2(tf, arch1, arch2, df):
 
     a, b, c, d = TF_in_arch, not_TF_in_arch, TF_bkgd, not_TF_in_bkgd
 
-    obs = [[a,b], [c,d]]
 
-    return obs, comparison_name
+    checkrowone = a + b
+
+    if checkrowone > 0:
+        obs = [[a,b], [c,d]]
+
+        return obs, comparison_name
+    else:
+        print("no obs for", tf)
+
+        obs = [[0,0], [0,0]]
+
+        return obs, comparison_name
 
 
 def quantify_2x2(obs, comparison_name, min_instances):
@@ -320,10 +303,11 @@ def quantify_2x2(obs, comparison_name, min_instances):
                               "ci_lower" :[odds_ci[0]],
                               "ci_upper" :[odds_ci[1]],
                             })
-
-        return newdf
     else:
-        return None
+        newdf = pd.DataFrame() # return empty dataframe
+
+
+    return newdf
 
 
 def fdr_correction(collection_dict, alpha):
@@ -342,7 +326,7 @@ def fdr_correction(collection_dict, alpha):
     return df
 
 
-def plot_bar_tf_enrichment(df, cell_line, outf, alpha):
+def plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2):
 
     fig, ax = plt.subplots(figsize = (6,12))
     sns.set("poster")
@@ -355,10 +339,15 @@ def plot_bar_tf_enrichment(df, cell_line, outf, alpha):
     sns.barplot(x=y, y=x, data=data , hue = hue, palette = DERPAL)
 
     ax.legend(bbox_to_anchor = (1,1))
-    ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = cell_line)
+
+    if taxon2 !=None:
+        label = cell_line + "_" + taxon2
+    else:
+        label = cell_line
+
+    ax.set(xlabel = "OR log2-scale\n FDR<%s" % str(alpha), title = label)
 
     plt.savefig(outf, bbox_inches = "tight")
-
 
 
 def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
@@ -373,42 +362,46 @@ def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
 
             results = quantify_2x2(obs, comparison_name, min_instances)
 
-            if results is not None:
+            if results.empty ==False:
                 collection_dict[comparison_name] = results
 
-    print(len(collection_dict.keys()))
-    if len(collection_dict.keys())>0:
-        #FDR correction
+    #FDR correction
+    if len(collection_dict) > 0: # if there are any results
+
         results_df = fdr_correction(collection_dict, alpha)
 
-        df = results_df.loc[results_df.reject_null == True] # get significant TFs
+        df = results_df.loc[results_df.reject_null == True]
 
-        outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
 
-        outdata = f"{RE}{cell_line}_{arch1}_v_{arch2}_FDR_{alpha}.csv"
+        if len(df)>0: # if there are any significant results, plot them!
 
-        df[["comparison_name", "tf", "log2"]].drop_duplicates().to_csv(outdata,
-        sep = ",", header = False, index = False)
+            if taxon2 != None:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
+                #plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
 
-        #plot_bar_tf_enrichment(df, cell_line, outf, alpha)
-        return results_df
+            else:
+                outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
+                #plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+
+            return results_df
+
+        else:
+                print("\nno sig results for comparison", arch1, "v.", arch2, "in", taxon2)
 
     else:
-        print("\nno sig results for comparison", arch1, "v.", arch2, taxon2)
-        return None
-
+        print("\nnot any results for comparison", arch1, "v.", arch2, "in", taxon2)
 
 
 def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
     print(cell_line, val)
     fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
-
+    print(fantom, encode, intersection)
     #Bed command
     bed_intersect(fantom, encode, intersection)
 
     #dataframe
-    df = format_df(intersection, cell_line)
+    df = format_df(intersection)
 
     #get some basic info about Fantom enhancer overlap
     arch = "enh"
@@ -452,7 +445,6 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
 
     print("\nSyn TFBS densities")
-
     # plot syn block TF density
     order = ["simple", "complex_core", "complex_derived"]
     data = tf_density_syn
@@ -481,7 +473,6 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     # DER V. BKGD
 
     # calculate TF enrichment in architecture/syn blocks
-
     arch1, arch2 = "complex_derived", "complex_core"
     der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
@@ -503,80 +494,96 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
 
 
+def just_get_df(cell_line, val, fantombase, encodepath,):
+    print(cell_line, val)
+    fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
+
+    #Bed command
+    bed_intersect(fantom, encode, intersection)
+
+    #dataframe
+    df = format_df(intersection)
+
+    return df
 
 #%%
 sample_dict = get_cell_lines()
 
 #%%
-
-ALPHA = 0.05
-MIN_INSTANCES = 500
-
-
-cell_line = "all_fantom_enh"
-val = sample_dict[cell_line]
-
-
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, FANTOMBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+ALPHA = 0.1
+MIN_INSTANCES =10
 
 #%%
-data_dict = { "der_v_core":der_v_core,
-"der_v_bkgd":der_v_bkgd,
-"tf_density_enh":tf_density_enh,
-"tf_density_syn":tf_density_syn,
-"simple_v_core":simple_v_core,
-"simple_v_bkgd":simple_v_bkgd,
-"simple_v_der": simple_v_der,
-"core_v_bkgd":core_v_bkgd,
-"df":df
-}
+cell_line = "HepG2"
+val = "ELS_combined_HepG2"
+#val = sample_dict[cell_line]
+df_file = f"{RE_DATA}{cell_line}_df.tsv"
 
-for comp, dataframe in data_dict.items():
-    print(comp)
-    if dataframe is None:
-        print("wtf", comp)
-    else:
+comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
+"simple_v_core",
+"simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
+
+
+if os.path.exists(df_file) == False:
+
+    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+
+    data_dict = {  # dictionary of the dataframes and odds ratio comparisons
+    "der_v_core":der_v_core,
+    "der_v_bkgd":der_v_bkgd,
+    "tf_density_enh":tf_density_enh,
+    "tf_density_syn":tf_density_syn,
+    "simple_v_core":simple_v_core,
+    "simple_v_bkgd":simple_v_bkgd,
+    "simple_v_der": simple_v_der,
+    "core_v_bkgd":core_v_bkgd,
+    "df":df
+    }
+
+    for comp, dataframe in data_dict.items():
         outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
         dataframe.to_csv(outf, sep = '\t', index = False)
+else:
+    data_dict = {}
+    for comp in comp_list:
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        df = pd.read_csv(outf, sep = '\t')
+        data_dict[comp] = df
 
 
 #%%
-SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_taxon.bed"
+
+SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
 
 # round all values
+
+
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
 df.mrca = df.mrca.round(3)
-#%%
-list(df)
 
-#%%
-df = df.drop([ 'taxon','mrca_2','taxon2',], axis = 1)
-#df = df.rename(columns={'taxon_x': 'taxon', 'mrca_2_x': 'mrca_2',
-#"taxon2_x": "taxon2"})
-
-#
-df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on= "mrca_2" )
+# do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
 df = get_core_age(df)
+df = df.drop(["mrca_2"], axis = 1)
+df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+df.head(10)
 
 
+
+# lump small samples with larger, older ancestors
 df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
 df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
 df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
-df.head()
+
 #%%
+
 mrca_dict = {}
 # calculate TF enrichment in architecture/syn blocks
 
-#%%
-
-rerun = ['Mammalia (177)', 'Boreoeutheria (96)',
-       'Primate (74)', 'Theria (159)', 'Vertebrata (615)',
-       'Amniota (312)', 'Tetrapoda (352)', 'Euarchontoglires (90)',
-       'Homo sapiens (0)']
 for TAXON2 in df.taxon2.unique():
-#for TAXON2 in rerun:
-    print(core_mrca)
+
+    print(TAXON2)
     age = df.loc[df.taxon2 == TAXON2]
 
     arch1, arch2 = "complex_derived", "complex_core"
@@ -602,8 +609,8 @@ for TAXON2 in df.taxon2.unique():
 
     mrca_dict[TAXON2] = results
 
-
 #%%
+
 def get_cross_mrca_enrichment(comp, i, mrca_dict):
     comp_dict = {} # collect TF enrichment across ages
     for key, value in mrca_dict.items():
@@ -617,23 +624,25 @@ def get_cross_mrca_enrichment(comp, i, mrca_dict):
             comp_dict[key] = compdf # core_v_der enrichment df
     # compile the comparison results across ages.
     test = pd.concat(comp_dict.values()) # concat the results
-
-    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left", on = "mrca_2") # merge in MRCA_2 info
+    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left") # merge in MRCA_2 info
 
     return test
 
 def plot_heatmap(comp, test):
     test = test.drop_duplicates()
     # pivot the results into a table
-    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),\
-    index = "tf", columns = ["mrca_2", "taxon2_y"], values = 'log2') # pivot only the significant results
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
+    index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
     table = table.dropna(thresh = 0) # drop any Na's
-
+    if len(table)<25:
+        figsize = (5,10)
+    else:
+        figsize= (5,30)
     # plot
     sns.set("notebook")
     cm = sns.clustermap(table.fillna(0), mask = (table==0),
      cmap = "RdBu_r", center = 0, col_cluster = False,
-    figsize = (5,20))
+    figsize = figsize)
 
     cm.fig.suptitle(comp)
     outf = f"{RE}{val}_{comp}_clustermap_core_mrca2.pdf"
@@ -644,13 +653,33 @@ comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
 "der_v_bkgd", "core_v_bkgd", "der_v_simple"]
 
 # enumerate and plot results
-#%%
-
-get_cross_mrca_enrichment(comp, i, mrca_dict)
-#%%
-
 for i, comp in enumerate(comparison_order):
-
+    print(comp)
     test = get_cross_mrca_enrichment(comp, i, mrca_dict)
-    print(comp, list(test))
+    outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
+    test.to_csv(outf, sep = '\t', index = None)
     plot_heatmap(comp, test)
+
+#%%
+synden = data_dict["tf_density_syn"]
+synden.head()
+test = data_dict["df"]
+# add core mrca age
+test = pd.merge(test, syn[["mrca", "mrca_2"]])
+test = get_core_age(test)
+# add age info to tf density dataframe
+synden = pd.merge(synden, test[["syn_id", "core_mrca_2"]], left_on = 'id', right_on = "syn_id")
+
+#%% plot
+x ,y = "core_mrca_2", 'tf_density'
+hue = "arch"
+hue_order = ["simple", "complex_core", "complex_derived"]
+xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
+fig, ax = plt.subplots(figsize = (6,6))
+sns.barplot(x, y, data = synden, hue = hue, palette = PAL, hue_order = hue_order)
+ax.legend(bbox_to_anchor = (1,1))
+ax.set_xticklabels(xlabs, rotation = 90)
+
+outf = f"{RE}{cell_line}_tfbs_density_core_mrca_2.pdf"
+outf
+plt.savefig(outf, bbox_inches = "tight")

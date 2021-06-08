@@ -1,33 +1,32 @@
+import argparse
 import glob
-import os
+from joblib import Parallel, delayed
+import os, sys
 import subprocess
-import numpy as np
-#%%
-msa_ways = [20, 30,
-100
-]
-CHRNUM = "chr21"
-outfs =[]
+
+#%% ARGPARSE arguments.
+
+arg_parser = argparse.ArgumentParser(description=" describe argparse")
+
+arg_parser.add_argument("bedfile", help ='bed file w/ full path')
+arg_parser.add_argument("-br","--branches", help ='hg38, rheMac3')
+arg_parser.add_argument("-m", "--multiz", help ='20-, 30-, 100-way multiple sequence alignments in hg38')
+
+
+# PARSE THE ARGUMENTS
+args = arg_parser.parse_args()
+
+F = args.bedfile # the bedfile
+BRANCH = args.branches # the branches to test.
+PATH = "/".join(F.split("/")[:-1]) + "/" # the path
+MSA_WAY = args.multiz # multiple sequence alignment.
 
 random_seed = 42
 
-PATHS = [
-#"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/species_specific_10k/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hars/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hu_specific/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/rhe_specific/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/phastCons/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/subtract_te/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hu_specific/subtract_te/",
-"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/rhe_specific/subtract_te/",
-]
-PATHS = ["/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/phastCons/"]
 
 #%% FUNCTIONS
 
-# in case you need to split file on chromosome number before getting started
-
+# run all the chromosomes
 def make_chr_list():
     n = list(np.arange(1, 23))
     #n.append("X")
@@ -40,77 +39,109 @@ def make_chr_list():
     return chr_list
 
 
-def split_by_chr(path):
+# in case you need to split file on chromosome number before getting started
+def split_by_chr(f):
 
-    fs = glob.glob(f"{path}*.bed")
-    for f in fs:
-        if "chr" not in f:
-            cmd = '''awk '{print>$1".bed}' %s ''' %f
-            subprocess.call(cmd, shell = True)
+    if "chr" not in f:
+    cmd = '''awk '{print>$1".bed}' %s ''' %f
+    subprocess.call(cmd, shell = True)
 
 
 # run phylop
-def run_phylop(msa, chrnum, path, random_seed):
+
+def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
 
     PHAST_PATH = "/dors/capra_lab/bin/"
 
     msaway = str(msa) + "way"
 
-    # get the files
-    ocr = f"{path}{chrnum}.bed"
-
+    # the neutral tree
     mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
 
+    # the multiple sequence alignment file
     maf_zipped = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/maf/{chrnum}.maf.gz"
     maf_unzipped = maf_zipped.split(".gz")[0]
 
+    # if maf needs to be unzipped
     if os.path.exists(maf_unzipped) == False:
         cmd = f"gunzip {maf_zipped}"
         subprocess.call(cmd, shell = True)
 
     # make the outpath, outfile
-    outpath = f"{path}multiz{msaway}/"
+    outpath = f"{path}multiz{msaway}_{branch}/"
 
     if os.path.exists(outpath) == False:
         os.mkdir(outpath)
 
     outf = f"{outpath}{chrnum}_con_acc.bed"
 
+    # check to see that you haven't done the phyloP analysis on this file.
     if os.path.exists(outf) == False:
-        # run phyloP
-        cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch hg38 --mode CONACC -d {random_seed} -g {mod} {maf_unzipped}> {outf}"
+
+        # run phyloP!
+        cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch {branch} --mode CONACC -d {random_seed} -g {mod} {maf_unzipped}> {outf}"
+
         print(f"starting {msaway}")
+
         subprocess.call(cmd, shell = True)
+
         print(f"done with {msaway}")
+
+    # if this has already been run -
     else:
         print("already processed", outf)
 
     return outf
 
 
-# reduce the amount of information in file for PhyloP run.
+# reduce the amount of information in input file
+
 def cut_file(path, chrnum):
     ocr = f"{path}{chrnum}.bed"
     temp = f"{path}temp_{chrnum}.bed"
-    cmd = ''' awk '{print $1, $2, $3, $4}' FS="\t" OFS="\t" %s > %s && mv %s %s''' %(ocr, temp, temp, ocr)
+    cmd = ''' awk '{print $1, $2, $3, $4}' FS="\t" OFS="\t" %s > %s''' %(ocr, temp)
+
     subprocess.call(cmd, shell = True)
 
-#%%
+    return temp
 
 
-chr_list = make_chr_list() # generate a list of chr numbers
+#%% MAIN
 
 
-for msa in msa_ways:
-    for PATH in PATHS:
-        for CHRNUM in chr_list:
-            if CHRNUM == "chr21":
-                print(PATH, CHRNUM)
-                cut_file(PATH, CHRNUM)
-                outf = run_phylop(msa, CHRNUM, PATH, random_seed)
-                outfs.append(outf)
+def main(argv):
+    chr_list = make_chr_list() # generate a list of chr numbers
+
+    split_by_chr(F) # split the file into chromosome files.
+
+    chr_dict = {}
+    for CHRNUM in chr_list:
+        ocr = cut_file(PATH, CHRNUM) # format the file
+
+        chr_dict[CHRNUM] = ocr
+
+    # prepare to run parallel jobs
+    num_cores = multiprocessing.cpu_count()
+    print("number of cores", num_cores)
+
+    # run parallel jobs
+
+    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, chrnum, PATH, random_seed, BRANCH) for chrnum in chr_list)
+
+    for r in results:
+
+        # check that there are results first.
+        if os.path.getsize(r) > 0:
+
+            chrnum = "chr" + (r.split("chr")[1]).split("_con_acc")[0] # extract the chromosome number
+
+            temp = f"{PATH}temp_{chrnum}.bed"
+            os.remove(temp)
+            print("removed", temp)
 
 
+if __name__ == "__main__":
+    main(sys.argv[1:])
 #%%
 """
 example command:
