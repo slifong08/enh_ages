@@ -1,6 +1,7 @@
 import argparse
 import glob
 from joblib import Parallel, delayed
+import multiprocessing
 from multiprocessing.pool import Pool, TimeoutError
 import numpy as np
 import os, sys
@@ -45,7 +46,7 @@ def make_chr_list():
 def split_by_chr(f):
 
     if "chr" not in f:
-        cmd = '''awk '{print>$1".bed}' %s ''' %f
+        cmd = '''awk '{print>$1".bed"}' %s ''' %f
         subprocess.call(cmd, shell = True)
 
 
@@ -56,6 +57,14 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
     PHAST_PATH = "/dors/capra_lab/bin/"
 
     msaway = str(msa) + "way"
+
+    # for multiple branches, need to remove whitespace
+    # before generating outpath
+
+    if " " in branch:
+        branch_path = "_".join(branch.split(" "))
+    else:
+        branch_path = branch
 
     # the neutral tree
     mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
@@ -70,7 +79,9 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
         subprocess.call(cmd, shell = True)
 
     # make the outpath, outfile
-    outpath = f"{path}multiz{msaway}_{branch}/"
+    outpath = f"{path}multiz{msaway}_{branch_path}/"
+
+    print("\n\nOUTPATH:", branch_path, "\n\n")
 
     if os.path.exists(outpath) == False:
         os.mkdir(outpath)
@@ -127,8 +138,8 @@ def main(argv):
     print("number of cores", num_cores)
 
     # run parallel jobs
-
-    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, chrnum, PATH, random_seed, BRANCH) for chrnum in chr_list)
+    print(MSA_WAY, PATH, random_seed, BRANCH)
+    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, chrnum, PATH, random_seed, BRANCH) for chrnum, ocr in chr_dict.items())
 
     for r in results:
 
