@@ -1,6 +1,8 @@
 import argparse
 import glob
 from joblib import Parallel, delayed
+from multiprocessing.pool import Pool, TimeoutError
+import numpy as np
 import os, sys
 import subprocess
 
@@ -43,8 +45,8 @@ def make_chr_list():
 def split_by_chr(f):
 
     if "chr" not in f:
-    cmd = '''awk '{print>$1".bed}' %s ''' %f
-    subprocess.call(cmd, shell = True)
+        cmd = '''awk '{print>$1".bed}' %s ''' %f
+        subprocess.call(cmd, shell = True)
 
 
 # run phylop
