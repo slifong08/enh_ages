@@ -73,7 +73,7 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
     # make the outpath, outfile
     outpath = f"{path}multiz{msaway}_{branch}/"
 
-    print("\n\nOUTPATH:", branch_path, "\n\n")
+    print("\n\nOUTPATH:", branch, "\n\n")
 
     if os.path.exists(outpath) == False:
         os.mkdir(outpath)
@@ -81,7 +81,7 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
     outf = f"{outpath}{chrnum}_con_acc.bed"
 
     # check to see that you haven't done the phyloP analysis on this file.
-    if os.path.exists(outf) == False:
+    if os.path.exists(outf) == False or os.path.getsize(outf)==0:
 
         # run phyloP!
         cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch {branch} --mode CONACC -d {random_seed} -g {mod} {maf_unzipped}> {outf}"
@@ -115,6 +115,9 @@ def cut_file(path, chrnum):
 
 
 def main(argv):
+
+    os.chdir(PATH) # change directory
+
     chr_list = make_chr_list() # generate a list of chr numbers
 
     split_by_chr(F) # split the file into chromosome files.
