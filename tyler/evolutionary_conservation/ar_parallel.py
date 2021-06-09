@@ -122,11 +122,11 @@ def main(argv):
 
     split_by_chr(F) # split the file into chromosome files.
 
-    chr_dict = {}
+    ocr_list = []
     for CHRNUM in chr_list:
         ocr = cut_file(PATH, CHRNUM) # format the file
 
-        chr_dict[CHRNUM] = ocr
+        ocr_list.append(ocr)
 
     # prepare to run parallel jobs
     num_cores = multiprocessing.cpu_count()
@@ -134,7 +134,7 @@ def main(argv):
 
     # run parallel jobs
     print(MSA_WAY, PATH, random_seed, BRANCH)
-    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, chrnum, PATH, random_seed, BRANCH) for chrnum, ocr in chr_dict.items())
+    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, chrnum, PATH, random_seed, BRANCH) for ocr, chrnum in zip(ocr_list, chr_list)
 
     for r in results:
 
