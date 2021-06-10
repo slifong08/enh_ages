@@ -134,7 +134,7 @@ def main(argv):
 
     # run parallel jobs
     print(MSA_WAY, PATH, random_seed, BRANCH)
-    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, chrnum, PATH, random_seed, BRANCH) for ocr, chrnum in zip(ocr_list, chr_list)
+    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, chrnum, PATH, random_seed, BRANCH) for ocr, chrnum in zip(ocr_list, chr_list))
 
     for r in results:
 

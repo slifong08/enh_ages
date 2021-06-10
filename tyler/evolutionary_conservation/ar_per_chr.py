@@ -8,7 +8,7 @@ import os, sys
 import subprocess
 
 #%% ARGPARSE arguments.
-
+"""
 arg_parser = argparse.ArgumentParser(description=" describe argparse")
 
 arg_parser.add_argument("bedfile", help ='bed file w/ full path')
@@ -23,7 +23,11 @@ F = args.bedfile # the bedfile
 BRANCH = args.branches # the branches to test.
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 MSA_WAY = args.multiz # multiple sequence alignment.
-
+"""
+F = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/chr22.bed"
+PATH = "/".join(F.split("/")[:-1]) + "/" # the path
+BRANCH = "hg38-rheMac8"
+MSA_WAY = "30"
 random_seed = 42
 
 
@@ -43,19 +47,13 @@ def make_chr_list():
 
 
 # in case you need to split file on size before getting started
-def split_by_size(f, path, chr_num):
+def split_by_line(f, path, chr_num):
 
     # change dir to the path (I think I did this already, but incase)
     os.chdir(path)
 
-    # get the file size
-    file_size = os.getsize(f)
-
-    # split the file size into 20, round
-    new_small_size = int(file_size/20)
-
-    # split the file in command line into 20
-    cmd = f"split -b {new_small_size} {f} {chr_num}-"
+    # split the file in command line into sizes of 1000 lines
+    cmd = f"split -l 1000 {f} {chr_num}-"
 
     subprocess.call(cmd, shell = True)
 
@@ -66,8 +64,9 @@ def split_by_size(f, path, chr_num):
 
 # run phylop
 
-def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
+def run_phylop(msa, ocr, n, chrnum, path, random_seed, branch):
 
+    print(ocr, chrnum)
     PHAST_PATH = "/dors/capra_lab/bin/"
 
     msaway = str(msa) + "way"
@@ -87,12 +86,10 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
     # make the outpath, outfile
     outpath = f"{path}multiz{msaway}_{branch}/"
 
-    print("\n\nOUTPATH:", branch, "\n\n")
-
     if os.path.exists(outpath) == False:
         os.mkdir(outpath)
 
-    outf = f"{outpath}{chrnum}_con_acc.bed"
+    outf = f"{outpath}{chrnum}_{n}_con_acc.bed"
 
     # check to see that you haven't done the phyloP analysis on this file.
     if os.path.exists(outf) == False or os.path.getsize(outf)==0:
@@ -100,11 +97,11 @@ def run_phylop(msa, ocr, chrnum, path, random_seed, branch):
         # run phyloP!
         cmd = f"{PHAST_PATH}./phyloP --features {ocr} --msa-format MAF --method LRT --branch {branch} --mode CONACC -d {random_seed} -g {mod} {maf_unzipped}> {outf}"
 
-        print(f"starting {msaway}")
-
+        #print(f"starting {msaway}")
+        print(cmd)
         subprocess.call(cmd, shell = True)
 
-        print(f"done with {msaway}")
+        #print(f"done with {msaway}")
 
     # if this has already been run -
     else:
@@ -127,36 +124,50 @@ def cut_file(path, chrnum):
 
 #%% MAIN
 
-
+PATH
+FS = []
+for chr in make_chr_list():
+    F = f"{PATH}{chr}.bed"
+    FS.append(F)
+FS
+#%%
 def main(argv):
 
     os.chdir(PATH) # change directory
+    for F in FS[1:]:
 
-    CHRNUM = "chr"+(F.split("chr")[1]).split(".bed") # get the chromosome number
+        CHRNUM = "chr"+(F.split("chr")[1]).split(".bed")[0] # get the chromosome number
 
-    ocr = cut_file(PATH, CHRNUM) # format the file
+        ocr = cut_file(PATH, CHRNUM) # format the file
 
-    small_fs = split_by_size(ocr, PATH, CHRNUM)
+        small_fs = split_by_line(ocr, PATH, CHRNUM)
 
-    # prepare to run parallel jobs
-    num_cores = multiprocessing.cpu_count()
-    print("number of cores", num_cores)
+        # prepare to run parallel jobs
+        num_cores = multiprocessing.cpu_count()
+        print("number of cores", num_cores)
 
-    # run parallel jobs
-    print(MSA_WAY, PATH, random_seed, BRANCH)
+        # run parallel jobs
+        print(MSA_WAY, PATH, random_seed, BRANCH)
 
-    results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, n, PATH, random_seed, BRANCH) for n, ocr in enumerate(small_fs))
+        results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, n, CHRNUM, PATH, random_seed, BRANCH) for n, ocr in enumerate(small_fs))
 
-    for r in results:
+        for r in results:
 
-        # check that there are results first.
-        if os.path.getsize(r) > 0:
+            # check that there are results first.
+            if os.path.getsize(r) > 0:
 
-            chrnum = "chr" + (r.split("chr")[1]).split("_con_acc")[0] # extract the chromosome number
+                chrnum = "chr" + (r.split("chr")[1]).split("_")[0] # extract the chromosome number
 
-            temp = f"{PATH}temp_{chrnum}.bed"
-            os.remove(temp)
-            print("removed", temp)
+                temp = f"{PATH}temp_{chrnum}.bed"
+                if os.path.exists(temp) == True:
+                    os.remove(temp)
+                    print("removed", temp)
+
+                splits = f"{PATH}{chrnum}-*"
+                subprocess.call(f"rm {splits}", shell = True)
+                print("removed", splits)
+            else:
+                print("this didn't run", results)
 
 
 if __name__ == "__main__":
