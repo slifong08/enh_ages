@@ -57,8 +57,9 @@ chr_list = make_chr_list()
 F = phast_
 
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
-for chr_f in chr_list[2:]:
+for chr_f in chr_list:
     file = f"{PATH}{chr_f}.bed"
     print(file)
     run_conacc_slurm(CONFIG_PATH, file, BRANCHES, MSAWAY)
     #run_conacc_py(CONFIG_PATH, file, BRANCHES, MSAWAY)
+    break
