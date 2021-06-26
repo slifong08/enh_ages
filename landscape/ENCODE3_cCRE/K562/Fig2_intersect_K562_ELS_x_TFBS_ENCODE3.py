@@ -9,12 +9,15 @@ import statsmodels
 import statsmodels.api as sm
 import subprocess
 
-ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
+ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/K562/"
+RE_DATA = RE + "data/"
 
+if os.path.exists(RE_DATA) == False:
+    os.mkdir(RE_DATA)
 
 colors = [ "amber", "dusty purple", "windows blue"]
 PAL = sns.xkcd_palette(colors)
@@ -28,7 +31,7 @@ sns.palplot(DERPAL)
 
 def get_cell_lines():
     sample_dict = {
-    "HepG2": "no-exon_dELS_combined",
+    "HepG2": "ELS_combined_HepG2",
     }
 
     return sample_dict
@@ -67,6 +70,14 @@ def bed_intersect(fantom, encode, intersection):
         print(cmd)
     else:
         print("previously done enh x encode intersection")
+
+
+def get_core_age(df):
+    core = df.groupby("enh_id")["mrca_2"].max().reset_index()
+    core.columns = ["enh_id", 'core_mrca_2']
+    df = pd.merge(df, core, how = "left")
+
+    return df
 
 
 def format_df(intersection_file):
@@ -277,6 +288,7 @@ def prep_2x2(tf, arch1, arch2, df):
 
         return obs, comparison_name
 
+
 def quantify_2x2(obs, comparison_name, min_instances):
 
     if obs[0][0] > min_instances or obs[1][0]>min_instances:
@@ -365,11 +377,11 @@ def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
 
             if taxon2 != None:
                 outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s_%s" % (cell_line, arch1, arch2, alpha, taxon2), RE)
-                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+                #plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
 
             else:
                 outf = make_pdf("%s_enh_x_encode3_sig_tf_arch_enrichment_%s_v_%s_FDR_%s" % (cell_line, arch1, arch2, alpha), RE)
-                plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
+                #plot_bar_tf_enrichment(df, cell_line, outf, alpha, taxon2)
 
             return results_df
 
@@ -384,7 +396,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
 
     print(cell_line, val)
     fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
-
+    print(fantom, encode, intersection)
     #Bed command
     bed_intersect(fantom, encode, intersection)
 
@@ -473,7 +485,13 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     arch1, arch2 = "simple", "bkgd"
     simple_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
-    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, df
+    arch1, arch2 = "simple", "complex_derived"
+    simple_v_der = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    arch1, arch2 = "complex_core", "bkgd"
+    core_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
+
+    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
 
 
 def just_get_df(cell_line, val, fantombase, encodepath,):
@@ -491,49 +509,85 @@ def just_get_df(cell_line, val, fantombase, encodepath,):
 #%%
 sample_dict = get_cell_lines()
 
-results_dict = {}
-der_v_core_dict, der_v_bkgd_dict = {}, {} # collect all the dataframes for tf enrichment
-tf_den_enh = {}
-tf_den_syn = {}
-
 #%%
 ALPHA = 0.1
 MIN_INSTANCES =10
 
 #%%
+cell_line = "K562"
+val = "ELS_combined_K562"
+#val = sample_dict[cell_line]
+df_file = f"{RE_DATA}{cell_line}_df.tsv"
 
-cell_line = "HepG2"
-val = sample_dict[cell_line]
+comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
+"simple_v_core",
+"simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
 
 
-der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core,simple_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+if os.path.exists(df_file) == False:
 
-results_dict[cell_line] = df
-tf_den_enh[cell_line] = tf_density_enh
-tf_den_syn[cell_line] = tf_density_syn
-der_v_bkgd_dict[cell_line] = der_v_bkgd
-der_v_core_dict[cell_line] = der_v_core
+    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+
+    data_dict = {  # dictionary of the dataframes and odds ratio comparisons
+    "der_v_core":der_v_core,
+    "der_v_bkgd":der_v_bkgd,
+    "tf_density_enh":tf_density_enh,
+    "tf_density_syn":tf_density_syn,
+    "simple_v_core":simple_v_core,
+    "simple_v_bkgd":simple_v_bkgd,
+    "simple_v_der": simple_v_der,
+    "core_v_bkgd":core_v_bkgd,
+    "df":df
+    }
+
+    for comp, dataframe in data_dict.items():
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        dataframe.to_csv(outf, sep = '\t', index = False)
+else:
+    data_dict = {}
+    for comp in comp_list:
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        df = pd.read_csv(outf, sep = '\t')
+        data_dict[comp] = df
 
 
 #%%
-
 
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
 syn = pd.read_csv(SYN_GROUP, sep = '\t')
 
 # round all values
+
+
 syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
 df.mrca = df.mrca.round(3)
 
-df = pd.merge(df, syn, how = "left")
 
-TAXON2 = "Eutheria"
-df.arch.unique()
+# do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
+REASSIGN_DER_W_CORE_AGE = 0
+if REASSIGN_DER_W_CORE_AGE == 1:
+    df = get_core_age(df)
+    df = df.drop(["mrca_2"], axis = 1)
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+    df.head(10)
+else:
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left")
 
+
+REASSIGN_SMALL_TAXONS = 0
+if REASSIGN_SMALL_TAXONS==1:
+
+    # lump small samples with larger, older ancestors
+    df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
+    df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
+    df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
 
 #%%
 
+mrca_dict = {}
 # calculate TF enrichment in architecture/syn blocks
+
 for TAXON2 in df.taxon2.unique():
 
     print(TAXON2)
@@ -550,4 +604,104 @@ for TAXON2 in df.taxon2.unique():
     simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
     arch1, arch2 = "complex_derived", "bkgd"
-    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    der_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+    arch1, arch2 = "complex_core", "bkgd"
+    core_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+    arch1, arch2 = "complex_derived", "simple"
+    der_v_simple = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+    results = [der_v_core, simple_v_core, simple_v_bkgd, der_v_bkgd, core_v_bkgd, der_v_simple]
+
+    mrca_dict[TAXON2] = results
+
+#%%
+
+def get_cross_mrca_enrichment(comp, i, mrca_dict):
+    comp_dict = {} # collect TF enrichment across ages
+    for key, value in mrca_dict.items():
+        compdf = value[i]
+
+        if compdf is None:
+            print("nothing for", key) # examples of this is when there are no significant results for an age, or no pairs of complex core and derived (like in vertbrates)
+        else:
+            compdf["taxon2"] = key # add the taxon annotation to dataframe
+
+            comp_dict[key] = compdf # core_v_der enrichment df
+    # compile the comparison results across ages.
+    test = pd.concat(comp_dict.values()) # concat the results
+    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left") # merge in MRCA_2 info
+
+    return test
+
+def plot_heatmap(comp, test):
+    test = test.loc[test.reject_null==True].drop_duplicates().sort_values(by = "mrca_2")
+    # pivot the results into a table
+    table = pd.pivot(test,index = "tf", columns = "mrca_2", values = 'log2') # pivot only the significant results
+    table = table.replace(-np.Inf, -2)
+    table = table.replace(np.Inf, 2)
+    table = table.dropna(thresh = 2) # drop any Na's
+    table = table.fillna(0)
+
+    if len(table)<25:
+        figsize = (5,10)
+    else:
+        figsize= (5,35)
+    # plot
+    sns.set("notebook")
+    cm = sns.clustermap(
+    table,
+    mask = (table==0),
+    cmap = "RdBu_r",
+    center = 0,
+    col_cluster = False,
+    figsize = figsize,
+    )
+
+    cm.fig.suptitle(comp)
+    outf = f"{RE}{val}_{comp}_clustermap_core_mrca2.pdf"
+    plt.savefig(outf, bbox_inches = "tight", dpi = 300)
+
+#%%
+comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
+"der_v_bkgd", "core_v_bkgd", "der_v_simple"]
+
+# enumerate and plot results
+
+for i, comp in enumerate(comparison_order):
+    print(comp)
+    test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+    outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
+    test.to_csv(outf, sep = '\t', index = None)
+    plot_heatmap(comp, test)
+
+test.head()
+#%%
+a = test.loc[test.reject_null==True].sort_values(by = "mrca_2").drop_duplicates()
+a
+pd.pivot(a,
+index = "tf", columns = "mrca_2", values = 'log2') # pivot only the significant results
+#%%
+synden = data_dict["tf_density_syn"]
+synden.head()
+test = data_dict["df"]
+# add core mrca age
+test = pd.merge(test, syn[["mrca", "mrca_2"]])
+test = get_core_age(test)
+# add age info to tf density dataframe
+synden = pd.merge(synden, test[["syn_id", "core_mrca_2"]], left_on = 'id', right_on = "syn_id")
+
+#%% plot
+x ,y = "core_mrca_2", 'tf_density'
+hue = "arch"
+hue_order = ["simple", "complex_core", "complex_derived"]
+xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
+fig, ax = plt.subplots(figsize = (6,6))
+sns.barplot(x, y, data = synden, hue = hue, palette = PAL, hue_order = hue_order)
+ax.legend(bbox_to_anchor = (1,1))
+ax.set_xticklabels(xlabs, rotation = 90)
+
+outf = f"{RE}{cell_line}_tfbs_density_core_mrca_2.pdf"
+outf
+plt.savefig(outf, bbox_inches = "tight")

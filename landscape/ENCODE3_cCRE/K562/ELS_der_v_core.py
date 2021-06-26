@@ -6,21 +6,17 @@ import statsmodels.api as sm
 import subprocess
 
 #%%
-CELL_LINE = "HepG2"
-PATH = f"/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/{CELL_LINE}/data/"
 
-CL = f"ELS_combined_{CELL_LINE}"
+PATH = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/K562/data/"
+
+CL = "ELS_combined_K562"
 BUILD = "hg38"
-MIN_GENES = 3 # min genes in group
+MIN_GENES = 5 # min genes in group
 
 # possible pairwise comparisons to run GO annotation enrichment on.
 ANALYSIS_list = ["der_v_core", "der_v_bkgd", "simple_v_core", "core_v_bkgd", "simple_v_bkgd"]
 
-ANALYSIS = ANALYSIS_list[1]
-#ANALYSIS = ANALYSIS_list[3]
-
-RE = f"/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/{CELL_LINE}/"
-RE_DATA = RE + "data/"
+ANALYSIS = ANALYSIS_list[0]
 
 #%% Functions
 
@@ -95,9 +91,10 @@ def get_GO_IDs(tf_ids, df, go, process, min_genes_in_group):
 # get the TF genes that are enriched in comp1
 def get_tf_ids(comp1, df):
 
+    # get only sig values
+    sig = df.loc[df.reject_null == True].drop_duplicates()
     # make a table of log2 values per age
-    summed_log2 = pd.pivot(df.loc[df.reject_null == True],
-    index = "tf", columns = "mrca_2", values = "log2").sum(axis = 1)
+    summed_log2 = pd.pivot(sig, index = "tf", columns = "mrca_2", values = "log2").sum(axis = 1)
 
     # drop the na, and reset the index
     summed_log2 = summed_log2.dropna().reset_index()
@@ -229,26 +226,28 @@ df = get_df(PATH, F_DICT[ANALYSIS])
 #%% test w/ min number of genes in group
 
 comp1, comp2 = get_comps(ANALYSIS)
-
-results = run_GO_enrichment(comp1, comp2, df, go, MIN_GENES,)
+MIN_GENES = 10
+results = run_GO_enrichment(comp1, comp2, df, go, MIN_GENES)
 
 #%%
-
+results
 for n in results["name"].unique():
     print(n)
 
 #%%
 # RUN AGE-SPECIFIC ANALYSIS W/ FOR LOOP HERE
 mrca_results = {}
+MIN_GENES = 5
 for mrca_2 in df.mrca_2.unique():
     test = df.loc[df.mrca_2 == mrca_2]
-    print(mrca_2)
-    results = run_GO_enrichment(comp1, comp2, test, go, MIN_GENES, )
+    results = run_GO_enrichment(comp1, comp2, test, go, MIN_GENES)
     if results is not None:
         results["mrca_2"] = mrca_2
         mrca_results[mrca_2] = results
 mrca_resultsdf = pd.concat(mrca_results.values())
+
+for n in mrca_resultsdf.name.unique():
+    print(n)
+#%%
 mrca_resultsdf
-outf = f"{RE_DATA}{CELL_LINE}_GOenrichment_{comp1}_v_{comp2}.tsv"
-mrca_resultsdf.to_csv(outf, sep = '\t', index = False)
-mrca_resultsdf
+syn

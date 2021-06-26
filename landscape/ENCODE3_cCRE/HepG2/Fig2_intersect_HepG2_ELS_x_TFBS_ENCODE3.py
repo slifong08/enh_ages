@@ -10,6 +10,7 @@ import statsmodels.api as sm
 import subprocess
 
 ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/data/"
+#ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
@@ -516,14 +517,14 @@ MIN_INSTANCES =10
 #%%
 cell_line = "HepG2"
 val = "ELS_combined_HepG2"
-#val = sample_dict[cell_line]
+
 df_file = f"{RE_DATA}{cell_line}_df.tsv"
 
 comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
 "simple_v_core",
 "simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
 
-
+df_file
 if os.path.exists(df_file) == False:
 
     der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
@@ -564,17 +565,24 @@ df.mrca = df.mrca.round(3)
 
 # do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
 df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
-df = get_core_age(df)
-df = df.drop(["mrca_2"], axis = 1)
-df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+
+## IF YOU WANT TO LABEL DERIVED REGIONS BY THEIR CORE AGES INSTEAD OF THEIR SYNTENIC AGES.
+REASSIGN_DER_W_CORE_AGE = 0
+if REASSIGN_DER_W_CORE_AGE == 1:
+    df = get_core_age(df)
+    df = df.drop(["mrca_2"], axis = 1)
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+else:
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left")
 df.head(10)
 
 
-
-# lump small samples with larger, older ancestors
-df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
-df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
-df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
+REASSIGN_SMALL_TAXONS = 0
+if REASSIGN_SMALL_TAXONS==1:
+    # lump small samples with larger, older ancestors
+    df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
+    df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
+    df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
 
 #%%
 
@@ -588,7 +596,6 @@ for TAXON2 in df.taxon2.unique():
 
     arch1, arch2 = "complex_derived", "complex_core"
     der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
-
 
     arch1, arch2 = "simple", "complex_core"
     simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
@@ -631,9 +638,12 @@ def get_cross_mrca_enrichment(comp, i, mrca_dict):
 def plot_heatmap(comp, test):
     test = test.drop_duplicates()
     # pivot the results into a table
-    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
-    index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
-    table = table.dropna(thresh = 0) # drop any Na's
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),\
+    index = "tf", columns = "mrca_2", values = 'log2')
+    table = table.dropna(thresh = 2) # drop any Na's
+    table = table.replace(-np.Inf, -2)
+    table = table.replace(np.Inf, 2)
+
     if len(table)<25:
         figsize = (5,10)
     else:
@@ -656,9 +666,21 @@ comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
 for i, comp in enumerate(comparison_order):
     print(comp)
     test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+    test = test.drop_duplicates()
+    test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
+    test["log2"] = np.log2(test.OR)
     outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
     test.to_csv(outf, sep = '\t', index = None)
     plot_heatmap(comp, test)
+test.head()
+
+#%%
+test["OR"].min()
+pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),index = "tf", columns = "mrca_2", values = 'log2')
+test.shape
+test.drop_duplicates().shape
+test.loc[test.reject_null==True]
+
 
 #%%
 synden = data_dict["tf_density_syn"]
