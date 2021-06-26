@@ -171,14 +171,15 @@ def fdr_correction(collection_dict):
 def add_zeros_to_table(table):
 
 
-    table.loc[0] = 0
+    table[0] = 0
     table = table.sort_index()
-    if 0.957 not in list(table):
-        table[0.957] = 0
+    if 0.957 not in list(table.index):
+        table.loc[0.957] = 0
 
     table = table.replace(-np.Inf, np.nan) # clean up and fill negative infinitis
     table = table.fillna(0)
     table = table.round(2)
+    table = table[[ 0.0, 0.126, 0.131, 0.152, 0.175, 0.308, 0.38, 0.49, 0.656, 0.957,]]
 
     return table
 
@@ -191,21 +192,19 @@ def plot_frac(table, name, x, y, inv ):
         xlabs = xlabs[::-1] # if you want oldest ages on top.
         table = table.sort_index(ascending =False).sort_index(ascending  =False, axis = 1)
 
-        mask = np.zeros_like(table)
-        mask[np.tril_indices_from(mask)] = True
-        #mask = np.tril(np.ones_like(table, dtype=np.bool))
+
+        mask = np.tril(np.ones_like(table, dtype=np.bool))
         outf = f"{RE}{name}_core_der_age_fraction_heatmap_inv.pdf"
 
     else:
         outf = f"{RE}{name}_core_der_age_fraction_heatmap.pdf"
-        #mask = np.triu(np.ones_like(table, dtype=np.bool))
-        mask = np.zeros_like(table)
-        mask[np.triu_indices_from(mask)] = True
+        mask = np.triu(np.ones_like(table, dtype=np.bool))
 
     sns.set(font_scale=1.4)
     fig, ax = plt.subplots(figsize=(9,8))
 
-    sns.heatmap(table, mask =mask,
+    sns.heatmap(table,
+    #mask =mask,
     annot = True,
     linewidths = 1,
     linecolor = "k",
@@ -223,6 +222,13 @@ def plot_frac(table, name, x, y, inv ):
     plt.savefig(outf, bbox_inches = "tight")
     plt.show()
 
+
+def pivot_table(x, y, df, val):
+    table = pd.pivot(df, index = x, columns = y, values = val)
+    table = add_zeros_to_table(table) # add zeros
+    table = table.iloc[::-1] # invert
+
+    return table
 
 def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
     xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
@@ -245,23 +251,22 @@ def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
 
     # plot log2 OR (color) and annotate with log10p asterisks
     sns.heatmap(OR_log2_table,
-    mask = mask,
     cmap = "bwr",
     vmin=-2, vmax=2,
     center = 0,
     linewidths = 1,
     linecolor = 'k',
-    annot = OR_log10_annot,
+    annot = False,
     annot_kws={ "color": "k", "ha": 'left',"va": 'top'},
-    fmt = '',
+    fmt = '.1d',
     cbar_kws={'label': 'OR\n(log2-scaled)'},
-    #ax = ax
+
 
     )
 
     # plot log2 annotation
     sns.heatmap(OR_table,
-    mask = mask,
+    mask = OR_log10_annot == False,
     annot = True,
     annot_kws={"color": "k", "ha": 'center',"va": 'bottom'},
     alpha = 0,
@@ -272,8 +277,8 @@ def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
 
     ax.set(
     title = "FANTOM core-derived age pair",
-    xlabel = "derived age",
-    ylabel = "core age"
+    xlabel = "core age",
+    ylabel = "derived age"
     )
 
     ax.set_xticklabels(xlabs)
@@ -302,11 +307,9 @@ corr_table = add_zeros_to_table(corr_table) # add human column to make matrix sq
 name = "FANTOM"
 yplot = corr_table.index.name
 xplot = corr_table.columns.name
-plot_frac(corr_table, name, xplot, yplot, None)
-#%%
-corr_table
-corr_table.pivot(index = yplot, columns = xplot)
-plot_frac(corr_table, name, xplot, yplot, 1)
+corr_table.iloc[::-1]
+
+plot_frac(corr_table.iloc[::-1], name, xplot, yplot, 1)
 
 #%%
 
@@ -320,8 +323,12 @@ shuf_corr_table = add_zeros_to_table(shuf_corr_table)
 
 # plot the fraction of core derived pairs taht overlap
 name = "shuffle"
-plot_frac(shuf_corr_table, name, x, y, 1)
 
+yplot = shuf_corr_table.index.name
+xplot = shuf_corr_table.columns.name
+shuf_corr_table.iloc[::-1]
+
+plot_frac(shuf_corr_table.iloc[::-1], name, xplot, yplot, 1)
 
 #%%
 
@@ -333,105 +340,29 @@ fdr_OR.loc[fdr_OR.comparison_name == "core-0.957_der-0.175"]
 fdr_OR.loc[fdr_OR.comparison_name == "core-0.656_der-0.0"]
 #%%
 # pivot table for OR
-x,y =  "core_mrca","der_mrca",
+x,y =  "der_mrca","core_mrca",
 
-OR_table = pd.pivot(fdr_OR, index = x, columns = y, values = "OR")
-OR_table = add_zeros_to_table(OR_table)
-
+OR_table = pivot_table(x, y, fdr_OR,"OR")
+OR_table = OR_table.round(1)
+OR_table
 # pivot table for log2OR (color )
-OR_log2_table = pd.pivot(fdr_OR, index = x, columns = y, values = "log2")
-OR_log2_table = add_zeros_to_table(OR_log2_table)
+OR_log2_table = pivot_table(x, y, fdr_OR, "log2")
+
 
 # pivot table for log10p
-OR_log10_annot = pd.pivot(fdr_OR, index = x, columns = y, values = "reject_null")
-OR_log10_annot = add_zeros_to_table(OR_log10_annot) # add zero columns/rows
-OR_log10_annot = OR_log10_annot.apply(lambda x: [y if y ==False else "*" for y in x]) # add asterisks
-OR_log10_annot.replace([-0, 0, False], "", inplace=True) # replace all the other values with no value
+OR_log10_annot = pivot_table(x, y, fdr_OR, "reject_null")
+OR_log10_annot.replace([-0, 0], False, inplace=True) # replace all the other values with no value
 
-a_table = pd.pivot(fdr_OR, index = x, columns = y, values = "a")
-a_table = add_zeros_to_table(a_table)
+a_table = pivot_table(x, y, fdr_OR,"a")
+
 
 x,y =  "der_mrca","core_mrca"
-corr_table_inv = corr.pivot(index = x, columns = y, values = "core_der_overlap")
-corr_table_inv = add_zeros_to_table(corr_table) # add human column to make matrix square
 
 #%% plot OR
 
-plot_OR(OR_log2_table, OR_log10_annot, OR_table, 0)
+
 plot_OR(OR_log2_table, OR_log10_annot, OR_table, 1)
 
-#%% Plot OR and frac
-
-xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
-
-fig, ax = plt.subplots(figsize=(12.5,12))
-sns.set(font_scale=1.4)
-
-# plot log2 OR
-sns.heatmap(OR_log2_table,
-# mask = OR_log2_table==0,
-cmap = "bwr",
-vmin=-2, vmax=2,
-center = 0,
-linewidths = 5,
-#cbar = False,
-cbar_kws={'label': 'OR\n(log2-scaled)', "shrink": .5,
-"orientation": "horizontal"},
-ax = ax
-
-)
-
-# plot log2 annotation
-mask = np.triu(np.ones_like(OR_table, dtype=np.bool))
-sns.heatmap(OR_table,
-mask = mask,
-annot = True,
-annot_kws={"size": 12, "color": "w", "ha": 'center',"va": 'bottom'},
-alpha = 0,
-cbar = False,
-ax = ax
-)
-# plot -log10p annotation
-OR_log10_annot = OR_log10_annot.fillna(0).astype(int)
-sns.heatmap(OR_log10_annot, mask = OR_log10_annot<1, annot = True, #fmt = 'd',
-annot_kws={"size": 12, "color": "k", "ha": 'left',"va": 'top'},
-alpha = 0,
-cbar = False,
-ax = ax
-)
-
-
-ax.set(
-title = "core age (frac)",
-xlabel = "derived age (OR)\nwhite text = OR\nblack text = -log10p",
-ylabel = "core age (OR)"
-)
-
-ax.set_xticklabels(xlabs)
-ax.set_yticklabels(xlabs, rotation = 90)
-
-
-#"""
-ax2 = ax.twinx() # add a twin axis
-t = corr_table_inv.transpose(copy = True)
-mask = np.tril(np.ones_like(t, dtype=np.bool))
-sns.heatmap(t,
-mask = mask,
-linewidths = 5,
-annot = True,
-annot_kws={"size": 12, "color": "b", "ha": 'center',"va": 'bottom'},
-cmap = "Greys",
-cbar_kws= {"label": '% core-der pair per core age', "shrink": .5, },
-ax = ax2
-)
-ax2.set_xticklabels(xlabs, rotation = 90)
-ax2.set_yticklabels("", rotation = 90)
-ax2.set(ylabel= "derived age (frac)")
-
-#"""
-
-outf = f"{RE}OR_core_der_age_heatmap_annot-log2_and_frac.pdf"
-plt.savefig(outf, bbox_inches = "tight")
 
 
 #%% Count table
@@ -439,27 +370,31 @@ plt.savefig(outf, bbox_inches = "tight")
 fig, ax = plt.subplots(figsize=(9,8))
 sns.set(font_scale=1.4)
 # plot log2 OR
-sns.heatmap(OR_log2_table, annot = False,
-cmap = "coolwarm",
+OR_log2_table = OR_log2_table.sort_index(ascending =False).sort_index(ascending  =False, axis = 1)
+sns.heatmap(OR_log2_table,
+annot = False,
+cmap = "Greys",
 cbar_kws={'label': 'OR\n(log2-scaled)'},
 ax = ax
 )
-
+a_table  = a_table.sort_index(ascending =False).sort_index(ascending  =False, axis = 1)
 # plot n annotation
 a_table = a_table.fillna(0).astype(int)
-sns.heatmap(a_table, mask = a_table<1, annot = True, fmt = 'd',
-annot_kws={"size": 10, "color": "k", "ha": 'center',"va": 'top'},
+sns.heatmap(a_table,
+#mask = a_table<1,
+annot = True, fmt = 'd',
+annot_kws={"color": "k", "ha": 'center',"va": 'top'},
 alpha = 0,
 cbar = False,
 ax = ax
 )
 
 ax.set(
-title = "core-derived age pairing\n FANTOM v. 100x shuffle",
-xlabel = "core age\nwhite = OR\nblack = n\ngrey = -log10p",
+title = "core-derived age pairing N",
+xlabel = "core age",
 ylabel = "derived age"
 )
-
+xlabs = xlabs[]
 ax.set_xticklabels(xlabs)
 ax.set_yticklabels(xlabs, rotation = 90)
 outf = f"{RE}OR_core_der_age_heatmap_annot-n.pdf"
