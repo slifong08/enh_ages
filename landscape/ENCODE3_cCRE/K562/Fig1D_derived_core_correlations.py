@@ -6,21 +6,25 @@ from scipy import stats
 import seaborn as sns
 import statsmodels
 import statsmodels.api as sm
+
 import subprocess
 #%%
 
-FANTOMPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/non-genic/ages/"
-FANTOMFILE = "syn_breaks_no-exon_all_fantom_enh_ages.bed"
-FANTOM = os.path.join(FANTOMPATH, FANTOMFILE)
+CL = "K562"
+GENOME_BUILD = "hg38"
 
-#FANTOM_TFBS_ONLY = f"{FANTOMPATH}enh_tfbs_only.txt"
+cCREPATH = f"/dors/capra_lab/projects/enhancer_ages/encode/data/ELS_combined_{CL}/ages/"
+cCREFILE = f"syn_breaks_ELS_combined_{CL}_ages.bed"
+cCRE = os.path.join(cCREPATH, cCREFILE)
 
-SHUFPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/shuffle/first_round_breaks"
-SHUFFILE = "noexon.bed"
+#cCRE_TFBS_ONLY = f"{cCREPATH}enh_tfbs_only.txt"
+
+SHUFPATH = f"/dors/capra_lab/projects/enhancer_ages/encode/data/ELS_combined_{CL}/shuffle/ages/"
+SHUFFILE = f"syn_breaks_shuf-ELS_combined_{CL}.bed"
 SHUFF = os.path.join(SHUFPATH, SHUFFILE)
 
 
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/fantom/arch_features/all_arch/"
+RE = f"/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE/{CL}/"
 
 
 #%%
@@ -61,8 +65,7 @@ def reEval_PrimComplex(enh):
     enh.loc[enh.enh_id.isin(pr_simple), "core_remodeling"] = 0
     return enh
 
-
-def format_syndf(enh_age_file):
+def format_syndf(enh_age_file, build):
 
     syn_cols = ["chr_syn", "start_syn", "end_syn",
     "enh_id",
@@ -79,7 +82,7 @@ def format_syndf(enh_age_file):
 
 
     # age and taxon file
-    syn_gen_bkgd_file = "/dors/capra_lab/projects/enhancer_ages/hg19_syn_gen_bkgd.tsv"
+    syn_gen_bkgd_file = f"/dors/capra_lab/projects/enhancer_ages/{build}_syn_gen_bkgd.tsv"
     syn_gen_bkgd= pd.read_csv(syn_gen_bkgd_file, sep = '\t') # read the file
     syn_gen_bkgd[["mrca", "mrca_2"]] = syn_gen_bkgd[["mrca", "mrca_2"]].round(3) # round the ages
 
@@ -178,7 +181,7 @@ def calc_OR(corr, shuf_corr):
 
 
     # get list of ORs and treat 0, inf odds ratio values
-    ors = list(fdr_OR.OR)
+    ors = list(fdr_corrected.OR)
     max_or = max(i for i in ors if i < np.inf)
     min_or = min(i for i in ors if i > 0)
     # handle cases where OR is absolutely 0
@@ -193,8 +196,6 @@ def calc_OR(corr, shuf_corr):
 
 
     return fdr_corrected
-
-
 
 def fdr_correction(collection_dict):
 
@@ -212,20 +213,21 @@ def add_zeros_to_table(table):
 
     table[0] = 0
     table = table.sort_index()
-    if 0.957 not in list(table.index):
+    if 0.867 not in list(table.index):
         table.loc[0.957] = 0
 
     table = table.replace(-np.Inf, np.nan) # clean up and fill negative infinitis
     table = table.fillna(0)
     table = table.round(2)
-    table = table[[ 0.0, 0.126, 0.131, 0.152, 0.175, 0.308, 0.38, 0.49, 0.656, 0.957,]]
+    table = table[[ 0.19 , 0.867, 0.756, 0.606, 0.425, 0.497, 0.167, 0.656, 0.144,
+       0.146, 0.]]
 
     return table
 
 
 def plot_frac(table, name, x, y, inv ):
 
-    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg",  "Vert"]
 
     if inv == 1: # if you invert axis, make sure everything gets configured
         xlabs = xlabs[::-1] # if you want oldest ages on top.
@@ -270,7 +272,7 @@ def pivot_table(x, y, df, val):
     return table
 
 def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
-    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
+    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
     if inv == 1: # if you invert axis, make sure everything gets configured
         xlabs = xlabs[::-1] # if you want oldest ages on top.
 
@@ -289,6 +291,7 @@ def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
     sns.set(font_scale=1.4)
 
     # plot log2 OR (color) and annotate with log10p asterisks
+    OR_log2_table
     sns.heatmap(OR_log2_table,
     cmap = "bwr",
     vmin=-2, vmax=2,
@@ -315,7 +318,7 @@ def plot_OR(OR_log2_table, OR_log10_annot, OR_table, inv):
 
 
     ax.set(
-    title = "FANTOM core-derived age pair",
+    title = "cCRE core-derived age pair",
     xlabel = "core age",
     ylabel = "derived age"
     )
@@ -357,12 +360,11 @@ def plot_count_table(OR_log2_table, a_table, RE):
     xlabel = "core age",
     ylabel = "derived age"
     )
-    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr",  "Vert"]#xlabs = xlabs[]
+    xlabs = ["Homo","Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg",  "Vert"]#xlabs = xlabs[]
     ax.set_xticklabels(xlabs[::-1])
     ax.set_yticklabels(xlabs[::-1])
     outf = f"{RE}OR_core_der_age_heatmap_annot-n.pdf"
     plt.savefig(outf, bbox_inches = "tight")
-
 
 def DerCore_Ratio(enh):
     cdratio = enh.loc[enh["core_remodeling"] ==1].groupby(['enh_id','core'])["arch"].count().reset_index()
@@ -379,8 +381,11 @@ def DerCore_Ratio(enh):
 #%%
 
 
-enh = format_syndf(FANTOM)
-enh["id"] = "FANTOM"
+enh = format_syndf(cCRE, GENOME_BUILD)
+enh["id"] = "cCRE"
+print(enh.shape)
+enh.head()
+#%%
 
 DerCore_Ratio(enh)
 #%%
@@ -393,7 +398,7 @@ corr_table = corr.pivot(index = x, columns = y, values = "core_der_overlap")
 corr_table = add_zeros_to_table(corr_table) # add human column to make matrix square
 
 # plot the fraction of core derived pairs taht overlap
-name = "FANTOM"
+name = "cCRE"
 yplot = corr_table.index.name
 xplot = corr_table.columns.name
 corr_table.iloc[::-1]
@@ -403,7 +408,7 @@ plot_frac(corr_table.iloc[::-1], name, xplot, yplot, 1)
 #%%
 
 
-shuf = format_syndf(SHUFF)
+shuf = format_syndf(SHUFF, GENOME_BUILD)
 shuf["id"] = "SHUFFLE"
 
 shuf_corr = get_core_der_frac(shuf)
@@ -425,7 +430,7 @@ plot_frac(shuf_corr_table.iloc[::-1], name, xplot, yplot, 1)
 fdr_OR = calc_OR(corr, shuf_corr)
 
 fdr_OR.head()
-fdr_OR.loc[fdr_OR.comparison_name == "core-0.957_der-0.175"]
+#fdr_OR.loc[fdr_OR.comparison_name == "core-0.867_der-0.190"]
 fdr_OR.loc[fdr_OR.comparison_name == "core-0.656_der-0.0"]
 #%%
 # pivot table for OR
@@ -455,9 +460,8 @@ plot_OR(OR_log2_table, OR_log10_annot, OR_table, 1)
 
 
 #%% Count table
+
 plot_count_table(OR_log2_table, a_table, RE)
-
-
 #%%
 len(enh.loc[enh["core_remodeling"]==1].enh_id.unique())# 10942
 

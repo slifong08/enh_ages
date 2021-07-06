@@ -79,6 +79,32 @@ def get_core_age(df):
     return df
 
 
+def reEval_PrimComplex(enh):
+
+    # get all the complex enhancers w/ primate core ages
+    prComEnhID = enh.loc[(enh.core ==1) &
+    (enh.core_remodeling ==1) &
+    (enh.taxon2.str.contains("Primate"))]["enh_id"].unique()
+
+    # get all the complex enhancer ids where there is a real human derived sequence
+    pr_complex = enh.loc[(enh.enh_id.isin(prComEnhID)) &
+    (enh.core_remodeling == 1) &
+    (enh.core ==0) &
+    (enh.mrca ==0),
+    ]["enh_id"]
+
+
+    # i'm going to reassign any primate complex enhancer
+    # where derived regions are from other primates
+    # get the set of primate complex enhancers w/ primate derived sequences
+    # and rename them as simple enhancers
+    pr_simple = set(prComEnhID) - set(pr_complex)
+
+    # reassign core and core remodeling columns
+    enh.loc[enh.enh_id.isin(pr_simple), "core"] = 1
+    enh.loc[enh.enh_id.isin(pr_simple), "core_remodeling"] = 0
+    return enh
+
 def format_df(intersection_file):
 
     cols = ["chr_syn", "start_syn", "end_syn",
@@ -595,6 +621,9 @@ syn_ages = syn_ages.loc[syn_ages.syn_len >5]
 # make a boolean for TFBS overlapping syntenic block
 syn_ages["tfbs_bool"] = False
 syn_ages.loc[syn_ages.tfoverlap_bin >0, "tfbs_bool"] = True
+
+
+
 #%% # evaluate zeros as a fraction of the total architecture
 
 
@@ -621,10 +650,11 @@ sns.barplot( data = gz, x= x, y=y, hue = "arch",
 hue_order = hue_order, palette = PAL)
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.set(xlabel = "sequence age",
-ylabel = "fraction of total arch")
+ylabel = "fraction of total arch",
+title = "fraction of total architecture (across ages) that does not bind TFBS")
 
 
-#%%evaluate zeros as a fraction of the architecture per age
+#%% evaluate zeros as a fraction of the architecture per age
 
 totals_mrcas = syn_ages.groupby(["syn_mrca_2", "arch"])["enh_id"].count().reset_index()
 totals_mrcas.columns = ["syn_mrca_2", "arch", "mrca_counts"]
@@ -645,7 +675,8 @@ sns.barplot( data = totals_mrcas, x= x, y=y, hue = "arch",
 hue_order = hue_order, palette = PAL)
 ax.set_xticklabels(xlabs, rotation = 90)
 ax.set(xlabel = "sequence age",
-ylabel = "fraction of arch in mrca")
+ylabel = "fraction of arch w/ zero TFBS",
+title = "fraction of elements that do not bind TFBS, per age")
 ax.legend(bbox_to_anchor = (1,1))
 outf = f"{RE}zero_frac_per_mrca.pdf"
 plt.savefig(outf, bbox_inches = "tight")
@@ -708,7 +739,7 @@ ax.set_xticklabels(xlabs)
 ax.set(
 xlabel = "sequence age",
 ylabel = "Archs that bind TFs \nOR enrichment")
-outf = f"{RE}FigS5_TF_binding_per_arch_age_fet.pdf"
+outf = f"{RE}FigS_HepG2cCRE_TFBSZeroNonZeroAge.pdf"
 plt.savefig(outf, bbox_inches = 'tight')
 #%%
 fig, ax = plt.subplots(figsize = (6,6))

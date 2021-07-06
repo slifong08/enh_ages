@@ -11,12 +11,12 @@ PATH = f"/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_en
 
 CL = f"ELS_combined_{CELL_LINE}"
 BUILD = "hg38"
-MIN_GENES = 3 # min genes in group
+MIN_GENES = 5 # min genes in group
 
 # possible pairwise comparisons to run GO annotation enrichment on.
 ANALYSIS_list = ["der_v_core", "der_v_bkgd", "simple_v_core", "core_v_bkgd", "simple_v_bkgd"]
 
-ANALYSIS = ANALYSIS_list[1]
+ANALYSIS = ANALYSIS_list[0]
 #ANALYSIS = ANALYSIS_list[3]
 
 RE = f"/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/{CELL_LINE}/"
@@ -233,6 +233,7 @@ comp1, comp2 = get_comps(ANALYSIS)
 results = run_GO_enrichment(comp1, comp2, df, go, MIN_GENES,)
 
 #%%
+results
 
 for n in results["name"].unique():
     print(n)
@@ -248,7 +249,7 @@ for mrca_2 in df.mrca_2.unique():
         results["mrca_2"] = mrca_2
         mrca_results[mrca_2] = results
 mrca_resultsdf = pd.concat(mrca_results.values())
-mrca_resultsdf
+
 outf = f"{RE_DATA}{CELL_LINE}_GOenrichment_{comp1}_v_{comp2}.tsv"
 mrca_resultsdf.to_csv(outf, sep = '\t', index = False)
 mrca_resultsdf

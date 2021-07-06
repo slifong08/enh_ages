@@ -80,8 +80,45 @@ def get_core_age(df):
 
     return df
 
+def reEval_PrimComplex(enh):
+
+    # get all the complex enhancers w/ primate core ages
+    prComEnhID = enh.loc[(enh.core ==1) &
+    (enh.core_remodeling ==1) &
+    (enh.taxon2.str.contains("Primate"))]["enh_id"].unique()
+
+    # get all the complex enhancer ids where there is a real human derived sequence
+    pr_complex = enh.loc[(enh.enh_id.isin(prComEnhID)) &
+    (enh.core_remodeling == 1) &
+    (enh.core ==0) &
+    (enh.mrca ==0),
+    ]["enh_id"]
+
+
+    # i'm going to reassign any primate complex enhancer
+    # where derived regions are from other primates
+    # get the set of primate complex enhancers w/ primate derived sequences
+    # and rename them as simple enhancers
+    pr_simple = set(prComEnhID) - set(pr_complex)
+
+    # reassign core and core remodeling columns
+    enh.loc[enh.enh_id.isin(pr_simple), "core"] = 1
+    enh.loc[enh.enh_id.isin(pr_simple), "core_remodeling"] = 0
+    return enh
 
 def format_df(intersection_file):
+
+    SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+    syn = pd.read_csv(SYN_GROUP, sep = '\t')
+
+    # round all values
+
+
+    syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+
+
+    # do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+
 
     cols = ["chr_syn", "start_syn", "end_syn",
     "enh_id","chr", "start", "end",
@@ -97,13 +134,16 @@ def format_df(intersection_file):
     header = None).drop_duplicates()
 
     df.columns = cols # add column names
-
+    df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
     df["tf"] = df["tf_id"].apply(lambda x: x.split("_")[0])
 
     # add architecture label - core, derived, simple
     df["arch"] = "simple"
     df.loc[(df.core_remodeling ==1) & (df.core ==1), "arch"] = "complex_core"
     df.loc[(df.core_remodeling ==1) & (df.core ==0), "arch"] = "complex_derived"
+    df.mrca = df.mrca.round(3)
+    df = pd.merge(df, syn[["mrca", "mrca_2", "taxon2"]], how = "left")
+    df = reEval_PrimComplex(df)
 
     # add architecture label - complex, simple
     df["overallarch"] = "simple"
@@ -122,6 +162,7 @@ def format_df(intersection_file):
     df["tfoverlap_bin"] = 1
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
     df.loc[df.overlap <6 , "tfoverlap_bin"] = 0
+
 
     return df
 
