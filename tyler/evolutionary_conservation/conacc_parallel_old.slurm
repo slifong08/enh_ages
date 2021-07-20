@@ -16,4 +16,4 @@
 ml load Anaconda3
 
 
-python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/conacc_parallel.py ${1} -br ${2} -m ${3}
+python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/conacc_parallel_old.py ${1} -br ${2} -m ${3}

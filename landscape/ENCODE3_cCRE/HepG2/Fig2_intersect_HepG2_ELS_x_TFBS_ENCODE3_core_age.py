@@ -9,10 +9,11 @@ import statsmodels.api as sm
 import subprocess
 
 ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/data/"
+#ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/pdf/"
+RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE_x_tfbs_encode3/HepG2/"
 RE_DATA = RE + "data/"
 
 if os.path.exists(RE_DATA) == False:
@@ -78,7 +79,6 @@ def get_core_age(df):
 
     return df
 
-
 def reEval_PrimComplex(enh):
 
     # get all the complex enhancers w/ primate core ages
@@ -107,6 +107,18 @@ def reEval_PrimComplex(enh):
 
 def format_df(intersection_file):
 
+    SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+    syn = pd.read_csv(SYN_GROUP, sep = '\t')
+
+    # round all values
+
+
+    syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+
+
+    # do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+
+
     cols = ["chr_syn", "start_syn", "end_syn",
     "enh_id","chr", "start", "end",
     "seg_index", "core_remodeling", "core",
@@ -121,13 +133,16 @@ def format_df(intersection_file):
     header = None).drop_duplicates()
 
     df.columns = cols # add column names
-
+    df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
     df["tf"] = df["tf_id"].apply(lambda x: x.split("_")[0])
 
     # add architecture label - core, derived, simple
     df["arch"] = "simple"
     df.loc[(df.core_remodeling ==1) & (df.core ==1), "arch"] = "complex_core"
     df.loc[(df.core_remodeling ==1) & (df.core ==0), "arch"] = "complex_derived"
+    df.mrca = df.mrca.round(3)
+    df = pd.merge(df, syn[["mrca", "mrca_2", "taxon2"]], how = "left")
+    df = reEval_PrimComplex(df)
 
     # add architecture label - complex, simple
     df["overallarch"] = "simple"
@@ -147,18 +162,6 @@ def format_df(intersection_file):
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
     df.loc[df.overlap <6 , "tfoverlap_bin"] = 0
 
-    return df
-
-
-def just_get_df(cell_line, val, fantombase, encodepath,):
-    print(cell_line, val)
-    fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
-
-    #Bed command
-    bed_intersect(fantom, encode, intersection)
-
-    #dataframe
-    df = format_df(intersection)
 
     return df
 
@@ -278,28 +281,12 @@ def plot_bar_tf_density(x, y, data, outf, order, p, med):
     plt.savefig(outf, bbox_inches = 'tight')
 
 
-def add_syn_age_annotation(syn_to_merge):
-    SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
-    syn = pd.read_csv(SYN_GROUP, sep = '\t')
-
-    # round all values
-
-    syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
-    syn_to_merge.mrca = syn_to_merge.mrca.round(3)
-
-# do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
-    syn_merged = pd.merge(syn_to_merge, syn[["mrca", "mrca_2"]], how = "left")
-
-    return syn_merged, syn
-
-
 def make_pdf(file_name, RE):
 
     OUTFILE = file_name + ".pdf"
     OUTF = os.path.join(RE, OUTFILE)
 
     return OUTF
-
 
 
 def prep_2x2(tf, arch1, arch2, df):
@@ -411,7 +398,7 @@ def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
     for tf in df.tf.unique():
 
         if tf != ".":
-
+            df = df.drop_duplicates()
             obs, comparison_name = prep_2x2(tf, arch1, arch2, df)
 
             results = quantify_2x2(obs, comparison_name, min_instances)
@@ -548,297 +535,226 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
 
 
-def lump_taxons(df):
+def just_get_df(cell_line, val, fantombase, encodepath,):
+    print(cell_line, val)
+    fantom, encode, intersection = get_paths(cell_line, val, fantombase, encodepath)
+
+    #Bed command
+    bed_intersect(fantom, encode, intersection)
+
+    #dataframe
+    df = format_df(intersection)
+
+    return df
+
+#%%
+sample_dict = get_cell_lines()
+
+#%%
+ALPHA = 0.1
+MIN_INSTANCES =10
+
+#%%
+cell_line = "HepG2"
+val = "ELS_combined_HepG2"
+
+df_file = f"{RE_DATA}{cell_line}_df.tsv"
+
+comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
+"simple_v_core",
+"simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
+
+df_file
+if os.path.exists(df_file) == False:
+
+    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
+
+    data_dict = {  # dictionary of the dataframes and odds ratio comparisons
+    "der_v_core":der_v_core,
+    "der_v_bkgd":der_v_bkgd,
+    "tf_density_enh":tf_density_enh,
+    "tf_density_syn":tf_density_syn,
+    "simple_v_core":simple_v_core,
+    "simple_v_bkgd":simple_v_bkgd,
+    "simple_v_der": simple_v_der,
+    "core_v_bkgd":core_v_bkgd,
+    "df":df
+    }
+
+    for comp, dataframe in data_dict.items():
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        dataframe.to_csv(outf, sep = '\t', index = False)
+else:
+    data_dict = {}
+    for comp in comp_list:
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        df = pd.read_csv(outf, sep = '\t')
+        data_dict[comp] = df
+
+
+#%%
+
+SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+syn = pd.read_csv(SYN_GROUP, sep = '\t')
+
+# round all values
+
+
+syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+df.mrca = df.mrca.round(3)
+
+# do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
+
+## IF YOU WANT TO LABEL DERIVED REGIONS BY THEIR CORE AGES INSTEAD OF THEIR SYNTENIC AGES.
+REASSIGN_DER_W_CORE_AGE = 1
+if REASSIGN_DER_W_CORE_AGE == 1:
+    df = get_core_age(df)
+    df = df.drop(["mrca_2"], axis = 1)
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+else:
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left")
+df.head(10)
+
+
+REASSIGN_SMALL_TAXONS = 0
+if REASSIGN_SMALL_TAXONS==1:
     # lump small samples with larger, older ancestors
     df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
     df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
     df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
 
-    return df
+#%%
+comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
+"der_v_bkgd", "core_v_bkgd", "der_v_simple"]
 
-#%% make a dictionary of the cell lines
-sample_dict = get_cell_lines()
 
 
-#%% Load the dataframe
-cell_line = "HepG2"
-val = "ELS_combined_HepG2"
-df = just_get_df(cell_line, val, ENHBASE, ENCODEPATH)
-df.head()
+comp = comparison_order[0]
+outf = f"{RE_DATA}{cell_line}_{comp}OR_per_CORE_MRCA.tsv"
 
-#%% how many complex enhancers are there in this dataset?
+if os.path.exists(outf) == False:
 
-len(df.loc[(df.core_remodeling ==1) &(df.core ==1), "enh_id"].unique()) #27789
+    mrca_dict = {}
+    # calculate TF enrichment in architecture/syn blocks
+
+    for TAXON2 in df.taxon2.unique():
+
+        print(TAXON2)
+        age = df.loc[df.taxon2 == TAXON2]
+
+        arch1, arch2 = "complex_derived", "complex_core"
+        der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "simple", "complex_core"
+        simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "simple", "bkgd"
+        simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_derived", "bkgd"
+        der_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_core", "bkgd"
+        core_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_derived", "simple"
+        der_v_simple = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        results = [der_v_core, simple_v_core, simple_v_bkgd, der_v_bkgd, core_v_bkgd, der_v_simple]
+
+        mrca_dict[TAXON2] = results
 
 #%%
-#get some basic info about enhancer landscapes (simple v. complex), overlap with TFBS
 
-arch = "enh"
-totaln, simplen, complexn = count_enhancers(df, arch)
+def get_cross_mrca_enrichment(comp, i, mrca_dict):
+    comp_dict = {} # collect TF enrichment across ages
+    for key, value in mrca_dict.items():
+        compdf = value[i]
 
-# calculate enhancer TF density
-tf_density_enh, zero_enh = calculate_tf_density(arch, df)
-zero_enh.id.sum()
+        if compdf is None:
+            print("nothing for", key) # examples of this is when there are no significant results for an age, or no pairs of complex core and derived (like in vertbrates)
+        else:
+            compdf["taxon2"] = key # add the taxon annotation to dataframe
 
-# get some basic infor about syntenic landscapes (simple v. core v. derived),
-arch = "syn"
-totaln, coren, derivedn, simplen = count_enhancers(df, arch)
-tf_density_syn, zero_syn = calculate_tf_density(arch, df)
-calculate_zero_syn_freq(zero_syn, df, cell_line, RE)
+            comp_dict[key] = compdf # core_v_der enrichment df
+    # compile the comparison results across ages.
+    test = pd.concat(comp_dict.values()) # concat the results
+    test = pd.merge(test, syn[["mrca_2", "taxon2"]], how = "left") # merge in MRCA_2 info
 
+    return test
 
-tf_density_syn.head()
+def plot_heatmap(comp, test):
+    test = test.drop_duplicates()
+    # pivot the results into a table
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),\
+    index = "tf", columns = "mrca_2", values = 'log2')
+    table = table.dropna(thresh = 2) # drop any Na's
+    table = table.replace(-np.Inf, -2)
+    table = table.replace(np.Inf, 2)
 
-#%% evaluate the non-zero syntenic blocks only.
+    if len(table)<25:
+        figsize = (5,10)
+    else:
+        figsize= (5,30)
+    # plot
+    sns.set("notebook")
+    cm = sns.clustermap(table.fillna(0), mask = (table==0),
+     cmap = "RdBu_r", center = 0, col_cluster = False,
+    figsize = figsize)
 
-non_zero_syn_tf_density = tf_density_syn.loc[tf_density_syn.tfoverlap_bin>0]
-non_zero_syn_tf_density.groupby("arch")["tf_density"].median()
+    cm.fig.suptitle(comp)
+    outf = f"{RE}{val}_{comp}_clustermap_coremrca2.pdf"
+    plt.savefig(outf, bbox_inches = "tight", dpi = 300)
 
-testcore, pcore, test_der, p_der, median = mwu(non_zero_syn_tf_density, arch)
-
-
-#%% Let's group the dataframe to get syntenic blocks and their TFBS overlap.
-
-syn_ages = df.groupby(["enh_id","syn_id", "syn_len", "arch", "mrca"])["tfoverlap_bin"].sum().reset_index()
-syn_ages.head()
-
-
-#%% #
-
-syn_ages, syn = add_syn_age_annotation(syn_ages) # add MRCA_2 annotations
-
-syn_ages = get_core_age(syn_ages) # annotate core ages for each syntenic block.
-
-syn_ages = syn_ages.rename(columns = {"mrca_2":"syn_mrca_2"})# rename column, preserve the mrca_2 annotation per syntenic block
-
-# add core_mrca_2 taxon annotations
-syn_ages = pd.merge(syn_ages, syn[["mrca_2", "taxon2"]], how = "left",
-left_on = "core_mrca_2", right_on = "mrca_2")
-
-# include only the values greater than 5
-syn_ages = syn_ages.loc[syn_ages.syn_len >5]
-
-# make a boolean for TFBS overlapping syntenic block
-syn_ages["tfbs_bool"] = False
-syn_ages.loc[syn_ages.tfoverlap_bin >0, "tfbs_bool"] = True
+#%%
 
 
+# enumerate and plot results
+for i, comp in enumerate(comparison_order):
+    print(comp)
+    outf = f"{RE_DATA}{cell_line}_{comp}OR_per_CORE_MRCA.tsv"
+    if os.path.exists(outf) == False:
 
-#%% # evaluate zeros as a fraction of the total architecture
+        test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+        test = test.drop_duplicates()
+        test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
+        test["log2"] = np.log2(test.OR)
+
+        test.to_csv(outf, sep = '\t', index = None)
+    else:
+        test = pd.read_csv(outf, sep = '\t')
+    plot_heatmap(comp, test)
+test.head()
+
+#%%
+test["OR"].min()
+pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),index = "tf", columns = "mrca_2", values = 'log2')
+test.shape
+test.drop_duplicates().shape
+test.loc[test.reject_null==True]
 
 
-zeros_only = syn_ages.loc[syn_ages.tfoverlap_bin ==0]
-
-gz = zeros_only.groupby(["syn_mrca_2", "arch"])["enh_id"].count().reset_index()
-
-gz.columns = ["syn_mrca_2", "arch", 'mrca_zero_counts']
-
-totals = syn_ages.groupby(["arch"])["enh_id"].count().reset_index()
-totals.columns = ["arch", "total_arch"]
-
-gz = pd.merge(gz, totals, how = "left")
-gz["frac_of_arch"] = gz.mrca_zero_counts.divide(gz.total_arch)
-gz.head()
-
+#%%
+synden = data_dict["tf_density_syn"]
+synden.head()
+test = data_dict["df"]
+# add core mrca age
+test = pd.merge(test, syn[["mrca", "mrca_2"]])
+test = get_core_age(test)
+# add age info to tf density dataframe
+synden = pd.merge(synden, test[["syn_id", "core_mrca_2"]], left_on = 'id', right_on = "syn_id")
 
 #%% plot
-xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
-x, y ="syn_mrca_2", "frac_of_arch"
-hue_order = ["simple", "complex_core", "complex_derived"]
-fig, ax = plt.subplots()
-sns.barplot( data = gz, x= x, y=y, hue = "arch",
-hue_order = hue_order, palette = PAL)
-ax.set_xticklabels(xlabs, rotation = 90)
-ax.set(xlabel = "sequence age",
-ylabel = "fraction of total arch",
-title = "fraction of total architecture (across ages) that does not bind TFBS")
-
-
-#%% evaluate zeros as a fraction of the architecture per age
-
-totals_mrcas = syn_ages.groupby(["syn_mrca_2", "arch"])["enh_id"].count().reset_index()
-totals_mrcas.columns = ["syn_mrca_2", "arch", "mrca_counts"]
-
-totals_mrcas = pd.merge(totals_mrcas, gz)
-
-totals_mrcas["frac_zero_mrca"] = totals_mrcas.mrca_zero_counts.divide(totals_mrcas.mrca_counts)
-totals_mrcas
-
-#%%
-xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
-
-hue_order = ["simple", "complex_core", "complex_derived"]
-
-x, y ="syn_mrca_2", "frac_zero_mrca"
-fig, ax = plt.subplots()
-sns.barplot( data = totals_mrcas, x= x, y=y, hue = "arch",
-hue_order = hue_order, palette = PAL)
-ax.set_xticklabels(xlabs, rotation = 90)
-ax.set(xlabel = "sequence age",
-ylabel = "fraction of arch w/ zero TFBS",
-title = "fraction of elements that do not bind TFBS, per age")
-ax.legend(bbox_to_anchor = (1,1))
-outf = f"{RE}zero_frac_per_mrca.pdf"
-plt.savefig(outf, bbox_inches = "tight")
-#%%
-
-zeros_only = syn_ages.loc[syn_ages.tfoverlap_bin ==0]
-
-gz = zeros_only.groupby(["core_mrca_2", "arch"])["enh_id"].count().reset_index()
-
-gz.columns = ["core_mrca_2", "arch", 'mrca_zero_counts']
-
-totals = syn_ages.groupby(["arch"])["enh_id"].count().reset_index()
-totals.columns = ["arch", "total_arch"]
-
-gz = pd.merge(gz, totals, how = "left")
-gz["frac_of_arch"] = gz.mrca_zero_counts.divide(gz.total_arch)
-gz.head()
-# do the same plot, but with the derived sequences assigned to their core ages.
-list(syn_ages)
-totals_mrcas = syn_ages.groupby(["core_mrca_2", "arch"])["enh_id"].count().reset_index()
-totals_mrcas.columns = ["core_mrca_2", "arch", "mrca_counts"]
-
-totals_mrcas = pd.merge(totals_mrcas, gz)
-
-totals_mrcas["frac_zero_mrca"] = totals_mrcas.mrca_zero_counts.divide(totals_mrcas.mrca_counts)
-
-totals_mrcas = pd.merge(syn_ages[["core_mrca_2", "arch"]], totals_mrcas, how = "left")
-
-syn_ages[["core_mrca_2", "taxon2"]].drop_duplicates()
-#%%
-xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
-
-hue_order = ["simple", "complex_core", "complex_derived"]
-
-x, y ="core_mrca_2", "frac_zero_mrca"
-fig, ax = plt.subplots()
-sns.barplot( data = totals_mrcas, x= x, y=y, hue = "arch",
-hue_order = hue_order, palette = PAL)
-ax.set_xticklabels(xlabs, rotation = 90)
-ax.set(xlabel = "core age",
-ylabel = "fraction of arch w/ zero TFBS",
-title = "fraction of elements that do not bind TFBS, per core age")
-ax.legend(bbox_to_anchor = (1,1))
-outf = f"{RE}zero_frac_per_core_mrca.pdf"
-plt.savefig(outf, bbox_inches = "tight")
-#%%
-alpha = 0.05
-
-mrca_dict = {}
-
-for arch in syn_ages.arch.unique():
-    for mrca_2 in syn_ages.syn_mrca_2.unique():
-
-        in_age = syn_ages.loc[(syn_ages.syn_mrca_2 == mrca_2) & (syn_ages.arch == arch)] # subset to the per age df
-        out_age = syn_ages.loc[(syn_ages.syn_mrca_2 != mrca_2) & (syn_ages.arch == arch)] # subset to the per age df
-        #print(arch, mrca_2)
-        if arch == "complex_derived" and mrca_2 ==0.867:
-            continue
-        elif arch == "complex_core" and mrca_2 ==0.0:
-            continue
-        elif arch == "simple" and mrca_2 ==0.0:
-            continue
-        else:
-            ab = in_age.groupby("tfbs_bool")["syn_id"].count().reset_index()
-            b,a = ab.iloc[0,1], ab.iloc[1,1]
-            cd = out_age.groupby("tfbs_bool")["syn_id"].count().reset_index()
-            d,c = cd.iloc[0,1], cd.iloc[1,1]
-
-            obs = [[a,b], [c,d]]
-
-            min_instances = 1
-            comparison_name = f"{arch}-{mrca_2}"
-            new_df = quantify_2x2(obs, comparison_name, min_instances)
-            new_df["mrca_2"] = mrca_2
-            new_df["arch"] = arch
-            mrca_dict[comparison_name] = new_df
-
-
-fet_zero_ages = fdr_correction(mrca_dict, alpha) # FDR correction
-fet_zero_ages["arch"] = fet_zero_ages.comparison_name.apply(lambda x: x.split("-")[0])
-#%%
-fet_zero_ages.sort_values(by = "mrca_2")
-der_xlabs = xlabs[:-1]
-#%%
-fet_zero_ages["yerr"]=(fet_zero_ages["ci_upper"] - fet_zero_ages["ci_lower"])
-yerrs = fet_zero_ages.pivot(index = "mrca_2", columns = "arch", values = "yerr").fillna(0)
-
-yerrs = yerrs[hue_order]
-
-piv = fet_zero_ages.pivot(index='mrca_2', columns='arch', values='log2')
-piv = piv[hue_order].fillna(0)
-yerrs
-#%%
-
-ax = piv.plot(kind='bar',
-yerr=yerrs,
-figsize = (6,6), #colormap = PAL,
-#ylabel = "Archs that bind TFs enrichment"
-)
-ax.set_xticklabels(xlabs)
-ax.set(
-xlabel = "sequence age",
-ylabel = "Archs that bind TFs \nOR enrichment")
-outf = f"{RE}FigS_HepG2cCRE_TFBSZeroNonZeroAge.pdf"
-plt.savefig(outf, bbox_inches = 'tight')
-#%%
-fig, ax = plt.subplots(figsize = (6,6))
-x, y = "mrca_2","log2"
-data = fet_zero_ages
+x ,y = "core_mrca_2", 'tf_density'
 hue = "arch"
-sns.barplot(x = x, y = y, data = data,
-hue = hue, palette = PAL, hue_order = hue_order,)
-             #yerr= yl)
-
-ax.set(xlabel = "sequence age",
-ylabel = "OR architecture binds TF (log2-scaled)",
-title = "TFBS enrichment per age, per arch")
-ax.set_xticklabels(xlabs)
-ax.legend(bbox_to_anchor = (1,1))
-outf = f"{RE}FigS5_TF_binding_per_arch_age_fet.pdf"
-plt.savefig(outf, bbox_inches = 'tight')
-#%%
-alpha = 0.05
-syn_ages.head()
-mrca_dict = {}
-
-
-    for mrca_2 in syn_ages.syn_mrca_2.unique():
-
-        in_age = syn_ages.loc[(syn_ages.core_mrca_2 == mrca_2) ] # subset to the per age df
-        out_age = syn_ages.loc[(syn_ages.core_mrca_2 != mrca_2)] # subset to the per age df
-        #print(arch, mrca_2)
-
-        ab = in_age.groupby("tfbs_bool")["syn_id"].count().reset_index()
-        b,a = ab.iloc[0,1], ab.iloc[1,1]
-        cd = out_age.groupby("tfbs_bool")["syn_id"].count().reset_index()
-        d,c = cd.iloc[0,1], cd.iloc[1,1]
-
-        obs = [[a,b], [c,d]]
-
-        min_instances = 1
-        comparison_name = f"{arch}-{mrca_2}"
-        new_df = quantify_2x2(obs, comparison_name, min_instances)
-        new_df["mrca_2"] = mrca_2
-        new_df["arch"] = arch
-        mrca_dict[comparison_name] = new_df
-
-
-fet_zero_ages = fdr_correction(mrca_dict, alpha) # FDR correction
-fet_zero_ages["arch"] = fet_zero_ages.comparison_name.apply(lambda x: x.split("-")[0])
-#%%
-fet_zero_ages.sort_values(by = "mrca_2")
-der_xlabs = xlabs[:-1]
+hue_order = ["simple", "complex_core", "complex_derived"]
+xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
 fig, ax = plt.subplots(figsize = (6,6))
-x, y = "mrca_2","log2"
-data = fet_zero_ages
-#hue = "arch"
-sns.barplot(x = x, y = y, data = data, )
-#hue = hue, palette = PAL, hue_order = hue_order )
-ax.set(xlabel = "sequence age",
-ylabel = "OR enhancer binds TF (log2-scaled)",
-title = "TFBS enrichment per age")
-ax.set_xticklabels(xlabs)
+sns.barplot(x, y, data = synden, hue = hue, palette = PAL, hue_order = hue_order)
 ax.legend(bbox_to_anchor = (1,1))
-outf = f"{RE}TF_binding_per_age_fet.pdf"
+ax.set_xticklabels(xlabs, rotation = 90)
+
+outf = f"{RE}{cell_line}_tfbs_density_coremrca_2.pdf"
+outf
+plt.savefig(outf, bbox_inches = "tight")

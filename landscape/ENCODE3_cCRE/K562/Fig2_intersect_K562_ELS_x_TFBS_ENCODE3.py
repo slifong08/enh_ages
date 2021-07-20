@@ -518,7 +518,7 @@ cell_line = "K562"
 val = "ELS_combined_K562"
 #val = sample_dict[cell_line]
 df_file = f"{RE_DATA}{cell_line}_df.tsv"
-
+df_file
 comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
 "simple_v_core",
 "simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
@@ -546,11 +546,11 @@ if os.path.exists(df_file) == False:
 else:
     data_dict = {}
     for comp in comp_list:
-        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
-        df = pd.read_csv(outf, sep = '\t')
+        infile = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        df = pd.read_csv(infile, sep = '\t')
         data_dict[comp] = df
 
-
+df_file
 #%%
 
 SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
@@ -587,11 +587,11 @@ if REASSIGN_SMALL_TAXONS==1:
 
 mrca_dict = {}
 # calculate TF enrichment in architecture/syn blocks
-
+(df.groupby(["enh_id", "core_remodeling"])["mrca_2"].max().reset_index()).groupby(["core_remodeling", "mrca_2"])["mrca_2"].count()
 for TAXON2 in df.taxon2.unique():
 
     print(TAXON2)
-    age = df.loc[df.taxon2 == TAXON2]
+    age = df.loc[df.taxon2 == TAXON2].drop_duplicates()
 
     arch1, arch2 = "complex_derived", "complex_core"
     der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
@@ -669,14 +669,24 @@ comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
 
 # enumerate and plot results
 
+# enumerate and plot results
 for i, comp in enumerate(comparison_order):
     print(comp)
-    test = get_cross_mrca_enrichment(comp, i, mrca_dict)
     outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
-    test.to_csv(outf, sep = '\t', index = None)
+    if os.path.exists(outf) == False:
+
+        test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+        test = test.drop_duplicates()
+        test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
+        test["log2"] = np.log2(test.OR)
+
+        test.to_csv(outf, sep = '\t', index = None)
+    else:
+        test = pd.read_csv(outf, sep = '\t')
     plot_heatmap(comp, test)
 
-test.head()
+outf
+
 #%%
 a = test.loc[test.reject_null==True].sort_values(by = "mrca_2").drop_duplicates()
 a
@@ -705,3 +715,13 @@ ax.set_xticklabels(xlabs, rotation = 90)
 outf = f"{RE}{cell_line}_tfbs_density_core_mrca_2.pdf"
 outf
 plt.savefig(outf, bbox_inches = "tight")
+#%%
+TAXON2 = "Primate"
+print(TAXON2)
+age = df.loc[df.taxon2 == TAXON2]
+#%%
+print(age.shape)
+print(age.drop_duplicates().shape)
+#%%
+arch1, arch2 = "complex_derived", "complex_core"
+der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)

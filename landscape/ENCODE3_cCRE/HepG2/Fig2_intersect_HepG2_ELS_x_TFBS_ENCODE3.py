@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-
 from scipy import stats
 import seaborn as sns
 import statsmodels
@@ -624,6 +623,7 @@ if REASSIGN_SMALL_TAXONS==1:
     df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
     df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
     df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
+    df.loc[df.taxon2 == "Primates", "taxon2"] = "Boreoeutheria"
 
 #%%
 
@@ -633,7 +633,7 @@ mrca_dict = {}
 for TAXON2 in df.taxon2.unique():
 
     print(TAXON2)
-    age = df.loc[df.taxon2 == TAXON2]
+    age = df.loc[df.taxon2 == TAXON2].drop_duplicates()
 
     arch1, arch2 = "complex_derived", "complex_core"
     der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
@@ -706,12 +706,17 @@ comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
 # enumerate and plot results
 for i, comp in enumerate(comparison_order):
     print(comp)
-    test = get_cross_mrca_enrichment(comp, i, mrca_dict)
-    test = test.drop_duplicates()
-    test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
-    test["log2"] = np.log2(test.OR)
     outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
-    test.to_csv(outf, sep = '\t', index = None)
+    if os.path.exists(outf) == False:
+
+        test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+        test = test.drop_duplicates()
+        test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
+        test["log2"] = np.log2(test.OR)
+
+        test.to_csv(outf, sep = '\t', index = None)
+    else:
+        test = pd.read_csv(outf, sep = '\t')
     plot_heatmap(comp, test)
 test.head()
 
