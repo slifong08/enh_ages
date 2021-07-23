@@ -19,7 +19,7 @@ FANTOM = os.path.join(FANTOMPATH, "all_fantom_enh/ages", FANTOMFILE)
 SAMPLE_ID = "all_fantom_enh_%s" % SPECIES
 
 OUTPATH = "/dors/capra_lab/projects/enhancer_ages/fantom/data/all_fantom_enh/"
-RE = "/dors/capra_lab/projects/enhancer_ages/landscape/results/cCRE/gc_content/"
+RE = "/dors/capra_lab/projects/enhancer_ages/fantom/results/gc_content/"
 
 MERGE_DISTANCES = 0
 
@@ -179,7 +179,7 @@ def match_len(df1, df2, base_len, balanced_ids_per_bin):
     df2.matching_len = df2.matching_len.astype(float).apply(lambda x: custom_round(x, base=base_len))
 
     # set of lengths in both datasets
-    lens = set(list(df1.matching_len.unique()) + list(df2.matching_len.unique()))
+    lens = set(list(df1.matching_len.unique()) + list(df2.matching_len.unique())) 
 
     match_dict = {}
 

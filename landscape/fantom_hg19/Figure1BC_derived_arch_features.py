@@ -77,6 +77,33 @@ def add_arch_labels(df):
     return df
 
 
+def reEval_PrimComplex(enh):
+
+    # get all the complex enhancers w/ primate core ages
+    prComEnhID = enh.loc[(enh.core ==1) &
+    (enh.core_remodeling ==1) &
+    (enh.taxon2.str.contains("Primate"))]["enh_id"].unique()
+
+    # get all the complex enhancer ids where there is a real human derived sequence
+    pr_complex = enh.loc[(enh.enh_id.isin(prComEnhID)) &
+    (enh.core_remodeling == 1) &
+    (enh.core ==0) &
+    (enh.mrca ==0),
+    ]["enh_id"]
+
+
+    # i'm going to reassign any primate complex enhancer
+    # where derived regions are from other primates
+    # get the set of primate complex enhancers w/ primate derived sequences
+    # and rename them as simple enhancers
+    pr_simple = set(prComEnhID) - set(pr_complex)
+
+    # reassign core and core remodeling columns
+    enh.loc[enh.enh_id.isin(pr_simple), "core"] = 1
+    enh.loc[enh.enh_id.isin(pr_simple), "core_remodeling"] = 0
+    return enh
+
+
 def format_syndf(enh_age_file):
 
     syn_cols = ["chr_syn", "start_syn", "end_syn",
@@ -102,7 +129,8 @@ def format_syndf(enh_age_file):
     syn["mrca"] = syn["mrca"].round(3) # round the ages
 
     syn = pd.merge(syn, syn_gen_bkgd, how = "left", on = "mrca")
-
+    syn = reEval_PrimComplex(syn)
+    syn[syn_cols].to_csv(enh_age_file, sep = "\t", header = False, index = False)
     labeled_syn = add_arch_labels(syn) # add architecture labels
 
     return labeled_syn
@@ -136,7 +164,7 @@ def get_mwu(dataset_col, id_col, test_dif, df, outf):
 
         for comp in id_col_list:
             print(comp)
-            values = test.loc[(test[id_col] == comp), test_dif].to_list()
+            values = list(test.loc[(test[id_col] == comp), test_dif])
             val_list.append(values)
             median_list.append(np.median(values))
             mean_list.append(np.mean(values))
@@ -293,6 +321,7 @@ def MRCA_frequency(catdf, cols, var):
 
     return ages, fc
 
+
 def plot_arch_freq(age_arch_freq, age_freq):
     plots = {"age_arch" : age_arch_freq, "age": age_freq}
 
@@ -336,12 +365,11 @@ def plot_arch_freq(age_arch_freq, age_freq):
         plt.savefig(outf, bbox_inches= "tight")
 
 
-def plot_arch_fc(age_arch_fc, age_fc, arch):
-
+def plot_arch_fc(age_arch_fc, age_fc, build, arch):
+    print(build, arch)
     plots = {"age_arch":age_arch_fc, "age_tfbs": age_fc}
     color_dict ={"simple": amber, "complex_core": purple, "complex_derived": blue}
     archs = ["simple", "complex_core", "complex_derived"]
-
 
     # don't plot the entire dataset if you just want to plot FC of one architecture.
     if arch in archs:
@@ -372,15 +400,12 @@ def plot_arch_fc(age_arch_fc, age_fc, arch):
             data = fc
             p = EPAL
 
+        backbone_df = age_arch_fc["mrca_2"].copy().drop_duplicates().reset_index()
+        data = pd.merge(backbone_df, data, how = "left").fillna(0).sort_values(by = "mrca_2")
+        data["counts_y"] = data["counts_y"].astype(int)
 
-        if GENOME_BUILD == "hg38":
+        if build == "hg38":
             xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Sarg", "Vert"]
-
-        elif arch == "complex_derived":
-            xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr"]
-
-        elif arch == "complex_core":
-            xlabs = ["Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
 
         else:
             xlabs = ["Homo", "Prim", "Euar", "Bore", "Euth", "Ther", "Mam", "Amni", "Tetr", "Vert"]
@@ -390,11 +415,24 @@ def plot_arch_fc(age_arch_fc, age_fc, arch):
         x, y = "mrca_2", "log2"
 
 
-        sns.barplot(x = x, y=y,
+        splot = sns.barplot(x = x, y=y,
         data = data,
         hue = hue,
         hue_order = order,
         palette = p)
+
+
+        for n, p in enumerate(splot.patches):
+            value = data.iloc[n]["counts_y"]
+            splot.annotate(value,
+                           (p.get_x() + p.get_width() / 2.,0.05),
+                           ha = 'center', va = 'baseline',
+                           size=15,
+                           rotation = 90,
+                           color = "k",
+                           xytext = (0, 1),
+                           textcoords = 'offset points'
+                           )
 
         ax.set(ylabel = "Fold-Change v. Bkgd\n(log2-scaled)")
         ax.set_xticklabels(xlabs, rotation = 90)
@@ -419,6 +457,7 @@ shuf["id"] = "SHUFFLE"
 df = pd.concat([enh, shuf])
 df.shape
 df.drop_duplicates().shape
+enh[["core_remodeling", "enh_id"]].drop_duplicates().groupby("core_remodeling").count()
 enh.groupby(["core_remodeling", "core", "mrca_2"])["enh_id"].count()
 shuf.groupby(["core_remodeling", "core"])["enh_id"].count()
 
@@ -527,7 +566,16 @@ test_dif = "syn_len" # calculate mwu from these variables' values
 
 
 outf = f"{RE}{comp}_MWU_arch_lens.tsv"
+mwu_df = get_mwu( dataset_col, id_col, test_dif, sum_archlen, outf)
 
+#%% do mwu on architecture, comparing FANTOM v. FANTOM ids
+
+dataset_col = "arch" # first level - simple, complex core, complex derived
+id_col = "arch" # do mwu separating on this variable
+test_dif = "syn_len" # calculate mwu from these variables' values
+
+
+outf = f"{RE}{comp}_MWU_arch_v_arch_lens.tsv"
 mwu_df = get_mwu( dataset_col, id_col, test_dif, sum_archlen, outf)
 
 
@@ -555,13 +603,17 @@ age_freq, age_fc = MRCA_frequency(df, cols, var)
 
 
 #%%
+age_arch_fc.head()
+mrcas = age_arch_fc["mrca_2"].drop_duplicates()
+pd.merge(mrcas, age_arch_fc.loc[age_arch_fc.arch == "complex_derived"][["mrca_2", "counts_y"]], how = "left")
 GENOME_BUILD = "hg19"
 plot_arch_freq(age_arch_freq, age_freq)
-plot_arch_fc(age_arch_fc, age_fc, "all")
-plot_arch_fc(age_arch_fc, age_fc, "complex_derived")
-plot_arch_fc(age_arch_fc, age_fc, "complex_core")
-plot_arch_fc(age_arch_fc, age_fc, "simple")
-
+plot_arch_fc(age_arch_fc, age_fc, GENOME_BUILD, "all")
+plot_arch_fc(age_arch_fc, age_fc, GENOME_BUILD, "complex_derived")
+plot_arch_fc(age_arch_fc, age_fc,GENOME_BUILD, "complex_core")
+plot_arch_fc(age_arch_fc, age_fc, GENOME_BUILD, "simple")
+#%%
+df.head()
 #%%
 der = df.loc[df.core == 0]
 der_enh = der.loc[der.id == "FANTOM", "mrca_2"]

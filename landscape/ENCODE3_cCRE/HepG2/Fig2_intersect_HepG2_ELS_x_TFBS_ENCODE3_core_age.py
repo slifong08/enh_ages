@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-
 from scipy import stats
 import seaborn as sns
 import statsmodels
@@ -10,6 +9,7 @@ import statsmodels.api as sm
 import subprocess
 
 ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/data/"
+#ENHBASE = "/dors/capra_lab/projects/enhancer_ages/encode/hepg2/data/"
 
 ENCODEPATH = "/dors/capra_lab/data/encode/encode3_hg38/TF/"
 
@@ -79,8 +79,45 @@ def get_core_age(df):
 
     return df
 
+def reEval_PrimComplex(enh):
+
+    # get all the complex enhancers w/ primate core ages
+    prComEnhID = enh.loc[(enh.core ==1) &
+    (enh.core_remodeling ==1) &
+    (enh.taxon2.str.contains("Primate"))]["enh_id"].unique()
+
+    # get all the complex enhancer ids where there is a real human derived sequence
+    pr_complex = enh.loc[(enh.enh_id.isin(prComEnhID)) &
+    (enh.core_remodeling == 1) &
+    (enh.core ==0) &
+    (enh.mrca ==0),
+    ]["enh_id"]
+
+
+    # i'm going to reassign any primate complex enhancer
+    # where derived regions are from other primates
+    # get the set of primate complex enhancers w/ primate derived sequences
+    # and rename them as simple enhancers
+    pr_simple = set(prComEnhID) - set(pr_complex)
+
+    # reassign core and core remodeling columns
+    enh.loc[enh.enh_id.isin(pr_simple), "core"] = 1
+    enh.loc[enh.enh_id.isin(pr_simple), "core_remodeling"] = 0
+    return enh
 
 def format_df(intersection_file):
+
+    SYN_GROUP = "/dors/capra_lab/projects/enhancer_ages/hg38_syn_taxon.bed"
+    syn = pd.read_csv(SYN_GROUP, sep = '\t')
+
+    # round all values
+
+
+    syn[["mrca", "mrca_2"]] = syn[["mrca", "mrca_2"]].round(3)
+
+
+    # do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
+
 
     cols = ["chr_syn", "start_syn", "end_syn",
     "enh_id","chr", "start", "end",
@@ -96,13 +133,16 @@ def format_df(intersection_file):
     header = None).drop_duplicates()
 
     df.columns = cols # add column names
-
+    df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
     df["tf"] = df["tf_id"].apply(lambda x: x.split("_")[0])
 
     # add architecture label - core, derived, simple
     df["arch"] = "simple"
     df.loc[(df.core_remodeling ==1) & (df.core ==1), "arch"] = "complex_core"
     df.loc[(df.core_remodeling ==1) & (df.core ==0), "arch"] = "complex_derived"
+    df.mrca = df.mrca.round(3)
+    df = pd.merge(df, syn[["mrca", "mrca_2", "taxon2"]], how = "left")
+    df = reEval_PrimComplex(df)
 
     # add architecture label - complex, simple
     df["overallarch"] = "simple"
@@ -121,6 +161,7 @@ def format_df(intersection_file):
     df["tfoverlap_bin"] = 1
     df.loc[df.tf == ".", "tfoverlap_bin"] = 0
     df.loc[df.overlap <6 , "tfoverlap_bin"] = 0
+
 
     return df
 
@@ -357,7 +398,7 @@ def run_2x2(arch1, arch2, df, min_instances, alpha, taxon2):
     for tf in df.tf.unique():
 
         if tf != ".":
-
+            df = df.drop_duplicates()
             obs, comparison_name = prep_2x2(tf, arch1, arch2, df)
 
             results = quantify_2x2(obs, comparison_name, min_instances)
@@ -516,14 +557,14 @@ MIN_INSTANCES =10
 #%%
 cell_line = "HepG2"
 val = "ELS_combined_HepG2"
-#val = sample_dict[cell_line]
+
 df_file = f"{RE_DATA}{cell_line}_df.tsv"
 
 comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
 "simple_v_core",
 "simple_v_bkgd", "simple_v_der", "core_v_bkgd", "df"]
 
-
+df_file
 if os.path.exists(df_file) == False:
 
     der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
@@ -564,50 +605,65 @@ df.mrca = df.mrca.round(3)
 
 # do the dance - add mrca_2 column, get mrca_2 core age, drop mrca_2 column, then add it back, but this time to reflect the core_age and core taxon, instead of the syntenic age.
 df = pd.merge(df, syn[["mrca", "mrca_2"]], how = "left")
-df = get_core_age(df)
-df = df.drop(["mrca_2"], axis = 1)
-df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+
+## IF YOU WANT TO LABEL DERIVED REGIONS BY THEIR CORE AGES INSTEAD OF THEIR SYNTENIC AGES.
+REASSIGN_DER_W_CORE_AGE = 1
+if REASSIGN_DER_W_CORE_AGE == 1:
+    df = get_core_age(df)
+    df = df.drop(["mrca_2"], axis = 1)
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left", left_on = "core_mrca_2", right_on = "mrca_2")
+else:
+    df = pd.merge(df, syn[["mrca_2", "taxon2"]], how = "left")
 df.head(10)
 
 
-
-# lump small samples with larger, older ancestors
-df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
-df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
-df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
+REASSIGN_SMALL_TAXONS = 0
+if REASSIGN_SMALL_TAXONS==1:
+    # lump small samples with larger, older ancestors
+    df.loc[df.taxon2 == "Sarcopterygian", "taxon2"] = "Vertebrata"
+    df.loc[df.taxon2 == "Tetrapoda", "taxon2"] ="Vertebrata"
+    df.loc[df.taxon2 == "Euarchontoglires", "taxon2"] = "Boreoeutheria"
 
 #%%
-
-mrca_dict = {}
-# calculate TF enrichment in architecture/syn blocks
-
-for TAXON2 in df.taxon2.unique():
-
-    print(TAXON2)
-    age = df.loc[df.taxon2 == TAXON2]
-
-    arch1, arch2 = "complex_derived", "complex_core"
-    der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
+"der_v_bkgd", "core_v_bkgd", "der_v_simple"]
 
 
-    arch1, arch2 = "simple", "complex_core"
-    simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
 
-    arch1, arch2 = "simple", "bkgd"
-    simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+comp = comparison_order[0]
+outf = f"{RE_DATA}{cell_line}_{comp}OR_per_CORE_MRCA.tsv"
 
-    arch1, arch2 = "complex_derived", "bkgd"
-    der_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+if os.path.exists(outf) == False:
 
-    arch1, arch2 = "complex_core", "bkgd"
-    core_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    mrca_dict = {}
+    # calculate TF enrichment in architecture/syn blocks
 
-    arch1, arch2 = "complex_derived", "simple"
-    der_v_simple = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+    for TAXON2 in df.taxon2.unique():
 
-    results = [der_v_core, simple_v_core, simple_v_bkgd, der_v_bkgd, core_v_bkgd, der_v_simple]
+        print(TAXON2)
+        age = df.loc[df.taxon2 == TAXON2]
 
-    mrca_dict[TAXON2] = results
+        arch1, arch2 = "complex_derived", "complex_core"
+        der_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "simple", "complex_core"
+        simple_v_core = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "simple", "bkgd"
+        simple_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_derived", "bkgd"
+        der_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_core", "bkgd"
+        core_v_bkgd = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        arch1, arch2 = "complex_derived", "simple"
+        der_v_simple = run_2x2(arch1, arch2, age, MIN_INSTANCES, ALPHA, TAXON2)
+
+        results = [der_v_core, simple_v_core, simple_v_bkgd, der_v_bkgd, core_v_bkgd, der_v_simple]
+
+        mrca_dict[TAXON2] = results
 
 #%%
 
@@ -631,9 +687,12 @@ def get_cross_mrca_enrichment(comp, i, mrca_dict):
 def plot_heatmap(comp, test):
     test = test.drop_duplicates()
     # pivot the results into a table
-    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),
-    index = "tf", columns = [ "mrca_2", "taxon2"], values = 'log2') # pivot only the significant results
-    table = table.dropna(thresh = 0) # drop any Na's
+    table = pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),\
+    index = "tf", columns = "mrca_2", values = 'log2')
+    table = table.dropna(thresh = 2) # drop any Na's
+    table = table.replace(-np.Inf, -2)
+    table = table.replace(np.Inf, 2)
+
     if len(table)<25:
         figsize = (5,10)
     else:
@@ -645,20 +704,36 @@ def plot_heatmap(comp, test):
     figsize = figsize)
 
     cm.fig.suptitle(comp)
-    outf = f"{RE}{val}_{comp}_clustermap_core_mrca2.pdf"
+    outf = f"{RE}{val}_{comp}_clustermap_coremrca2.pdf"
     plt.savefig(outf, bbox_inches = "tight", dpi = 300)
 
 #%%
-comparison_order=["der_v_core" ,"simple_v_core","simple_v_bkgd",
-"der_v_bkgd", "core_v_bkgd", "der_v_simple"]
+
 
 # enumerate and plot results
 for i, comp in enumerate(comparison_order):
     print(comp)
-    test = get_cross_mrca_enrichment(comp, i, mrca_dict)
-    outf = f"{RE_DATA}{cell_line}_{comp}OR_per_MRCA.tsv"
-    test.to_csv(outf, sep = '\t', index = None)
+    outf = f"{RE_DATA}{cell_line}_{comp}OR_per_CORE_MRCA.tsv"
+    if os.path.exists(outf) == False:
+
+        test = get_cross_mrca_enrichment(comp, i, mrca_dict)
+        test = test.drop_duplicates()
+        test["tf"] = test.comparison_name.apply(lambda x: x.split("-")[0])
+        test["log2"] = np.log2(test.OR)
+
+        test.to_csv(outf, sep = '\t', index = None)
+    else:
+        test = pd.read_csv(outf, sep = '\t')
     plot_heatmap(comp, test)
+test.head()
+
+#%%
+test["OR"].min()
+pd.pivot(test.loc[test.reject_null==True].sort_values(by = "mrca_2"),index = "tf", columns = "mrca_2", values = 'log2')
+test.shape
+test.drop_duplicates().shape
+test.loc[test.reject_null==True]
+
 
 #%%
 synden = data_dict["tf_density_syn"]
@@ -680,6 +755,6 @@ sns.barplot(x, y, data = synden, hue = hue, palette = PAL, hue_order = hue_order
 ax.legend(bbox_to_anchor = (1,1))
 ax.set_xticklabels(xlabs, rotation = 90)
 
-outf = f"{RE}{cell_line}_tfbs_density_core_mrca_2.pdf"
+outf = f"{RE}{cell_line}_tfbs_density_coremrca_2.pdf"
 outf
 plt.savefig(outf, bbox_inches = "tight")

@@ -3,8 +3,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
-#SBATCH --time=06:00:00
-#SBATCH --mem=30GB
+#SBATCH --time=03:00:00
+#SBATCH --mem=8GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/tyler/data/
 
 #SBATCH --job-name=CON_ACC
@@ -16,4 +16,4 @@
 ml load Anaconda3
 
 
-python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/ar_parallel.py ${1} -br ${2} -m ${3}
+python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/conacc_parallel_old.py ${1} -br ${2} -m ${3}
