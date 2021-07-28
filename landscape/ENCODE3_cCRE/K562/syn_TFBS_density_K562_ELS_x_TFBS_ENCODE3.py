@@ -255,13 +255,26 @@ def plot_jointplots(table, zeros, quant):
             xlim = lim, ylim = lim)
             lin_regress(table_)
         else:
-            sns.jointplot(x=x, y=y, data = table_,
+            g = sns.jointplot(x=x, y=y, data = table_,
             height=5, ratio=2, marginal_ticks=True,
             kind =kind,
             )
+            # add KDE plot
+            g.plot_joint(sns.regplot, color="k",
+            #height=5,
+            #ratio=2,
+            #marginal_ticks=True,
+            marker="+", scatter_kws ={"s":0},
+            #joint_kws={'line_kws':{'color':'k'}},
+            )
+            #zorder=0,
+            #levels=6,
+            #xlim = lim, ylim = lim
+            lin_regress(table_)
 
         outf_ = outf + f"_{quant}_{kind}.pdf"
-        plt.savefig(outf_, bbox_inches = "tight")
+        plt.savefig(outf_, bbox_inches = "tight", dpi = 100)
+
 
 
 def lin_regress(table):
