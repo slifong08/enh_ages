@@ -1,7 +1,20 @@
+import argparse
 import os, sys
 import subprocess
 
 
+arg_parser = argparse.ArgumentParser(description=" describe argparse")
+
+arg_parser.add_argument("-b","--bedfile",  type=str,help='bed file w/ full path')
+arg_parser.add_argument("-f","--from_build", type=str, help='genome build of the original file')
+arg_parser.add_argument("-t","--to_build", type=str, help='genome build to liftover to')
+
+args = arg_parser.parse_args()
+
+F = args.bedfile
+from_build= args.from_build
+to_build= args.to_build
+path = "/".join(F.split("/")[:-1])
 
 def liftover(bedfile, path, from_build, to_build): # bedfile with full path
 
@@ -39,3 +52,10 @@ def liftover(bedfile, path, from_build, to_build): # bedfile with full path
         print("cleaned up temp file")
 
     return lifted
+
+def main(argv):
+    liftover(F, path, from_build, to_build)
+#%%
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
