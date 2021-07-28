@@ -134,7 +134,7 @@ FS
 def main(argv):
 
     os.chdir(PATH) # change directory
-    for F in FS[1:]:
+    for F in FS:
 
         CHRNUM = "chr"+(F.split("chr")[1]).split(".bed")[0] # get the chromosome number
 
@@ -163,7 +163,7 @@ def main(argv):
                     os.remove(temp)
                     print("removed", temp)
 
-                splits = f"{PATH}{chrnum}-*"
+                splits = f"{PATH}{chrnum}*"
                 subprocess.call(f"rm {splits}", shell = True)
                 print("removed", splits)
             else:
