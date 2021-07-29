@@ -10,8 +10,9 @@ sys.path.append(CONFIG_PATH)
 
 import config # import the config.py file with all the files for tyler's project
 
-all_, hars_, phast_ = config.all, config.hars, config.phastCons
-FS = [hars_, all_, phast_] # a list of the files
+all_ = config.all
+all_ = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/prune/GG-LL_all_OCRs.bed"
+
 
 #%% function
 
@@ -27,39 +28,37 @@ def make_chr_list():
     return chr_list
 
 
-def run_conacc_slurm(config_path, file, branches, msaway):
+def run_conacc_slurm(config_path, file, branches, msaway, mod):
 
     # make the command
-    cmd = f"sbatch {config_path}/conacc_per_chr.slurm {file} {branches} {msaway}"
+    cmd = f"sbatch {config_path}/conacc_per_chr.slurm {file} {branches} {msaway} {mod}"
 
     # tell us what is being run
-    print("running CONACC slurm job on", file, "\nbranches:", branches, "\nmsa:", msaway)
+    print("running CONACC slurm job on", file,
+    "\nbranches:", branches, "\nmsa:", msaway,
+    "\nmod:", mod)
     print(cmd)
     # run it
     subprocess.call(cmd, shell = True)
 
-def run_conacc_py(config_path, file, branches, msaway):
+def run_conacc_py(config_path, file, branches, msaway, mod):
 
     # make the command
-    cmd = f"python {config_path}/conacc_per_chr.py {file} -br {branches} -m {msaway}"
+    cmd = f"python {config_path}/conacc_per_chr.py {file} -br {branches} -msa {msaway} -mod {mod}"
 
     # tell us what is being run
-    print("running CONACC python job on", file, "\nbranches:", branches, "\nmsa:", msaway)
+    print("running CONACC python job on", file, "\nbranches:", branches, "\nmsa:", msaway, "\nmod:", mod)
     print(cmd)
     # run it
     #subprocess.call(cmd, shell = True)
 
 #%%
 
-BRANCHES = 'hg38-rheMac8'
+BRANCHES = ["hg38", "rheMac8", 'hg38-rheMac8']
 MSAWAY = "30"
-chr_list = make_chr_list()
-F = phast_
+MODEL = 'hg38-rheMac8'
 
-PATH = "/".join(F.split("/")[:-1]) + "/" # the path
-for chr_f in chr_list:
-    file = f"{PATH}{chr_f}.bed"
-    print(file)
-    run_conacc_slurm(CONFIG_PATH, file, BRANCHES, MSAWAY)
-    #run_conacc_py(CONFIG_PATH, file, BRANCHES, MSAWAY)
-    break
+PATH = "/".join(all_.split("/")[:-1]) + "/" # the path
+for BRANCH in BRANCHES:
+    run_conacc_slurm(CONFIG_PATH, all_, BRANCH, MSAWAY, MODEL)
+#run_conacc_py(CONFIG_PATH, file, BRANCHES, MSAWAY, MODEL)
