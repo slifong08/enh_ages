@@ -16,4 +16,4 @@
 ml load Anaconda3
 
 
-python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/conacc_per_chr.py ${1} -br ${2} -m ${3}
+python /dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation/conacc_per_chr.py ${1} -br ${2} -msa ${3} -mod ${4}
