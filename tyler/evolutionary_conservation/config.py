@@ -18,3 +18,18 @@ hars = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hars/hars_merged_PMIDs_h
 
 # negative control
 phastCons = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/phastCons/phastConsElements100way_hg38.bed.gz"
+
+
+# models
+mod_maf = {
+"20way":["/dors/capra_lab/data/ucsc/hg38/multiz20way/hg38.phastCons20way.mod",
+"/dors/capra_lab/data/ucsc/hg38/multiz20way/maf/*.maf.gz"],
+"30way":["/dors/capra_lab/data/ucsc/hg38/multiz30way/hg38.phastCons30way.mod",
+"/dors/capra_lab/data/ucsc/hg38/multiz30way/maf/*.maf.gz"],
+"100way":["/dors/capra_lab/data/ucsc/hg38/multiz100way/hg38.phastCons100way.mod",
+"/dors/capra_lab/data/ucsc/hg38/multiz20way/maf/*.maf.gz"],
+}
+
+PHAST_PATH = "/dors/capra_lab/bin/"
+phylop = f"{PHAST_PATH}./phyloP"
+treedoctor = f"{PHAST_PATH}./tree_doctor"

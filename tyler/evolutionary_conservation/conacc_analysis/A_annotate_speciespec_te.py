@@ -36,13 +36,10 @@ BRANCH = args.branches # the branches to test.
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 MSA_WAY = args.multiz # multiple sequence alignment.
 """
+branches = ["hg38", "rheMac8", "hg38-rheMac8"]
 
-
-BRANCH = "hg38-rheMac8"
-CONACC_F = f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/multiz30way_{BRANCH}/all_con_acc.bed"
 MSA_WAY = 30
 
-PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
 
 TE_F = "/dors/capra_lab/data/transposable_elements/repeatmasker/hg38.bed"
 
@@ -50,13 +47,18 @@ SPECIES_DA_F = "/dors/capra_lab/users/fongsl/tyler/data/GG-LL_species-specific_O
 
 SELF_F = "/dors/capra_lab/data/ucsc/hg38/self/hg38_repeats_self_coor.bed"
 
-RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{MSA_WAY}way_{BRANCH}/"
-
-if os.path.exists(RE) == False:
-    os.mkdir(RE)
-
 
 #%% FUNCTIONS
+def get_vars(branch, msa_way):
+    CONACC_F =f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/multiz30way_{branch}/all_con_acc.bed"
+    PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
+    RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}/"
+
+    if os.path.exists(RE) == False:
+        os.mkdir(RE)
+
+
+    return CONACC_F, PATH, RE
 
 def remove_doubletabs(f, path):
     os.chdir(path) # go to the directory
@@ -255,121 +257,155 @@ def plot_cdf(x, data, hue, title, pal):
 
     g = sns.displot(data, x=x, hue = hue,  kind ="ecdf", palette = pal)
     g.set( title = title,
-    xlim = (-0.5,0.5),
-    ylim = (0.05, 0.70),
+    #xlim = (-20,-1),
+    #ylim = (0.05, 0.70),
     xlabel = f"CON_ACC\n{n}"
     )
 
     outf = f"{RE}{title}_{MSA_WAY}way_{BRANCH}.pdf"
     plt.savefig(outf, bbox_inches = "tight")
 
+def get_medians(hue, x, data, title):
+    meds = data.groupby(hue)[x].median().reset_index()
+
+    melted = pd.melt(meds, id_vars=[x], value_vars=[hue])
+    melted["title"] = title
+
+    return melted
+
 #%% run functions
+for BRANCH in branches:
 
-df = format_f(CONACC_F) # format the file
+    CONACC_F, PATH, RE = get_vars(BRANCH, MSA_WAY)
+    df = format_f(CONACC_F) # format the file
 
-outTE = intersect_te(CONACC_F, PATH, TE_F) # intersect w/ repeatmasker TE
+    outTE = intersect_te(CONACC_F, PATH, TE_F) # intersect w/ repeatmasker TE
 
-outSP = intersect_species_specific(CONACC_F, PATH, SPECIES_DA_F) # intersect species specific accessibility calls.
+    outSP = intersect_species_specific(CONACC_F, PATH, SPECIES_DA_F) # intersect species specific accessibility calls.
 
-outSLF = intersect_self(CONACC_F, PATH, SELF_F) # intersect self accessibility calls.
+    outSLF = intersect_self(CONACC_F, PATH, SELF_F) # intersect self accessibility calls.
 
+    #
+    newdf_ = compile_df(outTE, outSP, outSLF)
+    quant = newdf_.CON_ACC.quantile(0.01)
+    print(BRANCH, "one percentile of CON_ACC scores", quant)
+    newdf = newdf_.loc[newdf_.CON_ACC <=quant]
+
+
+
+    #
+    median_results = pd.DataFrame()
+    x = "CON_ACC"
+    data = newdf.sort_values(by = "sp_te")
+    hue = "te_bin"
+    title = "TE_stratified"
+    pal = "Set1"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+
+    #
+    hue = "sp_te"
+    title = "all"
+    pal = "tab20"
+    data = newdf.sort_values(by = "sp_te")
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+    #
+
+    data = newdf.loc[newdf.te_bin ==0]
+    title = "TE_excluded"
+    pal = "Set1"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+
+    #
+
+    data = newdf.loc[newdf.te_bin ==1]
+    title = "TE_included"
+    pal = "Set1"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+
+    #
+    data = newdf
+    title = "Species_only"
+    hue = "species"
+    pal = "Set1"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+    #
+    data = newdf
+    title = "Self"
+    hue = "slf_bin"
+    pal = "tab10"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+    #
+    data = newdf.sort_values(by = "sp_te_slf")
+    title = "Sp_Te_Self"
+    hue = "sp_te_slf"
+    pal = "tab20c"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+    data = newdf.sort_values(by = "te_slf")
+    title = "Te_Self"
+    hue = "te_slf"
+    pal = "tab10"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+    data = newdf.sort_values(by = "sp_slf")
+    title = "Sp_Self"
+    hue = "sp_slf"
+    pal = "tab10"
+    plot_cdf(x, data, hue, title, pal)
+    melted = get_medians(hue, x, data, title)
+    median_results = median_results.append(melted)
+
+    # save the medians file
+    median_results["branch"]  = BRANCH
+    median_results['msa_way'] = MSA_WAY
+    median_out = f'{RE}medians_{BRANCH}_{MSA_WAY}.tsv'
+    median_results.to_csv(median_out, sep = '\t', index = False)
+
+    #
+    TeSlf = newdf.loc[
+    (newdf.te_bin == 1) &
+    (newdf.slf_bin == 1)
+    ].drop_duplicates()
+
+    TeSlf.describe()
+
+    noTeSlf = newdf.loc[
+    (newdf.te_bin == 0) &
+    (newdf.slf_bin == 0)
+    ].drop_duplicates()
+    noTeSlf.quantile(0.01)
+
+    noTeSlf.describe()
+
+    con_noSlfTe = noTeSlf.CON_ACC
+    con_SlfTe = TeSlf.CON_ACC
+
+    fig, ax =plt.subplots()
+
+    sns.histplot(con_noSlfTe, ax = ax, label = "no_slf_te", color = "r")
+    sns.histplot(con_SlfTe, ax = ax, label = "slf_te")
+    ax.legend()
+    stats.mannwhitneyu(con_noSlfTe, con_SlfTe)
+    con_noSlfTe.median(),con_SlfTe.median()
 #%%
-newdf = compile_df(outTE, outSP, outSLF)
-
-#%%
-
-newdf.info()
-
-
-
-#%%
-(newdf.groupby("species")["id"].count())
-
-#%%
-x = "CON_ACC"
-data = newdf.sort_values(by = "sp_te")
-hue = "te_bin"
-title = "TE_stratified"
-pal = "Set1"
-plot_cdf(x, data, hue, title, pal)
-
-#%%
-hue = "sp_te"
-title = "all"
-pal = "tab20"
-data = newdf.sort_values(by = "sp_te")
-plot_cdf(x, data, hue, title, pal)
-
-#%%
-
-data = newdf.loc[newdf.te_bin ==0]
-title = "TE_excluded"
-pal = "Set1"
-plot_cdf(x, data, hue, title, pal)
-
-
-#%%
-
-data = newdf.loc[newdf.te_bin ==1]
-title = "TE_included"
-pal = "Set1"
-plot_cdf(x, data, hue, title, pal)
-
-
-#%%
-data = newdf
-title = "Species_only"
-hue = "species"
-pal = "Set1"
-plot_cdf(x, data, hue, title, pal)
-
-#%%
-data = newdf
-title = "Self"
-hue = "slf_bin"
-pal = "tab10"
-plot_cdf(x, data, hue, title, pal)
-#%%
-data = newdf.sort_values(by = "sp_te_slf")
-title = "Sp_Te_Self"
-hue = "sp_te_slf"
-pal = "tab20c"
-plot_cdf(x, data, hue, title, pal)
-
-data = newdf.sort_values(by = "te_slf")
-title = "Te_Self"
-hue = "te_slf"
-pal = "tab10"
-plot_cdf(x, data, hue, title, pal)
-
-data = newdf.sort_values(by = "sp_slf")
-title = "Sp_Self"
-hue = "sp_slf"
-pal = "tab10"
-plot_cdf(x, data, hue, title, pal)
-#%%
-TeSlf = newdf.loc[
-(newdf.te_bin == 1) &
-(newdf.slf_bin == 1)
-].drop_duplicates()
-
-TeSlf.describe()
-
-noTeSlf = newdf.loc[
-(newdf.te_bin == 0) &
-(newdf.slf_bin == 0)
-].drop_duplicates()
-noTeSlf.quantile(0.01)
-
-noTeSlf.describe()
-
-con_noSlfTe = noTeSlf.CON_ACC
-con_SlfTe = TeSlf.CON_ACC
-
-fig, ax =plt.subplots()
-
-sns.histplot(con_noSlfTe, ax = ax, label = "no_slf_te", color = "r")
-sns.histplot(con_SlfTe, ax = ax, label = "slf_te")
-ax.legend()
-stats.mannwhitneyu(con_noSlfTe, con_SlfTe)
-con_noSlfTe.median(),con_SlfTe.median()
