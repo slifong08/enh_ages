@@ -13,7 +13,8 @@ arg_parser = argparse.ArgumentParser(description=" describe argparse")
 
 arg_parser.add_argument("bedfile", help ='bed file w/ full path')
 arg_parser.add_argument("-br","--branches", help ='hg38, rheMac3')
-arg_parser.add_argument("-m", "--multiz", help ='20-, 30-, 100-way multiple sequence alignments in hg38')
+arg_parser.add_argument("-msa", "--multiz", help ='20-, 30-, 100-way multiple sequence alignments in hg38')
+arg_parser.add_argument("-mod", "--model", help ='full", hg38-rheMac8', default = "full")
 
 
 # PARSE THE ARGUMENTS
@@ -23,6 +24,9 @@ F = args.bedfile # the bedfile
 BRANCH = args.branches # the branches to test.
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 MSA_WAY = args.multiz # multiple sequence alignment.
+<<<<<<< HEAD
+MODEL = args.model
+=======
 """
 F = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/chr22.bed"
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
@@ -31,6 +35,7 @@ MSA_WAY = "30"
 """
 random_seed = 42
 
+>>>>>>> 4f12998ca74f38c4b681c1021958ba74f7dbb2fd
 
 #%% FUNCTIONS
 
@@ -73,7 +78,11 @@ def run_phylop(msa, ocr, n, chrnum, path, random_seed, branch):
     msaway = str(msa) + "way"
 
     # the neutral tree
-    mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
+    if MODEL == "full":
+        mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}.mod"
+
+    elif MODEL == "hg38-rheMac8":
+        mod = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/hg38.phastCons{msaway}_hg38-rheMac8.mod"
 
     # the multiple sequence alignment file
     maf_zipped = f"/dors/capra_lab/data/ucsc/hg38/multiz{msaway}/maf/{chrnum}.maf.gz"
