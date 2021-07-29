@@ -253,7 +253,7 @@ def fdr_correction(df):
     # reverse the -log10p calculation to get actual p values
     # take the absolute value of the log10p conacc (the sign only indicates if element is accelerated or conserved)
     #df["conacc_abs"] = abs(df["conacc"])
-    df["p_conacc"] = 10**(-1*(abs(df["conacc"])))
+    df["p_conacc"] = 10**(-1*(abs(df["CON_ACC"])))
     pvals = df["p_conacc"]
 
     df["reject_null"], df["FDR_P"] = statsmodels.stats.multitest.fdrcorrection(pvals, alpha=0.05)
@@ -291,8 +291,6 @@ for BRANCH in branches:
 
     df = format_f(CONACC_F) # format the file
 
-    df = fdr_correction(df)
-
     outTE = intersect_te(CONACC_F, PATH, TE_F) # intersect w/ repeatmasker TE
 
     outSP = intersect_species_specific(CONACC_F, PATH, SPECIES_DA_F) # intersect species specific accessibility calls.
@@ -301,14 +299,14 @@ for BRANCH in branches:
 
     # the amalgamated df
     newdf_ = compile_df(outTE, outSP, outSLF)
+    newdf_ = fdr_correction(newdf_)
 
     if FDR == True:
         newdf = newdf_.loc[newdf_.reject_null==True]
 
     else:
-        quant = newdf_.CON_ACC.quantile(0.01)
-        print(BRANCH, "one percentile of CON_ACC scores", quant)
-        newdf = newdf_.loc[newdf_.CON_ACC <=quant]
+
+        newdf = newdf_.loc[newdf_.p_conacc < 0.05]
 
     # dictionary of analyses to do
     # title :[data, hue, pal]
@@ -321,8 +319,8 @@ for BRANCH in branches:
     "Self":[newdf, "slf_bin", "tab10"],
     "Sp_Te_Self":[newdf.sort_values(by = "sp_te_slf"), "sp_te_slf", "tab20c"],
     "Te_Self":[newdf.sort_values(by = "te_slf"), "te_slf", "tab10"],
-    "Self_excluded":[newdf.loc[newdf.sp_slf ==0], "sp_slf", "tab10"],
-    "Self_included":[newdf.loc[newdf.sp_slf ==1], "sp_slf", "tab10"],
+    "Self_excluded":[newdf.loc[newdf.slf_bin ==0], "sp_slf", "tab10"],
+    "Self_included":[newdf.loc[newdf.slf_bin ==1], "sp_slf", "tab10"],
     }
 
     #
@@ -343,4 +341,4 @@ for BRANCH in branches:
         median_out = f'{RE}medians_{BRANCH}_{MSA_WAY}.tsv'
         median_results.to_csv(median_out, sep = '\t', index = False)
 #%%
-newdf.head()
+newdf_.head()

@@ -174,8 +174,8 @@ def main(argv):
                     print("removed", temp)
 
                 splits = f"{PATH}{chrnum}*"
-                subprocess.call(f"rm {splits}", shell = True)
-                print("removed", splits)
+                #subprocess.call(f"rm {splits}", shell = True)
+                #print("removed", splits)
             else:
                 print("this didn't run", results)
 
