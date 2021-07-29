@@ -28,8 +28,9 @@ F = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/chr22.bed"
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 BRANCH = "hg38-rheMac8"
 MSA_WAY = "30"
-random_seed = 42
 """
+random_seed = 42
+
 
 #%% FUNCTIONS
 
@@ -134,7 +135,7 @@ FS
 def main(argv):
 
     os.chdir(PATH) # change directory
-    for F in FS[1:]:
+    for F in FS:
 
         CHRNUM = "chr"+(F.split("chr")[1]).split(".bed")[0] # get the chromosome number
 
@@ -163,7 +164,7 @@ def main(argv):
                     os.remove(temp)
                     print("removed", temp)
 
-                splits = f"{PATH}{chrnum}-*"
+                splits = f"{PATH}{chrnum}*"
                 subprocess.call(f"rm {splits}", shell = True)
                 print("removed", splits)
             else:
