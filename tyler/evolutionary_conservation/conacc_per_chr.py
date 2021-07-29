@@ -24,7 +24,18 @@ F = args.bedfile # the bedfile
 BRANCH = args.branches # the branches to test.
 PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 MSA_WAY = args.multiz # multiple sequence alignment.
+<<<<<<< HEAD
 MODEL = args.model
+=======
+"""
+F = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/chr22.bed"
+PATH = "/".join(F.split("/")[:-1]) + "/" # the path
+BRANCH = "hg38-rheMac8"
+MSA_WAY = "30"
+"""
+random_seed = 42
+
+>>>>>>> 4f12998ca74f38c4b681c1021958ba74f7dbb2fd
 
 #%% FUNCTIONS
 

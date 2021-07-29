@@ -5,6 +5,8 @@ import os, sys
 import pandas as pd
 from scipy import stats
 import seaborn as sns
+import statsmodels
+import statsmodels.api as sm
 import subprocess
 
 ###
@@ -49,10 +51,13 @@ SELF_F = "/dors/capra_lab/data/ucsc/hg38/self/hg38_repeats_self_coor.bed"
 
 
 #%% FUNCTIONS
-def get_vars(branch, msa_way):
+def get_vars(branch, msa_way, FDR):
     CONACC_F =f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/multiz30way_{branch}/all_con_acc.bed"
     PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
-    RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}/"
+    if FDR == True:
+        RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}_FDR/"
+    else:
+        RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}/"
 
     if os.path.exists(RE) == False:
         os.mkdir(RE)
@@ -65,7 +70,6 @@ def remove_doubletabs(f, path):
     temp = "temp.bed" # temp file
     cmd = f"tr -s '\t' < {f} > {temp} && mv {temp} {f}"
     subprocess.call(cmd, shell = True)
-
 
 def format_f(conacc_f):
 
@@ -82,13 +86,11 @@ def format_f(conacc_f):
 
     return df
 
-
 def make_id(df, chr, start, end, idname):
 
     df[idname] = df[chr] + ":" + df[start].map(str) + "-" + df[end].map(str)
 
     return df
-
 
 def test_colnames_add_id(outf, cols, chr, start, end, idname):
 
@@ -108,7 +110,6 @@ def test_colnames_add_id(outf, cols, chr, start, end, idname):
         df = df.drop([chr, start, end], axis = 1) # drop the extra cols
 
         df.to_csv(outf, sep = '\t', index = False) # save the modified file.
-
 
 def intersect_te(conacc_f, path, te):
 
@@ -143,7 +144,6 @@ def intersect_te(conacc_f, path, te):
 
     return outTE
 
-
 def intersect_species_specific(conacc_f, path, species_da_f):
 
     sample_id = (conacc_f.split("/")[-1]).split(".bed")[0]
@@ -171,7 +171,6 @@ def intersect_species_specific(conacc_f, path, species_da_f):
 
     return outSP
 
-
 def intersect_self(conacc_f, path, self_f):
 
     sample_id = (conacc_f.split("/")[-1]).split(".bed")[0]
@@ -198,7 +197,6 @@ def intersect_self(conacc_f, path, self_f):
     test_colnames_add_id(outSLF, cols, chr, start, end, idname)
 
     return outSLF
-
 
 def compile_df(outte, outsp, outslf):
     dfte = pd.read_csv(outte, sep = '\t')
@@ -250,6 +248,17 @@ def compile_df(outte, outsp, outslf):
 
     return  df
 
+def fdr_correction(df):
+
+    # reverse the -log10p calculation to get actual p values
+    # take the absolute value of the log10p conacc (the sign only indicates if element is accelerated or conserved)
+    #df["conacc_abs"] = abs(df["conacc"])
+    df["p_conacc"] = 10**(-1*(abs(df["conacc"])))
+    pvals = df["p_conacc"]
+
+    df["reject_null"], df["FDR_P"] = statsmodels.stats.multitest.fdrcorrection(pvals, alpha=0.05)
+
+    return df
 
 def plot_cdf(x, data, hue, title, pal):
     sns.set("talk")
@@ -274,10 +283,15 @@ def get_medians(hue, x, data, title):
     return melted
 
 #%% run functions
+
+FDR = True
 for BRANCH in branches:
 
-    CONACC_F, PATH, RE = get_vars(BRANCH, MSA_WAY)
+    CONACC_F, PATH, RE = get_vars(BRANCH, MSA_WAY, FDR)
+
     df = format_f(CONACC_F) # format the file
+
+    df = fdr_correction(df)
 
     outTE = intersect_te(CONACC_F, PATH, TE_F) # intersect w/ repeatmasker TE
 
@@ -285,127 +299,48 @@ for BRANCH in branches:
 
     outSLF = intersect_self(CONACC_F, PATH, SELF_F) # intersect self accessibility calls.
 
-    #
+    # the amalgamated df
     newdf_ = compile_df(outTE, outSP, outSLF)
-    quant = newdf_.CON_ACC.quantile(0.01)
-    print(BRANCH, "one percentile of CON_ACC scores", quant)
-    newdf = newdf_.loc[newdf_.CON_ACC <=quant]
 
+    if FDR == True:
+        newdf = newdf_.loc[newdf_.reject_null==True]
 
+    else:
+        quant = newdf_.CON_ACC.quantile(0.01)
+        print(BRANCH, "one percentile of CON_ACC scores", quant)
+        newdf = newdf_.loc[newdf_.CON_ACC <=quant]
+
+    # dictionary of analyses to do
+    # title :[data, hue, pal]
+    analysis = {
+    "TE_stratified": [newdf.sort_values(by = "sp_te"), "te_bin", "Set1"],
+    "all" : [newdf.sort_values(by = "sp_te"), "sp_te", "tab20"],
+    "TE_excluded":[newdf.loc[newdf.te_bin ==0], "sp_te", "Set1"],
+    "TE_included":[newdf.loc[newdf.te_bin ==1], "sp_te", "Set1"],
+    "Species_only":[newdf, "species", "Set1"],
+    "Self":[newdf, "slf_bin", "tab10"],
+    "Sp_Te_Self":[newdf.sort_values(by = "sp_te_slf"), "sp_te_slf", "tab20c"],
+    "Te_Self":[newdf.sort_values(by = "te_slf"), "te_slf", "tab10"],
+    "Self_excluded":[newdf.loc[newdf.sp_slf ==0], "sp_slf", "tab10"],
+    "Self_included":[newdf.loc[newdf.sp_slf ==1], "sp_slf", "tab10"],
+    }
 
     #
     median_results = pd.DataFrame()
+
     x = "CON_ACC"
-    data = newdf.sort_values(by = "sp_te")
-    hue = "te_bin"
-    title = "TE_stratified"
-    pal = "Set1"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
+
+    for title, vals in analysis.items():
+        data, hue, pal = vals[0], vals[1], vals[2]
+        plot_cdf(x, data, hue, title, pal)
+        melted = get_medians(hue, x, data, title)
+        median_results = median_results.append(melted)
 
 
-    #
-    hue = "sp_te"
-    title = "all"
-    pal = "tab20"
-    data = newdf.sort_values(by = "sp_te")
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-    #
-
-    data = newdf.loc[newdf.te_bin ==0]
-    title = "TE_excluded"
-    pal = "Set1"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-
-    #
-
-    data = newdf.loc[newdf.te_bin ==1]
-    title = "TE_included"
-    pal = "Set1"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-
-    #
-    data = newdf
-    title = "Species_only"
-    hue = "species"
-    pal = "Set1"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-    #
-    data = newdf
-    title = "Self"
-    hue = "slf_bin"
-    pal = "tab10"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-    #
-    data = newdf.sort_values(by = "sp_te_slf")
-    title = "Sp_Te_Self"
-    hue = "sp_te_slf"
-    pal = "tab20c"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-    data = newdf.sort_values(by = "te_slf")
-    title = "Te_Self"
-    hue = "te_slf"
-    pal = "tab10"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-    data = newdf.sort_values(by = "sp_slf")
-    title = "Sp_Self"
-    hue = "sp_slf"
-    pal = "tab10"
-    plot_cdf(x, data, hue, title, pal)
-    melted = get_medians(hue, x, data, title)
-    median_results = median_results.append(melted)
-
-    # save the medians file
-    median_results["branch"]  = BRANCH
-    median_results['msa_way'] = MSA_WAY
-    median_out = f'{RE}medians_{BRANCH}_{MSA_WAY}.tsv'
-    median_results.to_csv(median_out, sep = '\t', index = False)
-
-    #
-    TeSlf = newdf.loc[
-    (newdf.te_bin == 1) &
-    (newdf.slf_bin == 1)
-    ].drop_duplicates()
-
-    TeSlf.describe()
-
-    noTeSlf = newdf.loc[
-    (newdf.te_bin == 0) &
-    (newdf.slf_bin == 0)
-    ].drop_duplicates()
-    noTeSlf.quantile(0.01)
-
-    noTeSlf.describe()
-
-    con_noSlfTe = noTeSlf.CON_ACC
-    con_SlfTe = TeSlf.CON_ACC
-
-    fig, ax =plt.subplots()
-
-    sns.histplot(con_noSlfTe, ax = ax, label = "no_slf_te", color = "r")
-    sns.histplot(con_SlfTe, ax = ax, label = "slf_te")
-    ax.legend()
-    stats.mannwhitneyu(con_noSlfTe, con_SlfTe)
-    con_noSlfTe.median(),con_SlfTe.median()
+        # save the medians file
+        median_results["branch"]  = BRANCH
+        median_results['msa_way'] = MSA_WAY
+        median_out = f'{RE}medians_{BRANCH}_{MSA_WAY}.tsv'
+        median_results.to_csv(median_out, sep = '\t', index = False)
 #%%
+newdf.head()
