@@ -4,7 +4,7 @@
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
 #SBATCH --time=03:00:00
-#SBATCH --mem=8GB
+#SBATCH --mem=24GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/tyler/data/
 
 #SBATCH --job-name=CON_ACC

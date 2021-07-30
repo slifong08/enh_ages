@@ -59,7 +59,7 @@ def split_by_line(f, path, chr_num):
     os.chdir(path)
 
     # split the file in command line into sizes of 1000 lines
-    cmd = f"split -l 1000 {f} {chr_num}-"
+    cmd = f"split -l 250 {f} {chr_num}-"
 
     subprocess.call(cmd, shell = True)
 
