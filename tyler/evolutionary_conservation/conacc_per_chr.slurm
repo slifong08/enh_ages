@@ -3,8 +3,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
-#SBATCH --time=10:00:00
-#SBATCH --mem=30GB
+#SBATCH --time=06:00:00
+#SBATCH --mem=20GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/tyler/data/
 
 #SBATCH --job-name=CON_ACC
