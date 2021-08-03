@@ -3,7 +3,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
-#SBATCH --time=03:00:00
+#SBATCH --time=01:30:00
 #SBATCH --mem=8GB
 #SBATCH --output=/dors/capra_lab/users/fongsl/tyler/data/alignability/
 
@@ -14,6 +14,7 @@
 
 
 ml load Anaconda3
-
+ml load Biopython/1.74
+source /dors/capra_lab/users/fongsl/sfenv/bin/activate
 
 python /dors/capra_lab/users/fongsl/enh_ages/tyler/alignability/subset_msa.py 
