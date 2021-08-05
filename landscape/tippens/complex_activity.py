@@ -61,25 +61,38 @@ def formatID_FILE(id_file):
 act = formatACT_FILE(ACT_FILE)
 age = formatAGE_FILE(AGE_FILE)
 id = formatID_FILE(ID_FILE)
-age.head()
+
+
+#%%
 age_id = pd.merge(id, age, how = "left")
-complex_age = age_id.loc[age_id.core_remodeling == 1]
+
+complex_age, simple_age = age_id.loc[age_id.core_remodeling == 1], age_id.loc[age_id.core_remodeling == 0] # get complex enhancer dataframe
 complex_id = complex_age["ID"].unique() # get the ids for complex enhancers
+simple_id = simple_age["ID"].unique() # get the ids for complex enhancers
 print(len(complex_id)) # 94 regions are complex
 
 
-complex_act = act.loc[act.ID.isin(complex_id)]
+complex_act = act.loc[act.ID.isin(complex_id)] # get complex enhancer activity
+simple_act = act.loc[act.ID.isin(simple_id)] # get complex enhancer activity
 
 complex = pd.merge(complex_age, complex_act)
+simple = pd.merge(simple_age, simple_act)
 #%%
 
 todrop = ['chr_e', 'start_e', 'end_e', 'forward_q', 'reverse_q', "forward_logFC", "reverse_logFC",
 'chr_s', 'start_s', 'end_s', 'extended', "whole"]
 complex = complex.drop(todrop, axis = 1).drop_duplicates()
+simple = simple.drop(todrop, axis = 1).drop_duplicates()
+
+complex.head()
 #%%
-complex.loc[complex.ID.str.contains("B")]
-
-
+TRE = complex.loc[complex.ID.str.contains("TRE")]
+TRE["TRE_id"] = TRE.ID.apply(lambda x: x.split("_")[1])
+TRE.head()
+#%%
+complex.loc[complex.ID.str.contains("NMU")]
+simple.loc[simple.ID.str.contains("NMU")]
+complex.loc[complex.ID.str.contains("MYC")]
 #%% CATCH ALL THE ENHANCERS where extending the boundaries
 
 not_same_change_act = []
