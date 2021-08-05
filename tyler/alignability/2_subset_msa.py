@@ -7,7 +7,7 @@ import subprocess
 CHR = "chr21"
 PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/"
 
-
+NEW_PATH = "/dors/capra_lab/users/fongsl/tyler/data/alignment/"
 
 #%%
 
@@ -50,6 +50,7 @@ for CHR in chrList:
     maf_x_bed(CHR, CHR_BED, PATH)
 
 #%%
-
+cmd = f"mv {PATH}chr*_parse.maf {NEW_PATH}"
+subprocess.call(cmd, shell = True)
 
 #%%
