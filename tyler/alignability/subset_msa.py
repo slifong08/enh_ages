@@ -1,6 +1,7 @@
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
 from Bio import SeqIO
+import numpy as np
 import os, sys
 import subprocess
 
@@ -26,7 +27,7 @@ def maf_x_bed(chr, chr_bed, path):
     out = f"{chr}_parse.maf"
 
     cmd = f" {msa_func} {maf_arg} {feat_arg} {order_arg}  > {out}"
-    #subprocess.call(cmd, shell = True)
+    subprocess.call(cmd, shell = True)
     print(cmd)
 
 

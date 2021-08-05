@@ -18,6 +18,7 @@ arg_parser.add_argument("-mod", "--model", help ='full", hg38-rheMac8', default 
 
 
 # PARSE THE ARGUMENTS
+
 args = arg_parser.parse_args()
 
 F = args.bedfile # the bedfile
@@ -134,30 +135,35 @@ def cut_file(path, chrnum):
 
 #%% MAIN
 
+if "chr" in F:
+    FS = [F]
 
-FS = []
-for chr in make_chr_list():
-    F = f"{PATH}{chr}.bed"
-    FS.append(F)
+else:
+    FS = []
+    for chr in make_chr_list():
+        F = f"{PATH}{chr}.bed"
+        FS.append(F)
 
 #%%
 def main(argv):
 
     os.chdir(PATH) # change directory
+    
     for F in FS:
-
-        CHRNUM = "chr"+(F.split("chr")[1]).split(".bed")[0] # get the chromosome number
+        
+        CHRNUM = (F.split("/")[-1]).split(".bed")[0] # get the chromosome number
 
         ocr = cut_file(PATH, CHRNUM) # format the file
 
         small_fs = split_by_line(ocr, PATH, CHRNUM)
 
-        # prepare to run parallel jobs
-        num_cores = multiprocessing.cpu_count()
-        print("number of cores", num_cores)
+        # prepare to run parallel jobs as 
+        #num_cores = int(round((multiprocessing.cpu_count() *0.8), 0))
+        num_cores = 8
+        print("number of cores", num_cores, multiprocessing.cpu_count())
 
         # run parallel jobs
-        print(MSA_WAY, PATH, random_seed, BRANCH)
+        #print(MSA_WAY, PATH, random_seed, BRANCH)
 
         results = Parallel(n_jobs=num_cores, verbose=100, prefer="threads")(delayed(run_phylop)(MSA_WAY, ocr, n, CHRNUM, PATH, random_seed, BRANCH) for n, ocr in enumerate(small_fs))
 

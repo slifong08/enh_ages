@@ -14,7 +14,7 @@
 
 
 ml load Anaconda3
-ml load Biopython/1.74
+ml load  GCC/8.2.0  OpenMPI/3.1.4 Biopython/1.74
 source /dors/capra_lab/users/fongsl/sfenv/bin/activate
 
 python /dors/capra_lab/users/fongsl/enh_ages/tyler/alignability/subset_msa.py 

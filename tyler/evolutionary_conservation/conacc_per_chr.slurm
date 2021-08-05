@@ -3,13 +3,9 @@
 #SBATCH --mail-type=ALL
 #SBATCH --nodes=1    # comments allowed
 #SBATCH --ntasks=1
-<<<<<<< HEAD
-#SBATCH --time=06:00:00
-#SBATCH --mem=20GB
-=======
-#SBATCH --time=03:00:00
-#SBATCH --mem=24GB
->>>>>>> 7b16093fe009cedd381ffb59736fb981a767386c
+#SBATCH --time=04:00:00
+#SBATCH --mem=64GB
+
 #SBATCH --output=/dors/capra_lab/users/fongsl/tyler/data/
 
 #SBATCH --job-name=CON_ACC
