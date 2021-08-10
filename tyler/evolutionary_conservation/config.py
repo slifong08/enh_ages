@@ -20,7 +20,7 @@ hars = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/hars/hars_merged_PMIDs_h
 phastCons = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/phastCons/phastConsElements100way_hg38.bed.gz"
 
 
-# models
+# models and maf files (chr sep)
 mod_maf = {
 "20way":["/dors/capra_lab/data/ucsc/hg38/multiz20way/hg38.phastCons20way.mod",
 "/dors/capra_lab/data/ucsc/hg38/multiz20way/maf/*.maf.gz"],

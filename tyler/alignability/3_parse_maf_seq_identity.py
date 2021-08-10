@@ -23,17 +23,35 @@ def make_chr_list():
 
     return chr_list
 
-def get_percent_identity(refSeq, targetSeq):
+def get_percent_identity(subjSeq, querySeq):
 
-    lenSeq = len(refSeq) # get the length of the sequence alignment.
-    refSeq = refSeq.upper()
-    targetSeq = targetSeq.upper()
-    if targetSeq != None:
+    lenSeq = len(subjSeq) # get the length of the sequence alignment.
+    subjSeq = subjSeq.upper()
+    querySeq = querySeq.upper()
+    if querySeq != None:
 
         aligner = Align.PairwiseAligner() # get the aligner
-        aligner.mode = 'local'
 
-        score = aligner.score(refSeq.upper(), targetSeq.upper()) # score how many positions match
+        '''
+
+        Pairwise aligner will apply
+        Needleman-Wunsch, Smith-Waterman, Gotoh, and Waterman-Smith-Beyer global
+        and local pairwise alignment algorithms
+        to find the best-scoring between two sequences
+
+        could also specify the aligner with:
+
+        #aligner.mode = 'local'
+
+        '''
+
+        score = aligner.score(subjSeq.upper(), querySeq.upper()) # score how many positions match
+
+        '''
+        score - assign 1 to nucleotide matches.
+
+        percent identity = score / hg38 sequence length
+        '''
 
         perc_ID = score/lenSeq # get the percent identity
 
@@ -44,6 +62,8 @@ def get_percent_identity(refSeq, targetSeq):
     return perc_ID, score
 
 def parse_rows(block):
+
+
     coor =[]
 
     for row in block:
@@ -61,7 +81,7 @@ def parse_rows(block):
 
             end =  row.annotations['start'] + row.annotations['size']
 
-            refSeq = seq
+            subjSeq = seq
 
             hg38_size = row.annotations['size']
 
@@ -70,7 +90,7 @@ def parse_rows(block):
         elif species == "rheMac8":
             rh_size = row.annotations['size']
 
-            targetSeq = seq
+            querySeq = seq
 
             coor.append(rh_size)
 
@@ -79,11 +99,11 @@ def parse_rows(block):
 
     if len(coor)<5:
         print("No rhe alignment")
-        targetSeq = "".join(list(["-"]*hg38_size))
+        querySeq = "".join(list(["-"]*hg38_size))
         rh_size = 0
         coor.append(rh_size)
 
-    return coor, refSeq, targetSeq
+    return coor, subjSeq, querySeq
 
 def make_region_df(info, h, r, husize, rhsize, score, perc_ID):
 
@@ -143,7 +163,7 @@ for CHR in chrlist:
 
         for n, block in enumerate(maf):
 
-            info, refSeq, targetSeq = parse_rows(block)
+            info, subjSeq, querySeq = parse_rows(block)
 
             chr, start, end = info[0], info[1], info[2]
 
@@ -154,8 +174,8 @@ for CHR in chrlist:
 
                 locus_start = start # set the start of the region
 
-                h += refSeq # add the human sequence
-                r += targetSeq # add the rhesus sequence
+                h += subjSeq # add the human sequence
+                r += querySeq # add the rhesus sequence
 
                 husize += info[3] # add the size of the human sequence to the contiguous sequence
                 rhsize += info[4] # add the size of the rhe sequence to the contiguous sequence
@@ -165,8 +185,8 @@ for CHR in chrlist:
             elif last_end == start: # for every other block in the msa file
                 last_end = end # update the last end value
 
-                h += refSeq # add the human sequence
-                r += targetSeq # add the rhe sequence
+                h += subjSeq # add the human sequence
+                r += querySeq # add the rhe sequence
                 husize += info[3] # add the size of the human sequence to the contiguous sequence
                 rhsize += info[4] # add the size of the rhe sequence to the contiguous sequence
 
@@ -190,8 +210,8 @@ for CHR in chrlist:
                 locus_start = start
 
                 del h, r, husize, rhsize
-                h = refSeq # add the human sequence
-                r = targetSeq # add the rhe sequence
+                h = subjSeq # add the human sequence
+                r = querySeq # add the rhe sequence
                 husize = info[3] # add the size of the human sequence to the contiguous sequence
                 rhsize = info[4] # add the size of the rhe sequence to the contiguous sequence
 
