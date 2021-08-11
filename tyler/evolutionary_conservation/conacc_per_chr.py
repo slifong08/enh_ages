@@ -148,16 +148,16 @@ else:
 def main(argv):
 
     os.chdir(PATH) # change directory
-    
+
     for F in FS:
-        
+
         CHRNUM = (F.split("/")[-1]).split(".bed")[0] # get the chromosome number
 
         ocr = cut_file(PATH, CHRNUM) # format the file
 
         small_fs = split_by_line(ocr, PATH, CHRNUM)
 
-        # prepare to run parallel jobs as 
+        # prepare to run parallel jobs as
         #num_cores = int(round((multiprocessing.cpu_count() *0.8), 0))
         num_cores = 8
         print("number of cores", num_cores, multiprocessing.cpu_count())

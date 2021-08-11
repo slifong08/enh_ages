@@ -19,6 +19,8 @@ import subprocess
 # and annotate with
 # hu-specific/rhe-specific accessibility
 # hg38 TE overlap from repeatmasker.
+# mappability from liftover
+# sequence identity from biopython
 
 
 #%% ARGPARSE arguments.
@@ -39,7 +41,8 @@ PATH = "/".join(F.split("/")[:-1]) + "/" # the path
 MSA_WAY = args.multiz # multiple sequence alignment.
 """
 branches = ["hg38", "rheMac8", "hg38-rheMac8"]
-
+PRUNE = True
+FDR = True
 MSA_WAY = 30
 
 
@@ -51,17 +54,28 @@ SELF_F = "/dors/capra_lab/data/ucsc/hg38/self/hg38_repeats_self_coor.bed"
 
 
 #%% FUNCTIONS
-def get_vars(branch, msa_way, FDR):
-    CONACC_F =f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/multiz30way_{branch}/all_con_acc.bed"
-    PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
-    if FDR == True:
-        RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}_FDR/"
-    else:
-        RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}/"
+def get_vars(branch, msa_way, FDR, prune):
 
-    if os.path.exists(RE) == False:
-        os.mkdir(RE)
+    if prune == False:
+        CONACC_F =f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/multiz30way_{branch}/all_con_acc.bed"
+        PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
+        if FDR == True:
+            RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}_FDR/"
+        else:
+            RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/{msa_way}way_{branch}/"
 
+        if os.path.exists(RE) == False:
+            os.mkdir(RE)
+    elif prune == True:
+        CONACC_F =f"/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/prune/multiz30way_{branch}/all_con_acc.bed"
+        PATH = "/".join(CONACC_F.split("/")[:-1]) + "/" # the path
+        if FDR == True:
+            RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/prune/{msa_way}way_{branch}_FDR/"
+        else:
+            RE = f"/dors/capra_lab/projects/enhancer_ages/tyler/results/CON_ACC/prune/{msa_way}way_{branch}/"
+
+        if os.path.exists(RE) == False:
+            os.mkdir(RE)
 
     return CONACC_F, PATH, RE
 
@@ -77,9 +91,9 @@ def format_f(conacc_f):
     test = pd.read_csv(conacc_f, sep  = '\t', nrows = 5)
 
     if "start" not in list(test): # do you need to rename the columns?
-        df = pd.read_csv(F, sep  = '\t', header = None, names = cols)
+        df = pd.read_csv(conacc_f, sep  = '\t', header = None, names = cols)
         df = df.drop(["b", "bf", "?", "??"], axis = 1) # drop the columns you don't need
-        df.to_csv(F, sep = '\t', index = False) # save this formatted file.
+        df.to_csv(conacc_f, sep = '\t', index = False) # save this formatted file.
 
     else: # or you've renamed them already and just need to read the df.
         df = pd.read_csv(conacc_f, sep  = '\t')
@@ -179,8 +193,8 @@ def intersect_self(conacc_f, path, self_f):
     if os.path.exists(outSLF) == False:
         cmd = f"bedtools intersect -a {conacc_f} -b {self_f} -wao > {outSLF}"
         subprocess.call(cmd, shell = True)
-        print(cmd)
-        remove_doubletabs(outTE_SP_SLF, path) # remove tabs
+        #print(cmd)
+        remove_doubletabs(outSLF, path) # remove tabs
 
     # format the output dataframe
     # col names
@@ -197,6 +211,43 @@ def intersect_self(conacc_f, path, self_f):
     test_colnames_add_id(outSLF, cols, chr, start, end, idname)
 
     return outSLF
+
+def combine_annotations(df):
+
+    df["sp_te_slf"] = df["species"] + "-" + df["te_bin"].map(str) + "-" +  df["slf_bin"].map(str)
+    df["te_slf"] = df["te_bin"].map(str) +"-" +  df["slf_bin"].map(str)
+    df["sp_slf"] = df["species"] + "-" +  df["slf_bin"].map(str)
+    return df
+
+def merge_liftover():
+
+
+    multiple_maps = {
+    "Hg38-rheMac8": "/dors/capra_lab/users/fongsl/tyler/data/liftover/hg38_to_RheMac8_multimap.txt",
+    "RheMac8-hg38": "/dors/capra_lab/users/fongsl/tyler/data/liftover/rheMac8_to_Hg38_multimap.txt"
+    }
+
+    results = {}
+    for comp, file in multiple_maps.items():
+
+        # open the file
+        df = pd.read_csv(file, header = None)
+
+        # format the annotation column
+        count_col = f"{comp}_map_count"
+        df = df.rename(columns = {0:"annot"})
+
+        # get multimap counts
+        df[count_col] = df["annot"].apply(lambda x: x.split(" Peak_")[0]).map(int)
+
+        # get peak id column
+        df["id"] = df["annot"].apply(lambda x: "Peak_" + x.split("Peak_")[1]).map(str)
+        df = df.drop(["annot"], axis = 1) # drop annot column
+        results[comp] = df
+
+    merged = pd.merge(results["Hg38-rheMac8"], results["RheMac8-hg38"], on = "id")
+
+    return merged
 
 def compile_df(outte, outsp, outslf):
     dfte = pd.read_csv(outte, sep = '\t')
@@ -242,9 +293,15 @@ def compile_df(outte, outsp, outslf):
     # drop the self overlap length column
     df.drop(["slfOverlap"], axis = 1)
 
-    df["sp_te_slf"] = df["species"] + "-" + df["te_bin"].map(str) + "-" +  df["slf_bin"].map(str)
-    df["te_slf"] = df["te_bin"].map(str) +"-" +  df["slf_bin"].map(str)
-    df["sp_slf"] = df["species"] + "-" +  df["slf_bin"].map(str)
+    # combine annotations
+    df = combine_annotations(df)
+
+    # format the ID column
+    df.id = df.id.apply(lambda x: x.split('"')[1])
+
+    # merge liftover multi-map counts
+    merged = merge_liftover()
+    df2 = pd.merge(df, merged)
 
     return  df
 
@@ -261,15 +318,59 @@ def fdr_correction(df):
     return df
 
 def plot_cdf(x, data, hue, title, pal):
-    sns.set("talk")
-    n = data.groupby([hue])["id"].count().reset_index()
 
-    g = sns.displot(data, x=x, hue = hue,  kind ="ecdf", palette = pal)
-    g.set( title = title,
-    #xlim = (-20,-1),
+    sns.set("talk")
+
+    n = data.groupby([hue])["id"].count().reset_index()
+    nzoom_acc = data.loc[data[x]<0].groupby([hue])["id"].count().reset_index()
+    nzoom_con = data.loc[data[x]>0].groupby([hue])["id"].count().reset_index()
+
+    fig, axes =plt.subplots(1,3, figsize = (18,6))
+
+    ax = axes[0]
+    sns.ecdfplot(data,
+    x=x,
+    hue = hue,
+    palette = pal,
+    ax = ax)
+
+    ax.set( title = title + f"\n{BRANCH} branch",
+    xlim = (data[x].min(),data[x].max()),
     #ylim = (0.05, 0.70),
     xlabel = f"CON_ACC\n{n}"
     )
+
+
+    ax = axes[1]
+    sns.ecdfplot(data.loc[data[x]<0],
+    x=x,
+    hue = hue,
+    legend=False,
+    palette = pal,
+    ax = ax)
+
+    ax.set(title = title + f"\n{BRANCH} branch, CON_ACC<0",
+    xlim = (data[x].min(),0),
+    #ylim = (0.05, 0.70),
+    xlabel = f"CON_ACC\n{nzoom_acc}"
+    )
+
+
+    ax = axes[2]
+    sns.ecdfplot(data.loc[data[x]>0],
+    x=x,
+    hue = hue,
+    legend=False,
+    palette = pal,
+    ax = ax)
+
+    ax.set(title = title + f"\n{BRANCH} branch, CON_ACC>0",
+    xlim = (0, data[x].max()),
+    #ylim = (0.05, 0.70),
+    xlabel = f"CON_ACC\n{nzoom_con}"
+    )
+
+    #print("min and max",data[x].min(),data[x].max())
 
     outf = f"{RE}{title}_{MSA_WAY}way_{BRANCH}.pdf"
     plt.savefig(outf, bbox_inches = "tight")
@@ -284,10 +385,9 @@ def get_medians(hue, x, data, title):
 
 #%% run functions
 
-FDR = True
 for BRANCH in branches:
 
-    CONACC_F, PATH, RE = get_vars(BRANCH, MSA_WAY, FDR)
+    CONACC_F, PATH, RE = get_vars(BRANCH, MSA_WAY, FDR, PRUNE)
 
     df = format_f(CONACC_F) # format the file
 
@@ -301,12 +401,15 @@ for BRANCH in branches:
     newdf_ = compile_df(outTE, outSP, outSLF)
     newdf_ = fdr_correction(newdf_)
 
+
     if FDR == True:
         newdf = newdf_.loc[newdf_.reject_null==True]
 
-    else:
+    elif FDR == False:
 
         newdf = newdf_.loc[newdf_.p_conacc < 0.05]
+    else:
+        newdf = newdf_
 
     # dictionary of analyses to do
     # title :[data, hue, pal]
@@ -329,16 +432,19 @@ for BRANCH in branches:
     x = "CON_ACC"
 
     for title, vals in analysis.items():
+
         data, hue, pal = vals[0], vals[1], vals[2]
         plot_cdf(x, data, hue, title, pal)
         melted = get_medians(hue, x, data, title)
         median_results = median_results.append(melted)
-
 
         # save the medians file
         median_results["branch"]  = BRANCH
         median_results['msa_way'] = MSA_WAY
         median_out = f'{RE}medians_{BRANCH}_{MSA_WAY}.tsv'
         median_results.to_csv(median_out, sep = '\t', index = False)
+
+
+
+
 #%%
-newdf_.head()
