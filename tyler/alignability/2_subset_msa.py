@@ -1,10 +1,6 @@
-from Bio import AlignIO
-from Bio.Align import MultipleSeqAlignment
-from Bio import SeqIO
 import os, sys
 import subprocess
 
-CHR = "chr21"
 PATH = "/dors/capra_lab/users/fongsl/tyler/data/CON_ACC/all/"
 
 NEW_PATH = "/dors/capra_lab/users/fongsl/tyler/data/alignment/"
@@ -25,8 +21,9 @@ def maf_x_bed(chr, chr_bed, path):
     order_arg = "--seqs hg38,rheMac8"
     out = f"{chr}_parse.maf"
 
+    # cmd
     cmd = f" {msa_func} {maf_arg} {feat_arg} {order_arg}  > {out}"
-    #subprocess.call(cmd, shell = True)
+    subprocess.call(cmd, shell = True)
     print(cmd)
 
 
@@ -50,6 +47,8 @@ for CHR in chrList:
     maf_x_bed(CHR, CHR_BED, PATH)
 
 #%%
+
+# move files to new directory
 cmd = f"mv {PATH}chr*_parse.maf {NEW_PATH}"
 subprocess.call(cmd, shell = True)
 
