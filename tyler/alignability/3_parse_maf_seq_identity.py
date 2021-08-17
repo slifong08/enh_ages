@@ -1,7 +1,5 @@
 from Bio import AlignIO
-from Bio.Align import MultipleSeqAlignment
 from Bio import Align
-from Bio import SeqIO
 import numpy as np
 import os, sys
 import pandas as pd
@@ -50,16 +48,16 @@ def get_percent_identity(subjSeq, querySeq):
         '''
         score - assign 1 to nucleotide matches.
 
-        percent identity = score / hg38 sequence length
+        percent identity hg38 = score / hg38 sequence length
+        percent identity rheMac8 = score / rheMac8 sequence length
         '''
 
-        perc_ID = score/lenSeq # get the percent identity
 
     else: # Target sequence is not alignable
 
         perc_ID, score = -1, -1
 
-    return perc_ID, score
+    return score
 
 def parse_rows(block):
 
@@ -105,7 +103,7 @@ def parse_rows(block):
 
     return coor, subjSeq, querySeq
 
-def make_region_df(info, h, r, husize, rhsize, score, perc_ID):
+def make_region_df(info, h, r, husize, rhsize, score):
 
     chr, locus_start, locus_end = info[0], info[1], info[2]
 
@@ -117,8 +115,9 @@ def make_region_df(info, h, r, husize, rhsize, score, perc_ID):
     "rheMac8_Seqlen": [rhsize],
     "hg38_seq":["".join(list(h))],
     "rheMac8_seq":["".join(list(r))],
-    "n_matched_bases":[score],
-    "identity":[perc_ID]
+    "score":[score],
+    "per_id_hg38":[(score/husize)],
+    "per_id_rheMac8":[(score/rhsize)]
     })
 
     return df
@@ -197,9 +196,9 @@ for CHR in chrlist:
             #(2) reset last end, locus start, h, r, husize, rhsize for next region
 
                 locus_end = last_end
-                perc_ID, score = get_percent_identity(h, r)
+                score = get_percent_identity(h, r)
                 region_info = [chr, locus_start, locus_end]
-                df = make_region_df(info, h, r, husize, rhsize, score, perc_ID)
+                df = make_region_df(info, h, r, husize, rhsize, score)
 
                 results_dict[n] = df
 

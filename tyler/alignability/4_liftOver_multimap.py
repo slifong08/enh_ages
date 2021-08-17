@@ -1,40 +1,10 @@
 import os, sys
 import subprocess
 
-# add the path with the file containing all the paths to other files.
-PATH = '/dors/capra_lab/users/fongsl/enh_ages/tyler/evolutionary_conservation'
-sys.path.append(PATH)
-
-import config # import the config.py file with all the files for tyler's project
-
-all_ = config.all
-
-#%%
 """
-
-make a test file
+liftOver and allow multiple mappings to the reference genome.
 
 """
-testDir = "/dors/capra_lab/users/fongsl/enh_ages/tyler/alignability/test/"
-nShuf = 10
-
-if os.path.exists(testDir) == False:
-    cmd = f"mkdir {testDir}"
-
-    subprocess.call(cmd, shell = True)
-
-testFile = f"{testDir}test_{nShuf}.bed"
-
-if os.path.exists(testFile) == False:
-    cmd = f"shuf -n {nShuf} {all_} > {testFile}"
-    subprocess.call(cmd, shell = True)
-#%%
-
-"""
-liftOver and allow multiple mappings
-
-"""
-RE = "/dors/capra_lab/users/fongsl/tyler/results/liftover/"
 
 
 def sort(bedfile, path, sid):
@@ -50,15 +20,15 @@ def sort(bedfile, path, sid):
     os.chdir(path)
     tempbed = os.path.join(path, f"temp_{sid}.bed")
 
+    # cut
     cut = f"cut -f 1-5 {bedfile} >  {tempbed}"
     subprocess.call(cut, shell = True)
 
-
-
+    # sort
     cmd = f"sort -k1,1 -k2,2 -k3,3 {tempbed} > t && mv t {tempbed}"
     print("standardizing Bed format")
     subprocess.call(cmd, shell=True)
-    print(cut, "\n\n", cmd)
+
     return tempbed
 
 
@@ -71,7 +41,6 @@ def liftover(bedfile, path, from_build, to_build): # bedfile with full path
     chainf = f"{chainPath}{from_build}To{to_build}.over.chain.gz"
 
     #write to result files
-
     lifted = os.path.join(path, f"{sid}.liftOver.to.{to_build}.bed")  # name the liftover file
     notlifted = os.path.join(path, f"{sid}.notlifted.to.{to_build}.bed")
 
@@ -107,7 +76,7 @@ def get_multi_maps(lifted, path, from_build, to_build):
 
     os.chdir(path) # go to the dir
 
-    cmd = f"cut -f 4 {lifted} | sort | uniq -c > {multi_counts}" # find the number of overlaps
+    cmd = f"cut -f 4 {lifted} | sort | uniq -c | tr -s ' ' > {multi_counts}" # find the number of overlaps
 
     print(cmd)
     subprocess.call(cmd, shell=True) # run in cmdline
@@ -136,9 +105,3 @@ for KEY, BED in file_dict.items():
 
     lifted = liftover(BED, PATH, FROM_BUILD, TO_BUILD)
     maps = get_multi_maps(lifted, PATH, FROM_BUILD, TO_BUILD)
-
-
-#%%
-lifted = '/dors/capra_lab/users/fongsl/tyler/data/liftover/all_ocr_sorted.liftOver.to.RheMac8.bed'
-
-maps
