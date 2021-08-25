@@ -427,6 +427,13 @@ for CELL_MODEL in CELL_MODELS:
     y = "act/synlen"
     outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_mrca2_all.pdf"
     plot_activity(x, y, matched_act, outf, CELL_MODEL)
+    
+    
+    # plot summarized results
+    x = "arch"
+    y = "activity"
+    outf = f"{RE}{CELL_MODEL}_ernst_active_bases_dist_mrca2.pdf"
+    plot_activity(x, y, matched_act, outf, CELL_MODEL)
 
 
     #results_dict[CELL_MODEL] = [info_df, act_df, wtact_df, matched_act, freq_]
