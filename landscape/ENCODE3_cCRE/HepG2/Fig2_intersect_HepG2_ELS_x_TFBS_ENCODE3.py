@@ -530,8 +530,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     arch1, arch2 = "complex_core", "bkgd"
     core_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
-    return der_v_core, der_v_bkgd,
-        simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
+    return der_v_core, der_v_bkgd, simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
 
 
 def just_get_df(cell_line, val, fantombase, encodepath,):
