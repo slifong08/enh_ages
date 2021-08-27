@@ -530,7 +530,7 @@ def run_analysis(cell_line, val, fantombase, encodepath, min_instances, alpha):
     arch1, arch2 = "complex_core", "bkgd"
     core_v_bkgd = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
 
-    return der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, \
+    return der_v_core, der_v_bkgd,
         simple_v_core, simple_v_bkgd, simple_v_der, core_v_bkgd, df
 
 
@@ -561,22 +561,20 @@ val = "ELS_combined_HepG2"
 
 df_file = f"{RE_DATA}{cell_line}_df.tsv"
 
-comp_list = ["der_v_core", "der_v_bkgd", "tf_density_enh", "tf_density_syn",
+comp_list = ["der_v_core", "der_v_bkgd",
              "simple_v_core", "simple_v_bkgd", "simple_v_der",
              "core_v_bkgd", "df"]
 
 
 if os.path.exists(df_file) is False:
 
-    der_v_core, der_v_bkgd, tf_density_enh, tf_density_syn, simple_v_core,\
+    der_v_core, der_v_bkgd,  simple_v_core,\
      simple_v_bkgd, simple_v_der, core_v_bkgd, df = run_analysis(
         cell_line, val, ENHBASE, ENCODEPATH, MIN_INSTANCES, ALPHA)
 
     data_dict = {  # dictionary of the dataframes and odds ratio comparisons
         "der_v_core": der_v_core,
         "der_v_bkgd": der_v_bkgd,
-        "tf_density_enh": tf_density_enh,
-        "tf_density_syn": tf_density_syn,
         "simple_v_core": simple_v_core,
         "simple_v_bkgd": simple_v_bkgd,
         "simple_v_der": simple_v_der,
@@ -584,28 +582,25 @@ if os.path.exists(df_file) is False:
         "df": df
     }
 #%%
-df.head()
 
-arch1, arch2 = "complex_derived", "complex_core"
-der_v_core = run_2x2(arch1, arch2, df, MIN_INSTANCES, ALPHA, None)
-der_v_core
 #%%
 for k, i in data_dict.items():
     print(k, type(i))
     #if bool(i) is True:
     #    print(i.head())
 #%%
-for comp, dataframe in data_dict.items():
-    if bool(dataframe) is True:
-        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
-        dataframe.to_csv(outf, sep='\t', index=False)
-
-    else:
-        data_dict = {}
-        for comp in comp_list:
+if bool(data_dict) is True:
+    for comp, dataframe in data_dict.items():
+        if bool(dataframe) is True:
             outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
-            df = pd.read_csv(outf, sep='\t')
-            data_dict[comp] = df
+            dataframe.to_csv(outf, sep='\t', index=False)
+
+else:
+    data_dict = {}
+    for comp in comp_list:
+        outf = f"{RE_DATA}{cell_line}_{comp}.tsv"
+        df = pd.read_csv(outf, sep='\t')
+        data_dict[comp] = df
 
 #%%
 
