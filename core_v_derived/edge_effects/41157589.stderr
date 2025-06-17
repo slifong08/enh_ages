@@ -1,0 +1,24 @@
+python /dors/capra_lab/users/fongsl/enh_ages/core_v_derived/1000G/1kg_intersection.py -b /dors/capra_lab/projects/enhancer_ages/fantom/data/architecture_coordinates/all_fantom/FANTOM_complexenh_windows-11.bed -o /dors/capra_lab/projects/enhancer_ages/1000g/results/
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr17.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr14.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr16.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr20.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr7.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr12.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr10.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr2.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr5.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr21.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr11.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr18.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr6.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr15.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr9.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr4.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr8.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr1.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr22.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr13.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr3.bed
+already intersected /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr19.bed
+cat! cat /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed-chr*.bed > /dors/capra_lab/projects/enhancer_ages/1000g/results/FANTOM_complexenh_windows-11_x_1kg_trimmed.bed
